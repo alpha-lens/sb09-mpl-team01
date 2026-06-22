@@ -2,7 +2,7 @@ package com.codeit.mpl.dto.response;
 
 import java.util.List;
 
-public record CursorResponseDto<T>(
+public record CursorPageResponseDto<T>(
     List<T> data,
     String nextCursor,
     String nextIdAfter,
