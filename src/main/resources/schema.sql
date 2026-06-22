@@ -98,3 +98,19 @@ CREATE TABLE watching_sessions (
                                    content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
                                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 11. 알림 시스템 (Notification Management)
+CREATE TABLE notifications (
+                               id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                               receiver_id UUID NOT NULL,
+                               sender_id UUID,
+                               level VARCHAR(50) NOT NULL,
+                               title VARCHAR(255) NOT NULL,
+                               content TEXT NOT NULL,
+                               is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                               created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                               FOREIGN KEY (receiver_id) REFERENCES users(id),
+                               FOREIGN KEY (sender_id) REFERENCES users(id)
+);
+
+CREATE INDEX idx_notifications_receiver_read ON notifications (receiver_id, is_read, created_at DESC);
