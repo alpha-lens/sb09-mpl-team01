@@ -1,4 +1,4 @@
-package com.codeit.mpl.entity.base;
+package com.codeit.mpl.entity;
 
 import com.codeit.mpl.entity.base.BaseUpdatableEntity;
 import jakarta.persistence.Column;
@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
         @UniqueConstraint(columnNames = {"author_id", "content_id"})
     }
 )
-public class Review extends BaseUpdatableEntity {
+public class ReviewEntity extends BaseUpdatableEntity {
 
   @Column(name = "author_id", nullable = false)
   private UUID authorId;
@@ -32,7 +32,7 @@ public class Review extends BaseUpdatableEntity {
   @Column(name = "rating", nullable = false)
   private Double rating;
 
-  public Review(UUID authorId, UUID contentId, String text, Double rating) {
+  public ReviewEntity(UUID authorId, UUID contentId, String text, Double rating) {
     this.authorId = authorId;
     this.contentId = contentId;
     this.text = text;
