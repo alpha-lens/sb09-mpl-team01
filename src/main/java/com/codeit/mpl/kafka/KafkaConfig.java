@@ -30,7 +30,11 @@ public class KafkaConfig {
     @Value("${spring.kafka.consumer.group-id:mpl-group}")
     private String groupId;
 
-    // --- Producer Configs ---
+    /**
+     * Configures a Kafka producer factory that serializes keys as strings and values as JSON.
+     *
+     * @return a producer factory with string key and JSON value serialization
+     */
     @Bean
     public ProducerFactory<String, Object> producerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -40,12 +44,21 @@ public class KafkaConfig {
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
+    /**
+     * Provides a Kafka template for sending messages.
+     *
+     * @return a KafkaTemplate configured for message production with String keys and Object values
+     */
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());
     }
 
-    // --- Consumer Configs ---
+    /**
+     * Creates a Kafka consumer factory for String-keyed JSON messages.
+     *
+     * @return A ConsumerFactory configured to deserialize String keys and JSON values.
+     */
     @Bean
     public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -62,6 +75,11 @@ public class KafkaConfig {
         );
     }
 
+    /**
+     * Creates a Kafka listener container factory for consuming Kafka messages.
+     *
+     * @return a ConcurrentKafkaListenerContainerFactory configured with the consumer factory
+     */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();

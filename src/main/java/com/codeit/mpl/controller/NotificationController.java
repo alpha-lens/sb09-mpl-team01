@@ -36,6 +36,16 @@ public class NotificationController {
   private final UserRepository userRepository;
   private final SseService sseService;
 
+  /**
+   * Retrieves a page of notifications for the authenticated user using cursor-based pagination.
+   *
+   * @param cursor         the cursor position for pagination (optional)
+   * @param idAfter        the notification ID after which to fetch records (optional)
+   * @param limit          the maximum number of notifications to return
+   * @param sortDirection  the sort direction for results
+   * @param sortBy         the field to sort by
+   * @return               a paginated response containing notifications
+   */
   @GetMapping
   public ResponseEntity<CursorPageResponseDto<NotificationDto>> getNotifications(
       @AuthenticationPrincipal UserDetails userDetails,
@@ -64,6 +74,13 @@ public class NotificationController {
     return ResponseEntity.ok(response);
   }
 
+  /**
+   * Establishes a Server-Sent Events connection for the authenticated user to receive real-time notifications.
+   *
+   * @param lastEventId the Last-Event-ID header value for resuming the event stream from a previous connection
+   * @return an SseEmitter for streaming notifications to the client
+   * @throws IllegalArgumentException if the user details are invalid or the user cannot be found
+   */
   @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public ResponseEntity<SseEmitter> subscribe(
       @AuthenticationPrincipal UserDetails userDetails,
@@ -77,6 +94,11 @@ public class NotificationController {
     return ResponseEntity.ok(emitter);
   }
 
+  /**
+   * Deletes the specified notification.
+   *
+   * @return a response with HTTP status 204 No Content
+   */
   @DeleteMapping("/{notificationId}")
   public ResponseEntity<Void> deleteNotification(
       @PathVariable UUID notificationId
@@ -85,6 +107,13 @@ public class NotificationController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * Resolves the authenticated user's UUID from UserDetails.
+   *
+   * @param  userDetails the authentication details of the current user
+   * @return the user's UUID
+   * @throws IllegalArgumentException if userDetails is null or if no user exists with the username from userDetails
+   */
   private UUID getUserIdFromUserDetails(UserDetails userDetails) {
     if (userDetails == null) {
       // 비로그인 테스트 대응 또는 예외 처리

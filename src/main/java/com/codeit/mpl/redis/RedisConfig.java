@@ -12,6 +12,11 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class RedisConfig {
 
+    /**
+     * Creates a RedisTemplate configured with string serialization for keys and JSON serialization for values.
+     *
+     * @return a configured RedisTemplate instance
+     */
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
@@ -27,7 +32,9 @@ public class RedisConfig {
     }
 
     /**
-     * Redis Pub/Sub 메시지를 처리하는 리스너 컨테이너 설정
+     * Creates a Redis message listener container bean for handling Pub/Sub messages.
+     *
+     * @return a configured RedisMessageListenerContainer
      */
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory) {
@@ -37,15 +44,20 @@ public class RedisConfig {
     }
 
     /**
-     * 알림을 위한 Redis Topic 정의
+     * Creates a Redis Pub/Sub topic for notification messages.
+     *
+     * @return a channel topic for notifications
      */
+    */
     @Bean
     public ChannelTopic notificationTopic() {
         return new ChannelTopic("ch-notification");
     }
 
     /**
-     * 채팅을 위한 Redis Topic 정의
+     * Creates a Redis Pub/Sub topic for chat messages.
+     *
+     * @return a ChannelTopic configured for the 'ch-chat' channel
      */
     @Bean
     public ChannelTopic chatTopic() {

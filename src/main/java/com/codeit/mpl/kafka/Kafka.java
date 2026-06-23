@@ -15,10 +15,10 @@ public class Kafka {
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     /**
-     * Kafka 토픽으로 메시지 발행
-     * 
-     * @param topic 전송할 토픽명 (예: chat-topic, notification-topic)
-     * @param message 발행할 메시지 객체
+     * Publishes a message to the specified Kafka topic.
+     *
+     * @param topic the Kafka topic name
+     * @param message the message object to publish
      */
     public void send(String topic, Object message) {
         kafkaTemplate.send(topic, message)
@@ -34,7 +34,9 @@ public class Kafka {
     }
 
     /**
-     * Kafka 채팅 토픽 구독 리스너
+     * Consumes chat messages from the chat topic.
+     *
+     * @param message the chat message received from Kafka
      */
     @KafkaListener(topics = "chat-topic", groupId = "mpl-group")
     public void consumeChatMessage(ChatMessage message) {
@@ -45,7 +47,9 @@ public class Kafka {
     }
 
     /**
-     * Kafka 알림 토픽 구독 리스너
+     * Consumes notification events from the Kafka notification topic.
+     *
+     * @param notificationEvent the notification event payload to process
      */
     @KafkaListener(topics = "notification-topic", groupId = "mpl-group")
     public void consumeNotificationEvent(Object notificationEvent) {
