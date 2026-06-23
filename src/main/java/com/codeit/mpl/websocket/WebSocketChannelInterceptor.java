@@ -19,6 +19,14 @@ public class WebSocketChannelInterceptor implements ChannelInterceptor {
 
     private final JwtTokenProvider jwtTokenProvider;
 
+    /**
+     * Authenticates STOMP CONNECT messages using a JWT token from the message headers.
+     *
+     * Throws an exception if the token is invalid or missing.
+     *
+     * @return the original message
+     * @throws IllegalArgumentException if the STOMP CONNECT message has an invalid or missing token
+     */
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
@@ -39,6 +47,12 @@ public class WebSocketChannelInterceptor implements ChannelInterceptor {
         return message;
     }
 
+    /**
+     * Extracts a JWT token from STOMP native headers.
+     *
+     * @param accessor the STOMP header accessor
+     * @return the JWT token if found, {@code null} otherwise
+     */
     private String resolveToken(StompHeaderAccessor accessor) {
         // 1. STOMP Header 'Authorization'에서 Bearer 토큰 추출
         String bearerToken = accessor.getFirstNativeHeader("Authorization");

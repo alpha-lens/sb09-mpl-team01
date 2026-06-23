@@ -19,6 +19,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
   private final NotificationRepository notificationRepository;
 
+  /**
+   * Retrieves notifications for a user using cursor-based pagination.
+   *
+   * @param userId  the user whose notifications to retrieve
+   * @param cursor  the pagination cursor from a previous response; null for the first page
+   * @param idAfter notifications created after this timestamp
+   * @param limit   the maximum number of notifications to return per page
+   * @return        a paginated response containing notifications and pagination metadata
+   */
   @Transactional(readOnly = true)
   public CursorPageResponseDto<NotificationDto> getNotifications(
       UUID userId, String cursor, Instant idAfter, int limit
@@ -35,6 +44,11 @@ public class NotificationService {
     );
   }
 
+  /**
+   * Deletes the notification with the specified ID.
+   *
+   * @param notificationId the ID of the notification to delete
+   */
   public void deleteNotification(UUID notificationId) {
     notificationRepository.deleteById(notificationId);
   }

@@ -33,11 +33,19 @@ public class JwtTokenProvider {
 
     private Key key;
 
+    /**
+     * Initializes the HMAC signing key derived from the configured secret.
+     */
     @PostConstruct
     protected void init() {
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Creates a JWT token with the specified username and role.
+     *
+     * @return a compact JWT string
+     */
     public String createToken(String username, String role) {
         Claims claims = Jwts.claims().setSubject(username);
         claims.put("role", role);
@@ -53,6 +61,13 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /**
+     * Constructs an Authentication object from a JWT token.
+     * If the token does not contain a role claim, the default role "ROLE_USER" is assigned.
+     *
+     * @param token a JWT token
+     * @return an Authentication object containing the user's credentials and authorities
+     */
     public Authentication getAuthentication(String token) {
         Claims claims = parseClaims(token);
         String username = claims.getSubject();
@@ -64,10 +79,22 @@ public class JwtTokenProvider {
         return new UsernamePasswordAuthenticationToken(userDetails, token, userDetails.getAuthorities());
     }
 
+    /**
+     * Extracts the username from a JWT token.
+     *
+     * @param  token the JWT token
+     * @return       the username encoded in the token
+     */
     public String getUsername(String token) {
         return parseClaims(token).getSubject();
     }
 
+    /**
+     * Validates the integrity and structure of a JWT token.
+     *
+     * @param token the JWT token string to validate
+     * @return {@code true} if the token is valid and properly signed, {@code false} otherwise
+     */
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
@@ -84,6 +111,12 @@ public class JwtTokenProvider {
         return false;
     }
 
+    /**
+     * Extracts the claims from a JWT token.
+     *
+     * @param token the JWT token to parse
+     * @return the claims contained in the token
+     */
     private Claims parseClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(key)

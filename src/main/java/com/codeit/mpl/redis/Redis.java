@@ -29,6 +29,9 @@ public class Redis implements MessageListener {
     private final SimpMessageSendingOperations messagingTemplate;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Registers this service as a listener for notification and chat Redis topics.
+     */
     @PostConstruct
     public void init() {
         // 리스너 컨테이너에 현재 클래스(MessageListener)를 구독 등록
@@ -37,7 +40,10 @@ public class Redis implements MessageListener {
     }
 
     /**
-     * Redis 토픽으로 메시지 발행
+     * Publishes a message to a Redis channel.
+     *
+     * @param topic the topic to publish to
+     * @param message the message to publish
      */
     public void publish(ChannelTopic topic, Object message) {
         redisTemplate.convertAndSend(topic.getTopic(), message);
@@ -45,7 +51,10 @@ public class Redis implements MessageListener {
     }
 
     /**
-     * Redis에서 발행된 메시지 수신 (구독 핸들러)
+     * Handles incoming Redis pub/sub messages by routing them to appropriate handlers based on topic.
+     *
+     * Notification messages are forwarded to the SSE service, and chat messages are broadcast
+     * via STOMP to the respective chat room.
      */
     @Override
     public void onMessage(Message message, byte[] pattern) {
@@ -77,13 +86,27 @@ public class Redis implements MessageListener {
         private UUID receiverId;
         private Object data;
 
-        public RedisNotificationWrapper() {}
+        /**
+ * Constructs an empty notification wrapper.
+ */
+public RedisNotificationWrapper() {}
 
+        /**
+         * Constructs a notification wrapper with the specified recipient and payload.
+         *
+         * @param receiverId the UUID of the recipient
+         * @param data       the notification payload
+         */
         public RedisNotificationWrapper(UUID receiverId, Object data) {
             this.receiverId = receiverId;
             this.data = data;
         }
 
+        /**
+         * Returns the receiver ID.
+         *
+         * @return the receiver ID
+         */
         public UUID getReceiverId() {
             return receiverId;
         }
@@ -96,6 +119,11 @@ public class Redis implements MessageListener {
             return data;
         }
 
+        /**
+         * Sets the notification data payload.
+         *
+         * @param data the data to store
+         */
         public void setData(Object data) {
             this.data = data;
         }

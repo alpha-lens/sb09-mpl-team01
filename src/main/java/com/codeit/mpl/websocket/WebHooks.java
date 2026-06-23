@@ -17,7 +17,10 @@ public class WebHooks {
     private final SimpMessageSendingOperations messagingTemplate;
 
     /**
-     * 클라이언트가 /pub/chat/message로 전송한 메시지를 수신하여 브로드캐스트 토대 제공
+     * Receives a chat message from a WebSocket client and broadcasts it to subscribers
+     * of the corresponding chat room.
+     *
+     * @param message the chat message containing the room ID, sender, and content
      */
     @MessageMapping("/chat/message")
     public void message(ChatMessage message) {
