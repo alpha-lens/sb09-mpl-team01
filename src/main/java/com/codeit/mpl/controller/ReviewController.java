@@ -4,7 +4,12 @@ import com.codeit.mpl.dto.request.ReviewCreateRequest;
 import com.codeit.mpl.dto.request.ReviewUpdateRequest;
 import com.codeit.mpl.dto.response.ReviewDto;
 import com.codeit.mpl.service.ReviewService;
+import com.codeit.mpl.dto.response.CursorPageResponseDto;
+import com.codeit.mpl.dto.response.Direction;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import java.util.UUID;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -27,7 +32,7 @@ public class ReviewController {
 
   // 리뷰 생성
   @PostMapping
-  public ResponseEntity<ReviewDto> createReview(@RequestBody ReviewCreateRequest request) {
+  public ResponseEntity<ReviewDto> createReview(@Valid @RequestBody ReviewCreateRequest request) {
     ReviewDto response = reviewService.createReview(TEMP_AUTHOR_ID, request);
     return ResponseEntity.ok(response);
   }
@@ -36,7 +41,7 @@ public class ReviewController {
   @PatchMapping("/{reviewId}")
   public ResponseEntity<ReviewDto> updateReview(
       @PathVariable UUID reviewId,
-      @RequestBody ReviewUpdateRequest request
+      @Valid @RequestBody ReviewUpdateRequest request
   ) {
     ReviewDto response = reviewService.updateReview(TEMP_AUTHOR_ID, reviewId, request);
     return ResponseEntity.ok(response);
@@ -47,5 +52,21 @@ public class ReviewController {
   public ResponseEntity<Void> deleteReview(@PathVariable UUID reviewId) {
     reviewService.deleteReview(TEMP_AUTHOR_ID, reviewId);
     return ResponseEntity.noContent().build();
+  }
+
+  // 리뷰 목록 조회
+  @GetMapping
+  public ResponseEntity<CursorPageResponseDto<ReviewDto>> getReviews(
+      @RequestParam UUID contentId,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(required = false) String idAfter,
+      @RequestParam int limit,
+      @RequestParam String sortBy,
+      @RequestParam Direction sortDirection
+  ) {
+    CursorPageResponseDto<ReviewDto> response = reviewService.getReviews(
+        contentId, cursor, idAfter, limit, sortBy, sortDirection
+    );
+    return ResponseEntity.ok(response);
   }
 }
