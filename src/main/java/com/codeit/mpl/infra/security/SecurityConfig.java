@@ -1,4 +1,4 @@
-package com.codeit.mpl.config;
+package com.codeit.mpl.infra.security;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;

@@ -1,4 +1,4 @@
-package com.codeit.mpl.config;
+package com.codeit.mpl.infra.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
