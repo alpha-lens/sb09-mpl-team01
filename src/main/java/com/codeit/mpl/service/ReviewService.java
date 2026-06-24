@@ -11,6 +11,10 @@ import com.codeit.mpl.repository.ReviewRepository;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,9 +78,15 @@ public class ReviewService {
       String sortBy,
       Direction sortDirection
   ) {
-    List<ReviewEntity> reviews = reviewRepository.findByContentId(contentId);
+    Sort.Direction direction = sortDirection == Direction.ASCENDING
+        ? Sort.Direction.ASC
+        : Sort.Direction.DESC;
 
-    List<ReviewDto> reviewDtos = reviews.stream()
+    Pageable pageable = PageRequest.of(0, limit, Sort.by(direction, sortBy));
+
+    Page<ReviewEntity> reviewPage = reviewRepository.findByContentId(contentId, pageable);
+
+    List<ReviewDto> reviewDtos = reviewPage.getContent().stream()
         .map(ReviewDto::from)
         .toList();
 
@@ -84,8 +94,8 @@ public class ReviewService {
         reviewDtos,
         null,
         null,
-        false,
-        reviewDtos.size(),
+        reviewPage.hasNext(),
+        reviewPage.getTotalElements(),
         sortBy,
         sortDirection
     );
