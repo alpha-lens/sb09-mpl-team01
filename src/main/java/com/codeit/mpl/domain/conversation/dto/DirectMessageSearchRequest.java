@@ -1,4 +1,4 @@
-package com.codeit.mpl.domain.dm.dto;
+package com.codeit.mpl.domain.conversation.dto;
 
 import com.codeit.mpl.infra.common.dto.Direction;
 import java.util.UUID;

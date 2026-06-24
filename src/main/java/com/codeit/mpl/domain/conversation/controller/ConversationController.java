@@ -1,7 +1,7 @@
-package com.codeit.mpl.domain.dm.controller;
+package com.codeit.mpl.domain.conversation.controller;
 
-import com.codeit.mpl.domain.dm.dto.DirectMessageDto;
-import com.codeit.mpl.domain.dm.dto.DirectMessageSearchRequest;
+import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
+import com.codeit.mpl.domain.conversation.dto.DirectMessageSearchRequest;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Controller
 @RequestMapping("/api/conversations")
 @RequiredArgsConstructor
-public class DirectMessageController {
+public class ConversationController {
   @GetMapping
   public ResponseEntity<CursorPageResponseDto<DirectMessageDto>> getDM(
       @ModelAttribute DirectMessageSearchRequest request

@@ -1,6 +1,6 @@
 package com.codeit.mpl.infra.exception.dto;
 
-import com.codeit.mpl.domain.dm.dto.DirectMessageDto;
+import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
 import com.codeit.mpl.domain.user.dto.UserSummary;
 import java.util.UUID;
 
