@@ -1,6 +1,6 @@
 package com.codeit.mpl.domain.user.dto.response;
 
-import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.user.entity.UserRole;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -11,6 +11,6 @@ public record UserDto(
         String email,
         String name,
         String profileImageUrl,
-        User.Role role,
+        UserRole role,
         boolean locked
 ) {}
