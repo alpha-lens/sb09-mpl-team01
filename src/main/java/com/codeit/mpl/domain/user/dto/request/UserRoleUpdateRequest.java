@@ -1,14 +1,8 @@
 package com.codeit.mpl.domain.user.dto.request;
 
-import com.codeit.mpl.entity.UserEntity;
+import com.codeit.mpl.domain.user.entity.User;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
-@Getter
-@NoArgsConstructor
-public class UserRoleUpdateRequest {
-
-    @NotNull
-    private UserEntity.Role role;
-}
+public record UserRoleUpdateRequest(
+        @NotNull User.Role role
+) {}
