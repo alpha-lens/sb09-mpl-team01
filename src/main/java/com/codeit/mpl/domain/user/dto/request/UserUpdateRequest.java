@@ -1,4 +1,4 @@
-package com.codeit.mpl.dto.request;
+package com.codeit.mpl.domain.user.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -7,9 +7,9 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-public class ChangePasswordRequest {
+public class UserUpdateRequest {
 
     @NotBlank
-    @Size(min = 8, max = 255)
-    private String password;
+    @Size(max = 255)
+    private String name;
 }

@@ -1,4 +1,4 @@
-package com.codeit.mpl.exception;
+package com.codeit.mpl.infra.exception;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

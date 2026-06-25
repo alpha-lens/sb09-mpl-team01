@@ -1,4 +1,4 @@
-package com.codeit.mpl.dto.response;
+package com.codeit.mpl.domain.user.dto.response;
 
 import com.codeit.mpl.entity.UserEntity;
 import lombok.Builder;

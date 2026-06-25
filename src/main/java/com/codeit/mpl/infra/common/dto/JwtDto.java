@@ -1,5 +1,6 @@
-package com.codeit.mpl.dto.response;
+package com.codeit.mpl.infra.common.dto;
 
+import com.codeit.mpl.domain.user.dto.response.UserDto;
 import lombok.Builder;
 import lombok.Getter;
 

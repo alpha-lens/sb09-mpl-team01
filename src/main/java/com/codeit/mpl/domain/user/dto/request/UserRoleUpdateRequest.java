@@ -1,4 +1,4 @@
-package com.codeit.mpl.dto.request;
+package com.codeit.mpl.domain.user.dto.request;
 
 import com.codeit.mpl.entity.UserEntity;
 import jakarta.validation.constraints.NotNull;

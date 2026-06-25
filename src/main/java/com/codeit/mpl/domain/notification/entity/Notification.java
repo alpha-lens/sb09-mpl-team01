@@ -1,6 +1,5 @@
 package com.codeit.mpl.domain.notification.entity;
 
-import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.infra.common.entity.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
