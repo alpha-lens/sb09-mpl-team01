@@ -1,6 +1,6 @@
 package com.codeit.mpl.domain.review.dto;
 
-import com.codeit.mpl.domain.review.entity.ReviewEntity;
+import com.codeit.mpl.domain.review.entity.Review;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -14,7 +14,7 @@ public record ReviewDto (
     Instant createdAt,
     Instant updatedAt
 ) {
-    public static ReviewDto from(ReviewEntity review) {
+    public static ReviewDto from(Review review) {
         return new ReviewDto(
             review.getId(),
             review.getContentId(),
