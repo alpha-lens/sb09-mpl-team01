@@ -19,9 +19,14 @@ CREATE TABLE contents (
                           description TEXT,
                           thumbnail_url TEXT,
                           content_url TEXT,
-                          type VARCHAR(20) NOT NULL CHECK (type IN ('MOVIE', 'TVSERIES', 'SPORT')),
+                          type VARCHAR(20) NOT NULL CHECK (type IN ('movie', 'tvSeries', 'sport')),
                           created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE content_tags (
+                              content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
+                              tag VARCHAR(255) NOT NULL
 );
 
 -- 3. 리뷰 테이블 (reviews)
