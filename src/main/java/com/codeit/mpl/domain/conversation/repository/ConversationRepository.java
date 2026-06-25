@@ -1,5 +1,9 @@
 package com.codeit.mpl.domain.conversation.repository;
 
-public interface ConversationRepository {
+import com.codeit.mpl.domain.conversation.entity.Conversation;
+import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ConversationRepository extends JpaRepository<Conversation, UUID> {
 
 }

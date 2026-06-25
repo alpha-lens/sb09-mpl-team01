@@ -24,6 +24,13 @@ public class Conversation extends BaseEntity {
   private User user1;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "user1_id", nullable = false)
+  @JoinColumn(name = "user2_id", nullable = false)
   private User user2;
+
+  public static Conversation create(User user1, User user2) {
+    return Conversation.builder()
+        .user1(user1)
+        .user2(user2)
+        .build();
+  }
 }

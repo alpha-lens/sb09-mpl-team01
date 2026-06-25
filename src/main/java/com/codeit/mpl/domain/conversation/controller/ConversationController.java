@@ -38,6 +38,7 @@ public class ConversationController {
   public ResponseEntity<ConversationDto> createConversation(
       @RequestBody @Valid ConversationCreateRequest request
   ) {
+    conversationService.createConversation(request);
     return ResponseEntity.ok(null);
   }
 
