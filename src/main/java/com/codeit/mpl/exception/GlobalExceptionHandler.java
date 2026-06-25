@@ -25,7 +25,8 @@ public class GlobalExceptionHandler {
         Map<String, String> details = e.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         FieldError::getField,
-                        fieldError -> fieldError.getDefaultMessage() != null ? fieldError.getDefaultMessage() : "유효하지 않은 값입니다."
+                        fieldError -> fieldError.getDefaultMessage() != null ? fieldError.getDefaultMessage() : "유효하지 않은 값입니다.",
+                        (first, second) -> first
                 ));
         ErrorResponse response = new ErrorResponse("ValidationException", "입력값이 올바르지 않습니다.", details);
         return ResponseEntity.badRequest().body(response);
