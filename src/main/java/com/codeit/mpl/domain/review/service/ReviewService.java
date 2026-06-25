@@ -3,7 +3,7 @@ package com.codeit.mpl.domain.review.service;
 import com.codeit.mpl.domain.review.dto.ReviewCreateRequest;
 import com.codeit.mpl.domain.review.dto.ReviewDto;
 import com.codeit.mpl.domain.review.dto.ReviewUpdateRequest;
-import com.codeit.mpl.domain.review.entity.ReviewEntity;
+import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
@@ -30,7 +30,7 @@ public class ReviewService {
       throw new IllegalArgumentException("이미 리뷰를 작성했습니다.");
     }
 
-    ReviewEntity review = new ReviewEntity(
+    Review review = new Review(
         authorId,
         request.contentId(),
         request.text(),
@@ -47,7 +47,7 @@ public class ReviewService {
   }
 
   public ReviewDto updateReview(UUID authorId, UUID reviewId, ReviewUpdateRequest request) {
-    ReviewEntity review = reviewRepository.findById(reviewId)
+    Review review = reviewRepository.findById(reviewId)
         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 리뷰입니다."));
 
     if (!review.getAuthorId().equals(authorId)) {
@@ -59,7 +59,7 @@ public class ReviewService {
   }
 
   public void deleteReview(UUID authorId, UUID reviewId) {
-    ReviewEntity review = reviewRepository.findById(reviewId)
+    Review review = reviewRepository.findById(reviewId)
         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 리뷰입니다."));
 
     if (!review.getAuthorId().equals(authorId)) {
@@ -84,7 +84,7 @@ public class ReviewService {
 
     Pageable pageable = PageRequest.of(0, limit, Sort.by(direction, sortBy));
 
-    Page<ReviewEntity> reviewPage = reviewRepository.findByContentId(contentId, pageable);
+    Page<Review> reviewPage = reviewRepository.findByContentId(contentId, pageable);
 
     List<ReviewDto> reviewDtos = reviewPage.getContent().stream()
         .map(ReviewDto::from)
