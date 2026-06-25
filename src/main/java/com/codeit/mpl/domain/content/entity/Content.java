@@ -1,6 +1,7 @@
 package com.codeit.mpl.domain.content.entity;
 
 import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.infra.common.entity.base.BaseUpdatableEntity;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -9,33 +10,20 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UuidGenerator;
 
 @Entity
 @Getter
 @Table(name = "contents")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Content {
-
-    @Id
-    @GeneratedValue
-    @UuidGenerator
-    @Column(nullable = false, updatable = false)
-    private UUID id;
+public class Content extends BaseUpdatableEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
@@ -69,12 +57,6 @@ public class Content {
     )
     @Column(name = "tag", nullable = false, length = 255)
     private List<String> tags = new ArrayList<>();
-
-    @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt;
 
     public static Content create(
             User creator,
@@ -112,17 +94,5 @@ public class Content {
         if (tags != null) {
             this.tags.addAll(tags);
         }
-    }
-
-    @PrePersist
-    void prePersist() {
-        OffsetDateTime now = OffsetDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        this.updatedAt = OffsetDateTime.now();
     }
 }
