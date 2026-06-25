@@ -1,13 +1,7 @@
 package com.codeit.mpl.domain.user.dto.request;
 
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
-@Getter
-@NoArgsConstructor
-public class UserLockUpdateRequest {
-
-    @NotNull
-    private Boolean locked;
-}
+public record UserLockUpdateRequest(
+        @NotNull Boolean locked
+) {}

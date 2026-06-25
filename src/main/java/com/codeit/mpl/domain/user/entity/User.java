@@ -27,13 +27,9 @@ public class User extends BaseUpdatableEntity {
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 20)
   @Builder.Default
-  private Role role = Role.USER;
+  private UserRole role = UserRole.USER;
 
   @Column(name = "is_locked", nullable = false)
   @Builder.Default
   private boolean locked = false;
-
-  public enum Role {
-    USER, ADMIN
-  }
 }

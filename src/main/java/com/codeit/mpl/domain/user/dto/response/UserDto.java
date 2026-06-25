@@ -1,21 +1,16 @@
 package com.codeit.mpl.domain.user.dto.response;
 
-import com.codeit.mpl.entity.UserEntity;
-import lombok.Builder;
-import lombok.Getter;
+import com.codeit.mpl.domain.user.entity.UserRole;
 
 import java.time.Instant;
 import java.util.UUID;
 
-@Getter
-@Builder
-public class UserDto {
-
-    private UUID id;
-    private Instant createdAt;
-    private String email;
-    private String name;
-    private String profileImageUrl;
-    private UserEntity.Role role;
-    private boolean locked;
-}
+public record UserDto(
+        UUID id,
+        Instant createdAt,
+        String email,
+        String name,
+        String profileImageUrl,
+        UserRole role,
+        boolean locked
+) {}
