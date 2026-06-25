@@ -19,7 +19,7 @@ CREATE TABLE contents (
                           description TEXT,
                           thumbnail_url TEXT,
                           content_url TEXT,
-                          type VARCHAR(20) NOT NULL CHECK (type IN ('movie', 'tvSeries', 'sport')),
+                          type VARCHAR(20) NOT NULL CHECK (type IN ('MOVIE', 'TVSERIES', 'SPORT')),
                           created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
