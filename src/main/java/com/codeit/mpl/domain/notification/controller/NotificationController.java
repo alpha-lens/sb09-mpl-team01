@@ -3,8 +3,6 @@ package com.codeit.mpl.domain.notification.controller;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.domain.notification.dto.NotificationDto;
-import com.codeit.mpl.domain.user.entity.User;
-import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.domain.notification.service.NotificationService;
 import com.codeit.mpl.infra.sse.SseService;
 import jakarta.validation.constraints.Min;

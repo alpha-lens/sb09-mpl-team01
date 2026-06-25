@@ -1,39 +1,39 @@
 package com.codeit.mpl.domain.user.entity;
 
-import com.codeit.mpl.infra.common.entity.base.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Table;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import com.codeit.mpl.infra.common.entity.base.BaseUpdatableEntity;
+import jakarta.persistence.*;
+import lombok.*;
 
 @Entity
-@Getter
 @Table(name = "users")
-@Builder
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class User extends BaseEntity {
+@Builder
+public class User extends BaseUpdatableEntity {
 
-    @Column(name = "username", nullable = false, unique = true)
-    private String username;
+  @Column(nullable = false, unique = true, length = 255)
+  private String email;
 
-    @Column(name = "password", nullable = false)
-    private String password;
+  @Column(nullable = false, columnDefinition = "TEXT")
+  private String password;
 
-    @Column(name = "email", nullable = false, unique = true)
-    private String email;
+  @Column(nullable = false, length = 255)
+  private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false)
-    private UserRole role;
+  @Column(name = "profile_image_url", columnDefinition = "TEXT")
+  private String profileImageUrl;
 
-    public enum UserRole {
-        ROLE_USER, ROLE_ADMIN
-    }
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  @Builder.Default
+  private Role role = Role.USER;
+
+  @Column(name = "is_locked", nullable = false)
+  @Builder.Default
+  private boolean locked = false;
+
+  public enum Role {
+    USER, ADMIN
+  }
 }

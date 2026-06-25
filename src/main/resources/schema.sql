@@ -24,6 +24,11 @@ CREATE TABLE contents (
                           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE content_tags (
+                              content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
+                              tag VARCHAR(255) NOT NULL
+);
+
 -- 3. 리뷰 테이블 (reviews)
 CREATE TABLE reviews (
                          id UUID PRIMARY KEY NOT NULL,
