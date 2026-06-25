@@ -1,7 +1,9 @@
 package com.codeit.mpl.domain.content.entity;
 
 import com.codeit.mpl.domain.user.entity.User;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -15,6 +17,8 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -57,6 +61,15 @@ public class Content {
     @Column(nullable = false, length = 20)
     private ContentType type;
 
+    @ElementCollection
+    @CollectionTable(
+            name = "content_tags",
+            joinColumns = @JoinColumn(name = "content_id"),
+            foreignKey = @ForeignKey(name = "fk_content_tags_content")
+    )
+    @Column(name = "tag", nullable = false, length = 255)
+    private List<String> tags = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -65,28 +78,40 @@ public class Content {
 
     public static Content create(
             User creator,
+            ContentType type,
             String title,
             String description,
             String thumbnailUrl,
             String contentUrl,
-            ContentType type
+            List<String> tags
     ) {
         Content content = new Content();
         content.creator = creator;
+        content.type = type;
         content.title = title;
         content.description = description;
         content.thumbnailUrl = thumbnailUrl;
         content.contentUrl = contentUrl;
-        content.type = type;
+
+        if (tags != null) {
+            content.tags.addAll(tags);
+        }
+
         return content;
     }
 
     public void update(
             String title,
-            String description
+            String description,
+            List<String> tags
     ) {
         this.title = title;
         this.description = description;
+        this.tags.clear();
+
+        if (tags != null) {
+            this.tags.addAll(tags);
+        }
     }
 
     @PrePersist
