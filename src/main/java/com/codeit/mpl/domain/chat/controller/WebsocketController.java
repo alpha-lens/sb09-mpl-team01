@@ -51,7 +51,6 @@ public class WebsocketController {
                     Instant.now()
             );
 
-            log.info("[WebSocket Chat] Content={}: sender={}, message={}", contentId, user.getId(), request.message());
             messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/chat", chatDto);
         });
     }
