@@ -7,8 +7,8 @@ CREATE TABLE users (
                        profile_image_url TEXT,
                        role VARCHAR(20) NOT NULL DEFAULT 'USER' CHECK (role IN ('USER', 'ADMIN')),
                        is_locked BOOLEAN NOT NULL DEFAULT FALSE,
-                       created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                       updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 2. 콘텐츠 테이블 (contents)
@@ -20,8 +20,8 @@ CREATE TABLE contents (
                           thumbnail_url TEXT,
                           content_url TEXT,
                           type VARCHAR(20) NOT NULL CHECK (type IN ('movie', 'tvSeries', 'sport')),
-                          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE content_tags (
@@ -36,8 +36,8 @@ CREATE TABLE reviews (
                          author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                          text TEXT NOT NULL,
                          rating DOUBLE PRECISION NOT NULL DEFAULT 0.0 CHECK (rating >= 0.0 AND rating <= 5.0),
-                         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                         updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 4. 플레이리스트 테이블 (Playlist)
@@ -46,8 +46,8 @@ CREATE TABLE playlists (
                            owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                            title VARCHAR(255) NOT NULL,
                            description TEXT,
-                           created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                           created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                           updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 5. 플레이리스트-콘텐츠 매핑 테이블 (PlaylistContent)
@@ -80,7 +80,7 @@ CREATE TABLE conversations (
                                id UUID PRIMARY KEY NOT NULL,
                                user1_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                user2_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                               created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                               created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                CONSTRAINT uk_conversation_users UNIQUE (user1_id, user2_id),
                                CONSTRAINT chk_different_users CHECK (user1_id <> user2_id)
 );
@@ -93,7 +93,7 @@ CREATE TABLE dms (
                      receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                      content TEXT NOT NULL,
                      is_read BOOLEAN NOT NULL DEFAULT FALSE,
-                     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 10. 시청 세션 테이블 (WatchingSession)
@@ -101,12 +101,12 @@ CREATE TABLE watching_sessions (
                                    id UUID PRIMARY KEY NOT NULL,
                                    watcher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                    content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
-                                   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 11. 알림 시스템 (Notification Management)
 CREATE TABLE notifications (
-                               id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                               id UUID PRIMARY KEY,
                                receiver_id UUID NOT NULL,
                                sender_id UUID,
                                level VARCHAR(50) NOT NULL,
