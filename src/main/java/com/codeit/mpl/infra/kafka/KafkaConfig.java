@@ -20,11 +20,14 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.context.annotation.Profile;
+
 @Configuration
+@Profile("!test")
 @EnableKafka
 public class KafkaConfig {
 
-    @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
+    @Value("${spring.kafka.bootstrap-servers:localhost:29092}")
     private String bootstrapServers;
 
     @Value("${spring.kafka.consumer.group-id:mpl-group}")
