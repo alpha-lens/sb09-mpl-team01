@@ -1,10 +1,14 @@
 package com.codeit.mpl.domain.curating.entity;
 
+import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.infra.common.entity.base.BaseUpdatableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -14,8 +18,13 @@ import lombok.NoArgsConstructor;
 @Table(name = "playlists")
 public class Playlist extends BaseUpdatableEntity {
 
-  @Column(name = "owner_id", nullable = false)
-  private UUID ownerId;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(
+      name = "owner_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_playlists_owner")
+  )
+  private User owner;
 
   @Column(name = "title", nullable = false)
   private String title;
@@ -23,8 +32,8 @@ public class Playlist extends BaseUpdatableEntity {
   @Column(name = "description")
   private String description;
 
-  public Playlist(UUID ownerId, String title, String description) {
-    this.ownerId = ownerId;
+  public Playlist(User owner, String title, String description) {
+    this.owner = owner;
     this.title = title;
     this.description = description;
   }

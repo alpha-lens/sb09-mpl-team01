@@ -1,11 +1,14 @@
 package com.codeit.mpl.domain.curating.entity;
 
+import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.infra.common.entity.base.BaseEntity;
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -20,14 +23,24 @@ import lombok.NoArgsConstructor;
 )
 public class PlaylistContent extends BaseEntity {
 
-  @Column(name = "playlist_id", nullable = false)
-  private UUID playlistId;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(
+      name = "playlist_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_playlist_contents_playlist")
+  )
+  private Playlist playlist;
 
-  @Column(name = "content_id", nullable = false)
-  private UUID contentId;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(
+      name = "content_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_playlist_contents_content")
+  )
+  private Content content;
 
-  public PlaylistContent(UUID playlistId, UUID contentId) {
-    this.playlistId = playlistId;
-    this.contentId = contentId;
+  public PlaylistContent(Playlist playlist, Content content) {
+    this.playlist = playlist;
+    this.content = content;
   }
 }

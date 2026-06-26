@@ -1,11 +1,14 @@
 package com.codeit.mpl.domain.curating.entity;
 
+import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.infra.common.entity.base.BaseEntity;
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -20,14 +23,24 @@ import lombok.NoArgsConstructor;
 )
 public class PlaylistSubscription extends BaseEntity {
 
-  @Column(name = "playlist_id", nullable = false)
-  private UUID playlistId;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(
+      name = "playlist_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_playlist_subscriptions_playlist")
+  )
+  private Playlist playlist;
 
-  @Column(name = "subscriber_id", nullable = false)
-  private UUID subscriberId;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(
+      name = "subscriber_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_playlist_subscriptions_subscriber")
+  )
+  private User subscriber;
 
-  public PlaylistSubscription(UUID playlistId, UUID subscriberId) {
-    this.playlistId = playlistId;
-    this.subscriberId = subscriberId;
+  public PlaylistSubscription(Playlist playlist, User subscriber) {
+    this.playlist = playlist;
+    this.subscriber = subscriber;
   }
 }
