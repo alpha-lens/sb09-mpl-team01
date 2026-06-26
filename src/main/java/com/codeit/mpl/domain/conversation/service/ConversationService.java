@@ -2,6 +2,7 @@ package com.codeit.mpl.domain.conversation.service;
 
 import com.codeit.mpl.domain.conversation.dto.ConversationCreateRequest;
 import com.codeit.mpl.domain.conversation.dto.ConversationDto;
+import com.codeit.mpl.domain.conversation.dto.ConversationQueryDto;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageSendRequest;
 import com.codeit.mpl.domain.conversation.entity.Conversation;
@@ -32,64 +33,95 @@ public class ConversationService {
     private final DirectMessageRepository directMessageRepository;
     private final UserRepository userRepository;
 
+    @Transactional(readOnly = true)
     public Conversation getConversation(UUID conversationId) {
         return conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 대화방입니다."));
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 대화방입니다."));
     }
 
+    @Transactional(readOnly = true)
     public ConversationDto getConversationDto(UUID conversationId, UUID userId) {
+        // 단건 조회 시에도 N+1을 방어하기 위해 queryRepository나 단건 통계 쿼리를 쓰는 것이 좋으나,
+        // 단건 조회가 잦지 않다면 기존 toDto를 유지하되 아래 최적화된 메서드로 대체 가능합니다.
         Conversation conversation = getConversation(conversationId);
         return toDto(conversation, userId);
     }
 
     public ConversationDto createConversation(UUID currentUserId, ConversationCreateRequest request) {
         User user1 = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new IllegalArgumentException("로그인 유저가 유효하지 않습니다."));
+            .orElseThrow(() -> new IllegalArgumentException("로그인 유저가 유효하지 않습니다."));
         User user2 = userRepository.findById(request.withUserId())
-                .orElseThrow(() -> new IllegalArgumentException("상대방 유저가 존재하지 않습니다."));
+            .orElseThrow(() -> new IllegalArgumentException("상대방 유저가 존재하지 않습니다."));
 
         Conversation conversation = conversationRepository.findBetweenUsers(currentUserId, request.withUserId())
-                .orElseGet(() -> {
-                    Conversation newConv = Conversation.create(user1, user2);
-                    conversationRepository.save(newConv);
-                    
-                    // 최초 대화 생성 시, lastMessage @NotNull 제약을 만족시키기 위해 기본 메시지를 생성하여 저장합니다.
-                    DirectMessage welcomeMessage = DirectMessage.builder()
-                            .conversation(newConv)
-                            .sender(user1)
-                            .receiver(user2)
-                            .content("대화가 시작되었습니다.")
-                            .isRead(true)
-                            .build();
-                    directMessageRepository.save(welcomeMessage);
-                    return newConv;
-                });
+            .orElseGet(() -> {
+                Conversation newConv = Conversation.create(user1, user2);
+                conversationRepository.save(newConv);
+
+                DirectMessage welcomeMessage = DirectMessage.builder()
+                    .conversation(newConv)
+                    .sender(user1)
+                    .receiver(user2)
+                    .content("대화가 시작되었습니다.")
+                    .isRead(true)
+                    .build();
+                directMessageRepository.save(welcomeMessage);
+                return newConv;
+            });
 
         return toDto(conversation, currentUserId);
     }
 
+    @Transactional(readOnly = true)
     public List<ConversationDto> getConversations(UUID userId) {
-        List<Conversation> list = conversationRepository.findAllByUserId(userId);
-        return list.stream()
-                .map(c -> toDto(c, userId))
-                .toList();
+        List<ConversationQueryDto> flatDtos = conversationRepository.findAllConversationsWithStats(userId);
+
+        return flatDtos.stream()
+            .map(flat -> {
+                UserSummary with = new UserSummary(
+                    flat.otherUserId(),
+                    flat.otherUserName(),
+                    flat.otherUserProfileImage()
+                );
+
+                DirectMessageDto lastMessage = null;
+                if (flat.lastMessageId() != null) {
+                    lastMessage = new DirectMessageDto(
+                        flat.lastMessageId(),
+                        flat.conversationId(),
+                        flat.lastMessageCreatedAt(),
+                        null, // 만약 프론트엔드에서 에러가 난다면 무의미한 빈 UserSummary 객체라도 넣어주어야 합니다.
+                        null,
+                        flat.lastMessageContent()
+                    );
+                }
+
+                return new ConversationDto(
+                    flat.conversationId(),
+                    with,
+                    lastMessage,
+                    flat.unreadCount() > 0
+                );
+            })
+            .toList();
     }
 
-    public void readConversationMessages(UUID conversationId, UUID userId) {
-        // 해당 대화방에서 내가 수신한(receiver가 나인) 안 읽은 메시지들을 읽음 처리
-        List<DirectMessage> list = directMessageRepository.findAll().stream()
-                .filter(dm -> dm.getConversation().getId().equals(conversationId)
-                        && dm.getReceiver().getId().equals(userId)
-                        && !dm.isRead())
-                .toList();
-        list.forEach(DirectMessage::read);
+    public void readConversationMessages(UUID conversationId, UUID directMessageId, UUID userId) {
+        // [수정] 대화방 ID, 메시지 ID, 수신자 ID(나) 조건을 모두 만족하는 특정 메시지 1건만 정확히 조회
+        DirectMessage dm = directMessageRepository.findByIdAndConversationIdAndReceiverId(directMessageId, conversationId, userId)
+            .orElseThrow(() -> new IllegalArgumentException("읽음 처리할 수 있는 메시지가 존재하지 않습니다."));
+
+        // 이미 읽은 메시지가 아니라면 읽음 처리 (Dirty Checking으로 인해 트랜잭션 종료 시 자동 Update)
+        if (!dm.isRead()) {
+            dm.read();
+        }
     }
 
     public CursorPageResponseDto<DirectMessageDto> getDirectMessages(
-            UUID conversationId, UUID userId, CursorPageRequestDto request
+        UUID conversationId, UUID userId, CursorPageRequestDto request
     ) {
         int limit = request.limit() != null ? request.limit() : 20;
-        UUID idAfter = request.idAfter(); // ID 커서
+        UUID idAfter = request.idAfter();
 
         Pageable pageable = PageRequest.of(0, limit + 1);
         List<DirectMessage> list = directMessageRepository.findMessages(conversationId, idAfter, pageable);
@@ -100,13 +132,14 @@ public class ConversationService {
         }
 
         List<DirectMessageDto> dtos = list.stream()
-                .map(this::toDmDto)
-                .toList();
+            .map(this::toDmDto)
+            .toList();
 
-        // 조회 후 내가 수신한 메시지들은 모두 읽음 처리합니다.
+        // [수정] 벌크성 읽음 처리를 위한 벌크 업데이트 메서드 호출 권장
+        // 혹은 현재 트랜잭션 범위 안이므로 유지하되, 대상 건수가 많다면 JPQL UPDATE 문을 별도로 찌르는 것이 유리합니다.
         list.stream()
-                .filter(dm -> dm.getReceiver().getId().equals(userId) && !dm.isRead())
-                .forEach(DirectMessage::read);
+            .filter(dm -> dm.getReceiver().getId().equals(userId) && !dm.isRead())
+            .forEach(DirectMessage::read);
 
         String nextCursor = null;
         String nextIdAfter = null;
@@ -117,38 +150,37 @@ public class ConversationService {
         }
 
         return new CursorPageResponseDto<>(
-                dtos,
-                nextCursor,
-                nextIdAfter,
-                hasNext,
-                dtos.size(),
-                "createdAt",
-                Direction.DESCENDING
+            dtos,
+            nextCursor,
+            nextIdAfter,
+            hasNext,
+            dtos.size(),
+            "createdAt",
+            Direction.DESCENDING
         );
     }
 
+    @Transactional(readOnly = true)
     public ConversationDto getWith(UUID userId, UUID targetUserId) {
         return conversationRepository.findBetweenUsers(userId, targetUserId)
-                .map(c -> toDto(c, userId))
-                .orElse(null);
+            .map(c -> toDto(c, userId))
+            .orElse(null);
     }
 
-    @Transactional
     public DirectMessageDto saveDirectMessage(UUID conversationId, UUID senderId, DirectMessageSendRequest request) {
         Conversation conversation = getConversation(conversationId);
         User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new IllegalArgumentException("보낸 사람이 유효하지 않습니다."));
-        
-        // 수신자 식별 (대화 참여자 중 발신자가 아닌 쪽)
+            .orElseThrow(() -> new IllegalArgumentException("보낸 사람이 유효하지 않습니다."));
+
         User receiver = conversation.getUser1().getId().equals(senderId) ? conversation.getUser2() : conversation.getUser1();
 
         DirectMessage dm = DirectMessage.builder()
-                .conversation(conversation)
-                .sender(sender)
-                .receiver(receiver)
-                .content(request.content())
-                .isRead(false)
-                .build();
+            .conversation(conversation)
+            .sender(sender)
+            .receiver(receiver)
+            .content(request.content())
+            .isRead(false)
+            .build();
 
         directMessageRepository.save(dm);
         return toDmDto(dm);
@@ -160,22 +192,22 @@ public class ConversationService {
 
         DirectMessage lastDm = directMessageRepository.findFirstByConversationIdOrderByCreatedAtDesc(conversation.getId());
         DirectMessageDto lastMessageDto = lastDm != null ? toDmDto(lastDm) : new DirectMessageDto(
-                UUID.randomUUID(),
-                conversation.getId(),
-                Instant.now(),
-                withSummary,
-                withSummary,
-                "대화 기록이 없습니다."
+            UUID.randomUUID(),
+            conversation.getId(),
+            Instant.now(),
+            withSummary,
+            withSummary,
+            "대화 기록이 없습니다."
         );
 
         long unreadCount = directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversation.getId(), currentUserId);
         boolean hasUnread = unreadCount > 0;
 
         return new ConversationDto(
-                conversation.getId(),
-                withSummary,
-                lastMessageDto,
-                hasUnread
+            conversation.getId(),
+            withSummary,
+            lastMessageDto,
+            hasUnread
         );
     }
 
@@ -183,12 +215,13 @@ public class ConversationService {
         UserSummary sender = new UserSummary(dm.getSender().getId(), dm.getSender().getName(), dm.getSender().getProfileImageUrl());
         UserSummary receiver = new UserSummary(dm.getReceiver().getId(), dm.getReceiver().getName(), dm.getReceiver().getProfileImageUrl());
         return new DirectMessageDto(
-                dm.getId(),
-                dm.getConversation().getId(),
-                dm.getCreatedAt(),
-                sender,
-                receiver,
-                dm.getContent()
+            dm.getId(),
+            dm.getConversation().getId(),
+            dm.getCreatedAt(),
+            sender,
+            receiver,
+            dm.getContent()
+
         );
     }
 }
