@@ -37,7 +37,7 @@ public class SseService {
 
         // 503 에러 방지용 더미 이벤트 전송
         String eventId = makeTimeIncludeId(userId);
-        sendNotification(emitter, eventId, emitterId, "EventStream Created. [userId=" + userId + "]");
+        sendNotification(emitter, eventId, emitterId, "connect", "EventStream Created. [userId=" + userId + "]");
 
         // 클라이언트가 미수신한 이벤트가 존재할 경우 전송하여 유실 예방
         if (hasLostData(lastEventId)) {
@@ -66,7 +66,7 @@ public class SseService {
                     // 이벤트 유실을 대비하여 캐시에 저장
                     sseEmitterRepository.saveEventCache(key, data);
                     // 데이터 전송
-                    sendNotification(emitter, eventId, key, data);
+                    sendNotification(emitter, eventId, key, eventName, data);
                 }
         );
     }
@@ -87,12 +87,14 @@ public class SseService {
      *
      * @param emitter the SSE emitter to send to
      * @param emitterId the identifier used to remove the emitter on transmission failure
+     * @param eventName the name of the SSE event
      * @param data the event data to send
      */
-    private void sendNotification(SseEmitter emitter, String eventId, String emitterId, Object data) {
+    private void sendNotification(SseEmitter emitter, String eventId, String emitterId, String eventName, Object data) {
         try {
             emitter.send(SseEmitter.event()
                     .id(eventId)
+                    .name(eventName)
                     .data(data));
         } catch (IOException exception) {
             sseEmitterRepository.deleteById(emitterId);
@@ -121,6 +123,25 @@ public class SseService {
         Map<String, Object> eventCaches = sseEmitterRepository.findAllEventCacheStartWithByMemberId(memberId);
         eventCaches.entrySet().stream()
                 .filter(entry -> lastEventId.compareTo(entry.getKey()) < 0)
-                .forEach(entry -> sendNotification(emitter, entry.getKey(), emitterId, entry.getValue()));
+                .forEach(entry -> sendNotification(emitter, entry.getKey(), emitterId, resolveEventName(entry.getValue()), entry.getValue()));
+    }
+
+    /**
+     * Resolves the event name based on the class type of the cached event payload.
+     *
+     * @param data the cached event data
+     * @return the resolved event name
+     */
+    private String resolveEventName(Object data) {
+        if (data == null) {
+            return "connect";
+        }
+        String className = data.getClass().getSimpleName();
+        if ("NotificationDto".equals(className)) {
+            return "notifications";
+        } else if ("DirectMessageDto".equals(className)) {
+            return "direct-messages";
+        }
+        return "connect";
     }
 }
