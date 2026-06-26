@@ -32,4 +32,9 @@ public class User extends BaseUpdatableEntity {
   @Column(name = "is_locked", nullable = false)
   @Builder.Default
   private boolean locked = false;
+
+  public void updateName(String name) { this.name = name; }
+  public void updatePassword(String encodedPassword) { this.password = encodedPassword; }
+  public void updateRole(UserRole role) { this.role = role; }
+  public void updateLock(boolean locked) { this.locked = locked; }
 }
