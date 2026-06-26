@@ -6,6 +6,7 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@Profile("!test")
 @RequiredArgsConstructor
 public class ChatRedisListener implements MessageListener {
 
@@ -23,7 +25,7 @@ public class ChatRedisListener implements MessageListener {
     private final RedisMessageListenerContainer redisMessageListenerContainer;
     private final ChannelTopic chatTopic;
     private final SimpMessageSendingOperations messagingTemplate;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostConstruct
     public void init() {
