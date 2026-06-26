@@ -37,4 +37,5 @@ public class User extends BaseUpdatableEntity {
   public void updatePassword(String encodedPassword) { this.password = encodedPassword; }
   public void updateRole(UserRole role) { this.role = role; }
   public void updateLock(boolean locked) { this.locked = locked; }
+  public void updateProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
 }
