@@ -1,14 +1,17 @@
 package com.codeit.mpl.domain.notification.service;
 
+import com.codeit.mpl.domain.notification.entity.Notification;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.domain.notification.dto.NotificationDto;
 import com.codeit.mpl.domain.notification.repository.NotificationRepository;
 import java.time.Instant;
-import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,13 +35,41 @@ public class NotificationService {
   public CursorPageResponseDto<NotificationDto> getNotifications(
       UUID userId, String cursor, Instant idAfter, int limit
   ) {
-    // 뼈대 구현: 일단 빈 리스트를 반환하여 컴파일 에러를 해결하고 비즈니스 흐름을 만듭니다.
+    Pageable pageable = PageRequest.of(0, limit + 1);
+    List<Notification> list = notificationRepository.findNotifications(userId, idAfter, pageable);
+
+    boolean hasNext = list.size() > limit;
+    if (hasNext) {
+        list = list.subList(0, limit);
+    }
+
+    List<NotificationDto> dtos = list.stream()
+        .map(n -> new NotificationDto(
+            n.getId(),
+            n.getCreatedAt(),
+            n.getReceiver().getId(),
+            n.getTitle(),
+            n.getContent(),
+            n.getLevel()
+        ))
+        .toList();
+
+    String nextCursor = null;
+    String nextIdAfter = null;
+    if (!dtos.isEmpty()) {
+        NotificationDto last = dtos.get(dtos.size() - 1);
+        nextCursor = last.id().toString();
+        nextIdAfter = last.createdAt().toString();
+    }
+
+    long totalCount = notificationRepository.countByReceiverId(userId);
+
     return new CursorPageResponseDto<>(
-        Collections.emptyList(),
-        null,
-        null,
-        false,
-        0L,
+        dtos,
+        nextCursor,
+        nextIdAfter,
+        hasNext,
+        totalCount,
         "createdAt",
         Direction.DESCENDING
     );
