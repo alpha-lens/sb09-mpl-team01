@@ -37,7 +37,7 @@ public class ReviewService {
 
   public ReviewDto createReview(UUID authorId, ReviewCreateRequest request) {
     User author = userRepository.findById(authorId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
     Content content = contentRepository.findById(request.contentId())
         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));

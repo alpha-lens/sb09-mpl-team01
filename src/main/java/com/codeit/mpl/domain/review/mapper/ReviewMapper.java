@@ -2,20 +2,13 @@ package com.codeit.mpl.domain.review.mapper;
 
 import com.codeit.mpl.domain.review.dto.ReviewDto;
 import com.codeit.mpl.domain.review.entity.Review;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
-@Component
-public class ReviewMapper {
+@Mapper(componentModel = "spring")
+public interface ReviewMapper {
 
-  public ReviewDto toDto(Review review) {
-    return new ReviewDto(
-        review.getId(),
-        review.getContent().getId(),
-        review.getAuthor().getId(),
-        review.getText(),
-        review.getRating(),
-        review.getCreatedAt(),
-        review.getUpdatedAt()
-    );
-  }
+  @Mapping(source = "content.id", target = "contentId")
+  @Mapping(source = "author.id", target = "authorId")
+  ReviewDto toDto(Review review);
 }
