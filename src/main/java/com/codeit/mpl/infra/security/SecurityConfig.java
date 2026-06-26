@@ -1,5 +1,8 @@
 package com.codeit.mpl.infra.security;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +14,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -55,10 +61,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 로그인, 로그아웃, 회원가입은 누구나 접근 가능
                 .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/auth/logout").permitAll()
-                // SSE 구독 엔드포인트 누구나 접근 가능 (인증 정보는 내부나 QueryParam 등으로 검증 가능하므로 시큐리티 필터는 통과)
-                .requestMatchers("/api/notifications/subscribe").permitAll()
                 // WebSocket 엔드포인트 허용 (STOMP CONNECT 프레임 내 헤더에서 JWT를 검증할 것이므로 일단 오픈)
-                .requestMatchers("/ws-chat/**").permitAll()
+                .requestMatchers("/ws/**").permitAll()
                 // 그 외 모든 요청은 인증 필요
                 .anyRequest().authenticated()
             )
