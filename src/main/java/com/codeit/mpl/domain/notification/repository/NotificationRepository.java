@@ -13,10 +13,20 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
-    @Query("SELECT n FROM Notification n WHERE n.receiver.id = :receiverId AND (:idAfter IS NULL OR n.createdAt > :idAfter) ORDER BY n.createdAt DESC")
+    @Query("""
+    SELECT n FROM Notification n 
+    WHERE n.receiver.id = :receiverId 
+      AND (
+        :idAfter IS NULL OR 
+        n.createdAt < :idAfter OR 
+        (n.createdAt = :idAfter AND n.id < :idCursor)
+      )
+    ORDER BY n.createdAt DESC, n.id DESC
+""")
     List<Notification> findNotifications(
         @Param("receiverId") UUID receiverId,
         @Param("idAfter") Instant idAfter,
+        @Param("idCursor") UUID idCursor,
         Pageable pageable
     );
 

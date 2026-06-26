@@ -6,6 +6,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,6 +15,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
+@Table(name = "conversation", uniqueConstraints = {
+    @UniqueConstraint(
+        name = "uk_user1_user2",
+        columnNames = {"user1_id", "user2_id"}
+    )
+})
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -28,9 +36,12 @@ public class Conversation extends BaseEntity {
   private User user2;
 
   public static Conversation create(User user1, User user2) {
+    User orderedUser1 = (user1.getId().compareTo(user2.getId()) < 0) ? user1 : user2;
+    User orderedUser2 = (user1.getId().compareTo(user2.getId()) < 0) ? user2 : user1;
+
     return Conversation.builder()
-        .user1(user1)
-        .user2(user2)
+        .user1(orderedUser1)
+        .user2(orderedUser2)
         .build();
   }
 }

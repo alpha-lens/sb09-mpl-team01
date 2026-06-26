@@ -82,7 +82,7 @@ CREATE TABLE conversations (
                                user2_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                CONSTRAINT uk_conversation_users UNIQUE (user1_id, user2_id),
-                               CONSTRAINT chk_different_users CHECK (user1_id <> user2_id)
+                               CONSTRAINT chk_ordered_users CHECK (user1_id < user2_id)
 );
 
 -- 9. 다이렉트 메시지 테이블 (DM)

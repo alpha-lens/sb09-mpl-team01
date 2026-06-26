@@ -54,7 +54,7 @@ public class ConversationController {
       @PathVariable UUID directMessageId
   ) {
     UUID userId = getUserId(userDetails);
-    conversationService.readConversationMessages(conversationId, userId);
+    conversationService.readConversationMessages(conversationId, directMessageId, userId);
     return ResponseEntity.ok().build();
   }
 

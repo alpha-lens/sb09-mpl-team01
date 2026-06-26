@@ -36,11 +36,14 @@ public class NotificationService {
       UUID userId, String cursor, Instant idAfter, int limit
   ) {
     Pageable pageable = PageRequest.of(0, limit + 1);
-    List<Notification> list = notificationRepository.findNotifications(userId, idAfter, pageable);
+
+    UUID idCursor = (cursor != null && !cursor.isBlank()) ? UUID.fromString(cursor) : null;
+
+    List<Notification> list = notificationRepository.findNotifications(userId, idAfter, idCursor, pageable);
 
     boolean hasNext = list.size() > limit;
     if (hasNext) {
-        list = list.subList(0, limit);
+      list = list.subList(0, limit);
     }
 
     List<NotificationDto> dtos = list.stream()
@@ -57,19 +60,19 @@ public class NotificationService {
     String nextCursor = null;
     String nextIdAfter = null;
     if (!dtos.isEmpty()) {
-        NotificationDto last = dtos.get(dtos.size() - 1);
-        nextCursor = last.id().toString();
-        nextIdAfter = last.createdAt().toString();
+      NotificationDto last = dtos.get(dtos.size() - 1);
+      nextCursor = last.id().toString();
+      nextIdAfter = last.createdAt().toString();
     }
 
-    long totalCount = notificationRepository.countByReceiverId(userId);
+    int currentSize = dtos.size();
 
     return new CursorPageResponseDto<>(
         dtos,
         nextCursor,
         nextIdAfter,
         hasNext,
-        totalCount,
+        (long) currentSize,
         "createdAt",
         Direction.DESCENDING
     );
