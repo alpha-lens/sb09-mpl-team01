@@ -1,8 +1,5 @@
 spring:
   application:
     name: mpl
-
-jwt:
-  secret: ${JWT_SECRET:defaultSecretKeyForMplProjectMinimumLengthRequired32BytesOrMore}
-  expiration: ${JWT_EXPIRATION:86400000}
-  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+  profiles:
+    include: dev

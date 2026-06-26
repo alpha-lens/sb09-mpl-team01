@@ -25,25 +25,25 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         // 메시지 구독 요청 prefix (Server -> Client 브로드캐스트)
-        // /topic: 1:N 공용 브로드캐스트, /queue: 1:1 전용
-        registry.enableSimpleBroker("/topic", "/queue");
+        // /topic: 1:N 공용 브로드캐스트, /queue: 1:1 전용, /sub: 요구사항 실시간 구독용
+        registry.enableSimpleBroker("/topic", "/queue", "/sub");
         
         // 메시지 발행 요청 prefix (Client -> Server 처리 대상)
         registry.setApplicationDestinationPrefixes("/pub");
     }
 
     /**
-     * Registers the {@code /ws-chat} STOMP WebSocket endpoint with both SockJS and native WebSocket support.
+     * Registers the {@code /ws} STOMP WebSocket endpoint with both SockJS and native WebSocket support.
      */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // 웹소켓 핸드셰이크 커넥션 엔드포인트 설정
-        registry.addEndpoint("/ws-chat")
+        registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
                 
         // SockJS 미지원 브라우저/클라이언트를 위한 일반 WebSocket 연결도 제공
-        registry.addEndpoint("/ws-chat")
+        registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*");
     }
 

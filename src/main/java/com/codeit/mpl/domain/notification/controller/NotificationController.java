@@ -4,6 +4,8 @@ import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.domain.notification.dto.NotificationDto;
 import com.codeit.mpl.domain.notification.service.NotificationService;
+import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.sse.SseService;
 import jakarta.validation.constraints.Min;
 import java.time.Instant;
@@ -73,26 +75,6 @@ public class NotificationController {
   }
 
   /**
-   * Establishes a Server-Sent Events connection for the authenticated user to receive real-time notifications.
-   *
-   * @param lastEventId the Last-Event-ID header value for resuming the event stream from a previous connection
-   * @return an SseEmitter for streaming notifications to the client
-   * @throws IllegalArgumentException if the user details are invalid or the user cannot be found
-   */
-  @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-  public ResponseEntity<SseEmitter> subscribe(
-      @AuthenticationPrincipal UserDetails userDetails,
-      @RequestHeader(value = "Last-Event-ID", required = false, defaultValue = "") String lastEventId,
-      @RequestParam(value = "token", required = false) String tokenParam // 쿼리 파라미터 인증용 옵션
-  ) {
-    UUID userId = getUserIdFromUserDetails(userDetails);
-    log.info("[SSE] 구독 요청. userId={}, Last-Event-ID={}", userId, lastEventId);
-    
-    SseEmitter emitter = sseService.subscribe(userId, lastEventId);
-    return ResponseEntity.ok(emitter);
-  }
-
-  /**
    * Deletes the specified notification.
    *
    * @return a response with HTTP status 204 No Content
@@ -117,7 +99,7 @@ public class NotificationController {
       // 비로그인 테스트 대응 또는 예외 처리
       throw new IllegalArgumentException("인증 정보가 유효하지 않습니다.");
     }
-    return userRepository.findByUsername(userDetails.getUsername())
+    return userRepository.findByEmail(userDetails.getUsername())
         .map(User::getId)
         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
   }
