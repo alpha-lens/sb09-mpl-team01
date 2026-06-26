@@ -3,44 +3,39 @@ package com.codeit.mpl.domain.content.mapper;
 import com.codeit.mpl.domain.content.dto.response.ContentDto;
 import com.codeit.mpl.domain.content.dto.response.ContentSummary;
 import com.codeit.mpl.domain.content.entity.Content;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
-@Component
-public class ContentMapper {
+@Mapper(componentModel = "spring")
+public interface ContentMapper {
 
-    public ContentDto toDto(
+    @Mapping(target = "id", source = "content.id")
+    @Mapping(target = "type", source = "content.type")
+    @Mapping(target = "title", source = "content.title")
+    @Mapping(target = "description", source = "content.description")
+    @Mapping(target = "thumbnailUrl", source = "content.thumbnailUrl")
+    @Mapping(target = "tags", source = "content.tags")
+    @Mapping(target = "averageRating", source = "averageRating")
+    @Mapping(target = "reviewCount", source = "reviewCount")
+    @Mapping(target = "watcherCount", source = "watcherCount")
+    ContentDto toDto(
             Content content,
             Double averageRating,
             Integer reviewCount,
             Long watcherCount
-    ) {
-        return new ContentDto(
-                content.getId(),
-                content.getType(),
-                content.getTitle(),
-                content.getDescription(),
-                content.getThumbnailUrl(),
-                content.getTags(),
-                averageRating,
-                reviewCount,
-                watcherCount
-        );
-    }
+    );
 
-    public ContentSummary toSummary(
+    @Mapping(target = "id", source = "content.id")
+    @Mapping(target = "type", source = "content.type")
+    @Mapping(target = "title", source = "content.title")
+    @Mapping(target = "description", source = "content.description")
+    @Mapping(target = "thumbnailUrl", source = "content.thumbnailUrl")
+    @Mapping(target = "tags", source = "content.tags")
+    @Mapping(target = "averageRating", source = "averageRating")
+    @Mapping(target = "reviewCount", source = "reviewCount")
+    ContentSummary toSummary(
             Content content,
             Double averageRating,
             Integer reviewCount
-    ) {
-        return new ContentSummary(
-                content.getId(),
-                content.getType(),
-                content.getTitle(),
-                content.getDescription(),
-                content.getThumbnailUrl(),
-                content.getTags(),
-                averageRating,
-                reviewCount
-        );
-    }
+    );
 }
