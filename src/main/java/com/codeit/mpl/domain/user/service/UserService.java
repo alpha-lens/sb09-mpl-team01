@@ -123,6 +123,13 @@ public class UserService {
         userRepository.delete(user);
     }
 
+    @Transactional(readOnly = true)
+    public UUID resolveUserId(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND))
+                .getId();
+    }
+
     private User findUserById(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
