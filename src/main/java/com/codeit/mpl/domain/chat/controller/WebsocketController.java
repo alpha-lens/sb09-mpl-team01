@@ -8,6 +8,7 @@ import com.codeit.mpl.domain.conversation.service.ConversationService;
 import com.codeit.mpl.domain.user.dto.UserSummary;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.sse.SseService;
+import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.UUID;
@@ -33,7 +34,7 @@ public class WebsocketController {
     @MessageMapping("/contents/{contentId}/chat")
     public void handleContentChat(
             @DestinationVariable UUID contentId,
-            ContentChatSendRequest request,
+            @Valid ContentChatSendRequest request,
             Principal principal
     ) {
         String email = getEmailFromPrincipal(principal);

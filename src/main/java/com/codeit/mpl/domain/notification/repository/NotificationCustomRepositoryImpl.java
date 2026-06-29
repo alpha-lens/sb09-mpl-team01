@@ -30,8 +30,8 @@ public class NotificationCustomRepositoryImpl implements NotificationCustomRepos
             getCursorCondition(cursor, idAfter, isAsc) // 복합 커서 조건 적용
         )
         .orderBy(
-            getLogicallyOrder(isAsc),         // 1순위: createdAt 정렬
-            notification.id.desc() // 2순위: id 정렬 (UUID 대소 비교를 위해 필요 시 문자열 변환 정렬 가능하나 보통 엔티티 id 기준 정렬)
+            getLogicallyOrder(isAsc),
+            isAsc ? notification.id.asc() : notification.id.desc()
         )
         .limit(limit + 1) // 다음 페이지 여부 확인용 n+1 조회
         .fetch();

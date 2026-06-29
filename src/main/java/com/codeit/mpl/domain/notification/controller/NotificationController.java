@@ -50,7 +50,7 @@ public class NotificationController {
     );
 
     CursorPageResponseDto<NotificationDto> response =
-        notificationService.getNotifications(userId, cursor, idAfter, limit, sortDirection, sortBy);
+        notificationService.getNotifications(userId, cursor, idAfter, limit, sortDirection);
 
     log.debug(
         "[알림] 목록 조회 완료. userId={}, 반환개수={}, 다음페이지존재={}",

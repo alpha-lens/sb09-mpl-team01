@@ -22,7 +22,7 @@ public class NotificationService {
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<NotificationDto> getNotifications(
-      UUID userId, String cursorStr, UUID idAfter, int limit, Direction sortDirection, String sortBy
+      UUID userId, String cursorStr, UUID idAfter, int limit, Direction sortDirection
   ) {
     Instant cursor = (cursorStr != null && !cursorStr.isBlank()) ? Instant.parse(cursorStr) : null;
 
@@ -49,7 +49,7 @@ public class NotificationService {
       nextIdAfter = last.id().toString();
     }
 
-    return new CursorPageResponseDto<>(dtos, nextCursor, nextIdAfter, hasNext, totalCount, sortBy, sortDirection);
+    return new CursorPageResponseDto<>(dtos, nextCursor, nextIdAfter, hasNext, totalCount, "createdAt", sortDirection);
   }
 
   public void deleteNotification(UUID notificationId) {
