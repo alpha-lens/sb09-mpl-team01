@@ -60,7 +60,7 @@ public class ReviewController implements ReviewApi {
   // 리뷰 목록 조회
   @GetMapping
   public ResponseEntity<CursorPageResponseDto<ReviewDto>> getReviews(
-      @ModelAttribute ReviewSearchRequest request
+      @Valid @ModelAttribute ReviewSearchRequest request
   ) {
     CursorPageResponseDto<ReviewDto> response = reviewService.getReviews(
         request.getContentId(),
