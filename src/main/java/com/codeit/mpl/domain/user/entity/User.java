@@ -33,9 +33,15 @@ public class User extends BaseUpdatableEntity {
   @Builder.Default
   private boolean locked = false;
 
+  @Column(name = "is_temporary_password", nullable = false)
+  @Builder.Default
+  private boolean temporaryPassword = false;
+
   public void updateName(String name) { this.name = name; }
   public void updatePassword(String encodedPassword) { this.password = encodedPassword; }
   public void updateRole(UserRole role) { this.role = role; }
   public void updateLock(boolean locked) { this.locked = locked; }
   public void updateProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
+  public void markTemporaryPassword() { this.temporaryPassword = true; }
+  public void clearTemporaryPassword() { this.temporaryPassword = false; }
 }

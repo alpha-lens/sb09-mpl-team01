@@ -67,6 +67,12 @@ public class UserService {
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new MplException(ErrorCode.INVALID_CREDENTIALS);
         }
+        if (user.isTemporaryPassword()) {
+            Boolean hasTempKey = redisTemplate.hasKey(TEMP_PASSWORD_PREFIX + user.getId());
+            if (hasTempKey == null || !hasTempKey) {
+                throw new MplException(ErrorCode.TEMPORARY_PASSWORD_EXPIRED);
+            }
+        }
         if (user.isLocked()) {
             throw new MplException(ErrorCode.ACCOUNT_LOCKED);
         }
@@ -98,12 +104,13 @@ public class UserService {
             String cursor, UUID idAfter, int limit,
             String sortBy, Direction sortDirection) {
 
-        Specification<User> filterSpec = buildFilterSpec(emailLike, roleEqual, isLocked);
-
         Sort.Direction dir = sortDirection == Direction.ASCENDING ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Specification<User> spec = buildFilterSpec(emailLike, roleEqual, isLocked)
+                .and(buildCursorSpec(cursor, idAfter, sortBy, dir));
+
         Sort sort = Sort.by(dir, mapSortBy(sortBy)).and(Sort.by(Sort.Direction.ASC, "id"));
 
-        List<User> users = userRepository.findAll(filterSpec, PageRequest.of(0, limit + 1, sort)).getContent();
+        List<User> users = userRepository.findAll(spec, PageRequest.of(0, limit + 1, sort)).getContent();
 
         boolean hasNext = users.size() > limit;
         List<User> content = hasNext ? users.subList(0, limit) : users;
@@ -116,7 +123,7 @@ public class UserService {
             nextIdAfter = last.getId().toString();
         }
 
-        long totalCount = userRepository.count(filterSpec);
+        long totalCount = userRepository.count(buildFilterSpec(emailLike, roleEqual, isLocked));
 
         return new CursorPageResponseDto<>(
                 content.stream().map(userMapper::toDto).toList(),
@@ -138,6 +145,7 @@ public class UserService {
         User user = findUserById(userId);
         user.updateName(request.name());
         if (image != null && !image.isEmpty()) {
+            // TODO: 추후 스토리지 계층 연동 및 실제 URL 저장 로직 구현
             user.updateProfileImageUrl(image.getOriginalFilename());
         }
         return userMapper.toDto(user);
@@ -162,7 +170,9 @@ public class UserService {
     public void changePassword(UUID userId, ChangePasswordRequest request) {
         User user = findUserById(userId);
         user.updatePassword(passwordEncoder.encode(request.password()));
+        user.clearTemporaryPassword();
         redisTemplate.delete(TEMP_PASSWORD_PREFIX + userId);
+        jwtUtil.deleteRefreshToken(userId);
     }
 
     public void resetPassword(ResetPasswordRequest request) {
@@ -170,6 +180,8 @@ public class UserService {
                 .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
         String tempPassword = generateTempPassword();
         user.updatePassword(passwordEncoder.encode(tempPassword));
+        user.markTemporaryPassword();
+        jwtUtil.deleteRefreshToken(user.getId());
         redisTemplate.opsForValue().set(
                 TEMP_PASSWORD_PREFIX + user.getId(),
                 tempPassword,
@@ -209,6 +221,27 @@ public class UserService {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("locked"), isLocked));
         }
         return spec;
+    }
+
+    private Specification<User> buildCursorSpec(String cursor, UUID idAfter, String sortBy, Sort.Direction dir) {
+        if (cursor == null || idAfter == null) {
+            Specification<User> nullSpec = null;
+            return Specification.where(nullSpec);
+        }
+        return (root, q, cb) -> {
+            String field = mapSortBy(sortBy);
+            jakarta.persistence.criteria.Expression<String> sortExpr = root.get(field).as(String.class);
+            jakarta.persistence.criteria.Expression<String> idExpr = root.get("id").as(String.class);
+
+            jakarta.persistence.criteria.Predicate afterField = dir == Sort.Direction.ASC
+                    ? cb.greaterThan(sortExpr, cursor)
+                    : cb.lessThan(sortExpr, cursor);
+            jakarta.persistence.criteria.Predicate sameFieldAfterId = cb.and(
+                    cb.equal(sortExpr, cursor),
+                    cb.greaterThan(idExpr, idAfter.toString())
+            );
+            return cb.or(afterField, sameFieldAfterId);
+        };
     }
 
     private String mapSortBy(String sortBy) {

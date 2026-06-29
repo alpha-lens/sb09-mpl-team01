@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${jwt.secret:defaultSecretKeyForMplProjectMinimumLengthRequired32BytesOrMore}")
+    @Value("${jwt.secret}")
     private String secretKey;
 
     @Value("${jwt.expiration:86400000}") // 1 day

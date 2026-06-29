@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @Tag(name = "인증 관리", description = "로그인·로그아웃·토큰 재발급·CSRF 토큰 API")
@@ -49,5 +50,5 @@ public interface AuthApi {
 
     @Operation(summary = "CSRF 토큰 조회", description = "응답 쿠키(XSRF-TOKEN)에 CSRF 토큰이 저장됩니다.")
     @ApiResponse(responseCode = "204", description = "CSRF 토큰 발급 성공")
-    ResponseEntity<Void> csrfToken();
+    ResponseEntity<Void> csrfToken(CsrfToken csrfToken);
 }
