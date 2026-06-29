@@ -11,6 +11,8 @@ import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
+import jakarta.persistence.criteria.Predicate;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -82,28 +85,54 @@ public class ContentService {
             String sortBy,
             Direction sortDirection
     ) {
+        validateSortBy(sortBy);
+
         Sort.Direction direction = sortDirection == Direction.ASCENDING
                 ? Sort.Direction.ASC
                 : Sort.Direction.DESC;
 
         Pageable pageable = PageRequest.of(
                 0,
-                limit,
-                Sort.by(direction, sortBy)
+                limit + 1,
+                Sort.by(direction, sortBy).and(Sort.by(direction, "id"))
         );
 
-        Page<Content> contentPage = contentRepository.findAll(pageable);
+        Specification<Content> specification = createCursorSpecification(
+                cursor,
+                idAfter,
+                sortBy,
+                sortDirection
+        );
 
-        List<ContentSummary> contentSummaries = contentPage.getContent().stream()
+        Page<Content> contentPage = contentRepository.findAll(specification, pageable);
+
+        List<Content> contents = contentPage.getContent();
+
+        boolean hasNext = contents.size() > limit;
+
+        List<Content> pageContents = hasNext
+                ? contents.subList(0, limit)
+                : contents;
+
+        List<ContentSummary> contentSummaries = pageContents.stream()
                 .map(this::toSummary)
                 .toList();
 
+        String nextCursor = null;
+        String nextIdAfter = null;
+
+        if (hasNext && !pageContents.isEmpty()) {
+            Content lastContent = pageContents.get(pageContents.size() - 1);
+            nextCursor = getCursorValue(lastContent, sortBy);
+            nextIdAfter = lastContent.getId().toString();
+        }
+
         return new CursorPageResponseDto<>(
                 contentSummaries,
-                null,
-                null,
-                contentPage.hasNext(),
-                contentPage.getTotalElements(),
+                nextCursor,
+                nextIdAfter,
+                hasNext,
+                contentRepository.count(),
                 sortBy,
                 sortDirection
         );
@@ -112,6 +141,87 @@ public class ContentService {
     private Content getContentEntity(UUID contentId) {
         return contentRepository.findById(contentId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
+    }
+
+    private Specification<Content> createCursorSpecification(
+            String cursor,
+            String idAfter,
+            String sortBy,
+            Direction sortDirection
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            if (cursor == null || cursor.isBlank() || idAfter == null || idAfter.isBlank()) {
+                return criteriaBuilder.conjunction();
+            }
+
+            UUID idAfterValue = UUID.fromString(idAfter);
+
+            if ("createdAt".equals(sortBy)) {
+                Instant cursorValue = Instant.parse(cursor);
+
+                Predicate sortPredicate;
+                Predicate sameSortValuePredicate;
+
+                if (sortDirection == Direction.ASCENDING) {
+                    sortPredicate = criteriaBuilder.greaterThan(root.get("createdAt"), cursorValue);
+                    sameSortValuePredicate = criteriaBuilder.and(
+                            criteriaBuilder.equal(root.get("createdAt"), cursorValue),
+                            criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
+                    );
+                } else {
+                    sortPredicate = criteriaBuilder.lessThan(root.get("createdAt"), cursorValue);
+                    sameSortValuePredicate = criteriaBuilder.and(
+                            criteriaBuilder.equal(root.get("createdAt"), cursorValue),
+                            criteriaBuilder.lessThan(root.get("id"), idAfterValue)
+                    );
+                }
+
+                return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
+            }
+
+            if ("title".equals(sortBy)) {
+                String cursorValue = cursor;
+
+                Predicate sortPredicate;
+                Predicate sameSortValuePredicate;
+
+                if (sortDirection == Direction.ASCENDING) {
+                    sortPredicate = criteriaBuilder.greaterThan(root.get("title"), cursorValue);
+                    sameSortValuePredicate = criteriaBuilder.and(
+                            criteriaBuilder.equal(root.get("title"), cursorValue),
+                            criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
+                    );
+                } else {
+                    sortPredicate = criteriaBuilder.lessThan(root.get("title"), cursorValue);
+                    sameSortValuePredicate = criteriaBuilder.and(
+                            criteriaBuilder.equal(root.get("title"), cursorValue),
+                            criteriaBuilder.lessThan(root.get("id"), idAfterValue)
+                    );
+                }
+
+                return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
+            }
+
+            return criteriaBuilder.conjunction();
+        };
+    }
+
+    private String getCursorValue(Content content, String sortBy) {
+        if ("createdAt".equals(sortBy)) {
+            return content.getCreatedAt().toString();
+        }
+
+        if ("title".equals(sortBy)) {
+            return content.getTitle();
+        }
+
+        throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
+    }
+
+    private void validateSortBy(String sortBy) {
+        if (!"createdAt".equals(sortBy) && !"title".equals(sortBy)) {
+            throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다. sortBy는 createdAt 또는 title만 사용할 수 있습니다.");
+        }
     }
 
     private ContentDto toDto(Content content) {
