@@ -7,6 +7,8 @@ import com.codeit.mpl.domain.content.dto.response.ContentSummary;
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
+import com.codeit.mpl.domain.content.repository.WatchingSessionRepository;
+import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -34,6 +36,8 @@ public class ContentService {
     private final ContentRepository contentRepository;
     private final UserRepository userRepository;
     private final ContentMapper contentMapper;
+    private final ReviewRepository reviewRepository;
+    private final WatchingSessionRepository watchingSessionRepository;
 
     public ContentDto createContent(String requesterEmail, ContentCreateRequest request) {
         User creator = getRequester(requesterEmail);
@@ -278,25 +282,14 @@ public class ContentService {
     }
 
     private ContentDto toDto(Content content) {
-        /*
-         * TODO (Review 파트 구현 후 연결)
-         *
-         * ReviewRepository에 아래 메서드가 추가되면 실제 집계값으로 교체한다.
-         *
-         * Double averageRating = reviewRepository.findAverageRatingByContent(content);
-         * Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
-         */
-        Double averageRating = 0.0;
-        Integer reviewCount = 0;
+        Double averageRating = reviewRepository.findAverageRatingByContent(content);
 
-        /*
-         * TODO (WatchingSession 파트 구현 후 연결)
-         *
-         * WatchingSessionRepository에 아래 메서드가 추가되면 실제 시청자 수로 교체한다.
-         *
-         * Long watcherCount = watchingSessionRepository.countByContent(content);
-         */
-        Long watcherCount = 0L;
+        if (averageRating == null) {
+            averageRating = 0.0;
+        }
+
+        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
+        Long watcherCount = watchingSessionRepository.countByContent(content);
 
         return contentMapper.toDto(
                 content,
@@ -307,16 +300,13 @@ public class ContentService {
     }
 
     private ContentSummary toSummary(Content content) {
-        /*
-         * TODO (Review 파트 구현 후 연결)
-         *
-         * ReviewRepository에 아래 메서드가 추가되면 실제 집계값으로 교체한다.
-         *
-         * Double averageRating = reviewRepository.findAverageRatingByContent(content);
-         * Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
-         */
-        Double averageRating = 0.0;
-        Integer reviewCount = 0;
+        Double averageRating = reviewRepository.findAverageRatingByContent(content);
+
+        if (averageRating == null) {
+            averageRating = 0.0;
+        }
+
+        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
 
         return contentMapper.toSummary(
                 content,
