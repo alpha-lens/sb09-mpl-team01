@@ -15,7 +15,6 @@ import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
-import com.codeit.mpl.infra.common.dto.Direction;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +22,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import com.codeit.mpl.infra.common.dto.Direction;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,28 +44,55 @@ public class PlaylistService {
       String keywordLike,
       UUID ownerIdEqual,
       UUID subscriberIdEqual,
+      String cursor,
+      UUID idAfter,
       int limit,
       String sortBy,
       Direction sortDirection
   ) {
+    if (limit <= 0) {
+      throw new IllegalArgumentException("limit은 1 이상이어야 합니다.");
+    }
+
+    List<String> allowedSortFields = List.of("createdAt", "updatedAt", "title");
+    if (!allowedSortFields.contains(sortBy)) {
+      throw new IllegalArgumentException("허용되지 않은 정렬 필드입니다.");
+    }
+
     Sort.Direction direction = sortDirection == Direction.ASCENDING
         ? Sort.Direction.ASC
         : Sort.Direction.DESC;
 
-    Pageable pageable = PageRequest.of(0, limit, Sort.by(direction, sortBy));
+    Pageable pageable = PageRequest.of(0, limit + 1, Sort.by(direction, sortBy));
     Page<Playlist> playlistPage = playlistRepository.findAllWithFilters(
         keywordLike, ownerIdEqual, subscriberIdEqual, pageable
     );
 
-    List<PlaylistDto> playlistDtos = playlistPage.getContent().stream()
+    List<Playlist> content = playlistPage.getContent();
+    boolean hasNext = content.size() > limit;
+
+    if (hasNext) {
+      content = content.subList(0, limit);
+    }
+
+    List<PlaylistDto> playlistDtos = content.stream()
         .map(playlistMapper::toDto)
         .toList();
 
+    String nextCursor = null;
+    String nextIdAfter = null;
+
+    if (hasNext && !playlistDtos.isEmpty()) {
+      PlaylistDto last = playlistDtos.get(playlistDtos.size() - 1);
+      nextIdAfter = last.id().toString();
+      nextCursor = last.id().toString();
+    }
+
     return new CursorPageResponseDto<>(
         playlistDtos,
-        null,
-        null,
-        playlistPage.hasNext(),
+        nextCursor,
+        nextIdAfter,
+        hasNext,
         playlistPage.getTotalElements(),
         sortBy,
         sortDirection
@@ -146,6 +173,10 @@ public class PlaylistService {
     Content content = contentRepository.findById(contentId)
         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
 
+    if (!playlistContentRepository.existsByPlaylistAndContent(playlist, content)) {
+      throw new IllegalArgumentException("플레이리스트에 없는 콘텐츠입니다.");
+    }
+
     playlistContentRepository.deleteByPlaylistAndContent(playlist, content);
   }
 
@@ -171,6 +202,10 @@ public class PlaylistService {
 
     Playlist playlist = playlistRepository.findById(playlistId)
         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플레이리스트입니다."));
+
+    if (!playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, subscriber)) {
+      throw new IllegalArgumentException("구독하지 않은 플레이리스트입니다.");
+    }
 
     playlistSubscriptionRepository.deleteByPlaylistAndSubscriber(playlist, subscriber);
   }

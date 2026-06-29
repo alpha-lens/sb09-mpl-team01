@@ -2,6 +2,7 @@ package com.codeit.mpl.domain.curating.controller;
 
 import com.codeit.mpl.domain.curating.controller.api.PlaylistApi;
 import com.codeit.mpl.domain.curating.dto.request.PlaylistCreateRequest;
+import com.codeit.mpl.domain.curating.dto.request.PlaylistSearchRequest;
 import com.codeit.mpl.domain.curating.dto.request.PlaylistUpdateRequest;
 import com.codeit.mpl.domain.curating.dto.response.PlaylistDto;
 import com.codeit.mpl.domain.curating.service.PlaylistService;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,15 +35,17 @@ public class PlaylistController implements PlaylistApi {
   // 플레이리스트 목록 조회
   @GetMapping
   public ResponseEntity<CursorPageResponseDto<PlaylistDto>> getPlaylists(
-      @RequestParam(required = false) String keywordLike,
-      @RequestParam(required = false) UUID ownerIdEqual,
-      @RequestParam(required = false) UUID subscriberIdEqual,
-      @RequestParam int limit,
-      @RequestParam String sortBy,
-      @RequestParam Direction sortDirection
+      @ModelAttribute PlaylistSearchRequest request
   ) {
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
-        keywordLike, ownerIdEqual, subscriberIdEqual, limit, sortBy, sortDirection
+        request.getKeywordLike(),
+        request.getOwnerIdEqual(),
+        request.getSubscriberIdEqual(),
+        request.getCursor(),
+        request.getIdAfter(),
+        request.getLimit(),
+        request.getSortBy(),
+        request.getSortDirection()
     );
     return ResponseEntity.ok(response);
   }
