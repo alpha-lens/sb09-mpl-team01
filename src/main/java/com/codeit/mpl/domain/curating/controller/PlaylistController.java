@@ -1,5 +1,6 @@
 package com.codeit.mpl.domain.curating.controller;
 
+import com.codeit.mpl.domain.curating.controller.api.PlaylistApi;
 import com.codeit.mpl.domain.curating.dto.request.PlaylistCreateRequest;
 import com.codeit.mpl.domain.curating.dto.request.PlaylistUpdateRequest;
 import com.codeit.mpl.domain.curating.dto.response.PlaylistDto;
@@ -23,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/playlists")
-public class PlaylistController {
+public class PlaylistController implements PlaylistApi {
 
   private final PlaylistService playlistService;
 
