@@ -14,6 +14,7 @@ import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -95,6 +96,7 @@ public class ContentService {
             String sortBy,
             Direction sortDirection
     ) {
+        validateCursorPair(cursor, idAfter);
         validateSortBy(sortBy);
 
         Sort.Direction direction = sortDirection == Direction.ASCENDING
@@ -171,6 +173,15 @@ public class ContentService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
     }
 
+    private void validateCursorPair(String cursor, String idAfter) {
+        boolean hasCursor = cursor != null && !cursor.isBlank();
+        boolean hasIdAfter = idAfter != null && !idAfter.isBlank();
+
+        if (hasCursor != hasIdAfter) {
+            throw new IllegalArgumentException("cursor와 idAfter는 함께 전달하거나 모두 생략해야 합니다.");
+        }
+    }
+
     private Specification<Content> createCursorSpecification(
             String cursor,
             String idAfter,
@@ -182,10 +193,10 @@ public class ContentService {
                 return criteriaBuilder.conjunction();
             }
 
-            UUID idAfterValue = UUID.fromString(idAfter);
+            UUID idAfterValue = parseIdAfter(idAfter);
 
             if ("createdAt".equals(sortBy)) {
-                Instant cursorValue = Instant.parse(cursor);
+                Instant cursorValue = parseInstantCursor(cursor);
 
                 Predicate sortPredicate;
                 Predicate sameSortValuePredicate;
@@ -230,6 +241,22 @@ public class ContentService {
 
             return criteriaBuilder.conjunction();
         };
+    }
+
+    private UUID parseIdAfter(String idAfter) {
+        try {
+            return UUID.fromString(idAfter);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("idAfter는 올바른 UUID 형식이어야 합니다.");
+        }
+    }
+
+    private Instant parseInstantCursor(String cursor) {
+        try {
+            return Instant.parse(cursor);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("createdAt 정렬 시 cursor는 올바른 Instant 형식이어야 합니다.");
+        }
     }
 
     private String getCursorValue(Content content, String sortBy) {
