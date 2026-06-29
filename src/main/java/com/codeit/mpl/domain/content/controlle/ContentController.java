@@ -1,4 +1,4 @@
-package com.codeit.mpl.domain.content.controller;
+package com.codeit.mpl.domain.content.controlle;
 
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
 import com.codeit.mpl.domain.content.dto.request.ContentUpdateRequest;
@@ -12,16 +12,10 @@ import jakarta.validation.constraints.Min;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Validated
 @RestController
@@ -31,26 +25,19 @@ public class ContentController {
 
     private final ContentService contentService;
 
-    /**
-     * 콘텐츠 생성
-     *
-     * TODO(Auth 파트 구현 후 수정)
-     * 현재는 인증 사용자 연동이 확정되지 않아 creatorId를 요청 파라미터로 받는다.
-     * 추후 @AuthenticationPrincipal 등을 사용해 로그인 사용자 ID를 가져오는 방식으로 변경한다.
-     */
     @PostMapping
     public ResponseEntity<ContentDto> createContent(
-            @RequestParam UUID creatorId,
+            @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ContentCreateRequest request
     ) {
-        ContentDto response = contentService.createContent(creatorId, request);
+        ContentDto response = contentService.createContent(
+                userDetails.getUsername(),
+                request
+        );
 
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * 콘텐츠 단건 조회
-     */
     @GetMapping("/{contentId}")
     public ResponseEntity<ContentDto> getContent(
             @PathVariable UUID contentId
@@ -60,27 +47,30 @@ public class ContentController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * 콘텐츠 수정
-     */
     @PatchMapping("/{contentId}")
     public ResponseEntity<ContentDto> updateContent(
+            @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable UUID contentId,
             @Valid @RequestBody ContentUpdateRequest request
     ) {
-        ContentDto response = contentService.updateContent(contentId, request);
+        ContentDto response = contentService.updateContent(
+                userDetails.getUsername(),
+                contentId,
+                request
+        );
 
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * 콘텐츠 삭제
-     */
     @DeleteMapping("/{contentId}")
     public ResponseEntity<Void> deleteContent(
+            @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable UUID contentId
     ) {
-        contentService.deleteContent(contentId);
+        contentService.deleteContent(
+                userDetails.getUsername(),
+                contentId
+        );
 
         return ResponseEntity.noContent().build();
     }
@@ -88,9 +78,11 @@ public class ContentController {
     /**
      * 콘텐츠 목록 조회
      *
-     * TODO(Cursor Pagination 구현 보완)
-     * 현재 ContentService에서는 cursor, idAfter를 받지만 내부적으로는 PageRequest 기반으로 동작한다.
-     * 추후 요구사항에 맞춰 실제 커서 기반 조회로 변경한다.
+     * cursor, idAfter를 기준으로 커서 기반 페이지네이션을 수행한다.
+     * 첫 페이지 조회 시에는 cursor, idAfter를 생략할 수 있다.
+     *
+     * 다음 페이지가 존재하는 경우 응답의 nextCursor, nextIdAfter 값을
+     * 다음 요청의 cursor, idAfter로 전달하면 된다.
      */
     @GetMapping
     public ResponseEntity<CursorPageResponseDto<ContentSummary>> getContents(
