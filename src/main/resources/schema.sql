@@ -1,5 +1,5 @@
 -- 1. 유저 테이블 (users)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
                        id UUID PRIMARY KEY NOT NULL,
                        email VARCHAR(255) NOT NULL UNIQUE,
                        password TEXT NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE users (
 );
 
 -- 2. 콘텐츠 테이블 (contents)
-CREATE TABLE contents (
+CREATE TABLE IF NOT EXISTS contents (
                           id UUID PRIMARY KEY NOT NULL,
                           creator_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
                           title VARCHAR(255) NOT NULL,
@@ -24,13 +24,13 @@ CREATE TABLE contents (
                           updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE content_tags (
+CREATE TABLE IF NOT EXISTS content_tags (
                               content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
                               tag VARCHAR(255) NOT NULL
 );
 
 -- 3. 리뷰 테이블 (reviews)
-CREATE TABLE reviews (
+CREATE TABLE IF NOT EXISTS reviews (
                          id UUID PRIMARY KEY NOT NULL,
                          content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
                          author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -41,7 +41,7 @@ CREATE TABLE reviews (
 );
 
 -- 4. 플레이리스트 테이블 (Playlist)
-CREATE TABLE playlists (
+CREATE TABLE IF NOT EXISTS playlists (
                            id UUID PRIMARY KEY NOT NULL,
                            owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                            title VARCHAR(255) NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE playlists (
 );
 
 -- 5. 플레이리스트-콘텐츠 매핑 테이블 (PlaylistContent)
-CREATE TABLE playlist_contents (
+CREATE TABLE IF NOT EXISTS playlist_contents (
                                    id UUID PRIMARY KEY NOT NULL,
                                    playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
                                    content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
@@ -59,7 +59,7 @@ CREATE TABLE playlist_contents (
 );
 
 -- 6. 플레이리스트 구독 테이블 (PlaylistSubscription)
-CREATE TABLE playlist_subscriptions (
+CREATE TABLE IF NOT EXISTS playlist_subscriptions (
                                         id UUID PRIMARY KEY NOT NULL,
                                         playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
                                         subscriber_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -67,7 +67,7 @@ CREATE TABLE playlist_subscriptions (
 );
 
 -- 7. 팔로우 테이블 (Follow)
-CREATE TABLE follows (
+CREATE TABLE IF NOT EXISTS follows (
                          id UUID PRIMARY KEY NOT NULL,
                          follower_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                          followee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -76,7 +76,7 @@ CREATE TABLE follows (
 );
 
 -- 8. 대화방 테이블 (Conversation)
-CREATE TABLE conversations (
+CREATE TABLE IF NOT EXISTS conversations (
                                id UUID PRIMARY KEY NOT NULL,
                                user1_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                user2_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -86,7 +86,7 @@ CREATE TABLE conversations (
 );
 
 -- 9. 다이렉트 메시지 테이블 (DM)
-CREATE TABLE dms (
+CREATE TABLE IF NOT EXISTS dms (
                      id UUID PRIMARY KEY NOT NULL,
                      conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
                      sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -97,7 +97,7 @@ CREATE TABLE dms (
 );
 
 -- 10. 시청 세션 테이블 (WatchingSession)
-CREATE TABLE watching_sessions (
+CREATE TABLE IF NOT EXISTS watching_sessions (
                                    id UUID PRIMARY KEY NOT NULL,
                                    watcher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                    content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
@@ -105,7 +105,7 @@ CREATE TABLE watching_sessions (
 );
 
 -- 11. 알림 시스템 (Notification Management)
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
                                id UUID PRIMARY KEY,
                                receiver_id UUID NOT NULL,
                                sender_id UUID,
@@ -118,4 +118,4 @@ CREATE TABLE notifications (
                                FOREIGN KEY (sender_id) REFERENCES users(id)
 );
 
-CREATE INDEX idx_notifications_receiver_read ON notifications (receiver_id, is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_receiver_read ON notifications (receiver_id, is_read, created_at DESC);
