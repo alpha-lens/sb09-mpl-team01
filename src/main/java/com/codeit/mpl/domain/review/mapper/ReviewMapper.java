@@ -1,6 +1,6 @@
 package com.codeit.mpl.domain.review.mapper;
 
-import com.codeit.mpl.domain.review.dto.ReviewDto;
+import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.domain.review.entity.Review;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

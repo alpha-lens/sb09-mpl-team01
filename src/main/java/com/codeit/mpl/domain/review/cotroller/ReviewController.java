@@ -1,8 +1,10 @@
 package com.codeit.mpl.domain.review.cotroller;
 
-import com.codeit.mpl.domain.review.dto.ReviewCreateRequest;
-import com.codeit.mpl.domain.review.dto.ReviewDto;
-import com.codeit.mpl.domain.review.dto.ReviewUpdateRequest;
+import com.codeit.mpl.domain.review.cotroller.api.ReviewApi;
+import com.codeit.mpl.domain.review.dto.request.ReviewCreateRequest;
+import com.codeit.mpl.domain.review.dto.request.ReviewSearchRequest;
+import com.codeit.mpl.domain.review.dto.response.ReviewDto;
+import com.codeit.mpl.domain.review.dto.request.ReviewUpdateRequest;
 import com.codeit.mpl.domain.review.service.ReviewService;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/reviews")
-public class ReviewController {
+public class ReviewController implements ReviewApi {
 
   private final ReviewService reviewService;
 
@@ -57,15 +60,15 @@ public class ReviewController {
   // 리뷰 목록 조회
   @GetMapping
   public ResponseEntity<CursorPageResponseDto<ReviewDto>> getReviews(
-      @RequestParam UUID contentId,
-      @RequestParam(required = false) String cursor,
-      @RequestParam(required = false) String idAfter,
-      @RequestParam int limit,
-      @RequestParam String sortBy,
-      @RequestParam Direction sortDirection
+      @ModelAttribute ReviewSearchRequest request
   ) {
     CursorPageResponseDto<ReviewDto> response = reviewService.getReviews(
-        contentId, cursor, idAfter, limit, sortBy, sortDirection
+        request.getContentId(),
+        request.getCursor(),
+        request.getIdAfter(),
+        request.getLimit(),
+        request.getSortBy(),
+        request.getSortDirection()
     );
     return ResponseEntity.ok(response);
   }

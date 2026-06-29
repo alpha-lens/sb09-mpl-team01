@@ -1,4 +1,4 @@
-package com.codeit.mpl.domain.review.dto;
+package com.codeit.mpl.domain.review.dto.response;
 
 import java.time.Instant;
 import java.util.UUID;
