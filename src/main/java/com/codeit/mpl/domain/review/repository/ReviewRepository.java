@@ -1,6 +1,7 @@
 package com.codeit.mpl.domain.review.repository;
 
 import com.codeit.mpl.domain.content.entity.Content;
+import org.springframework.data.repository.query.Param;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.user.entity.User;
 import java.util.UUID;
@@ -16,7 +17,7 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
   Page<Review> findByContent(Content content, Pageable pageable);
 
   @Query("SELECT AVG(r.rating) FROM Review r WHERE r.content = :content")
-  Double findAverageRatingByContent(Content content);
+  Double findAverageRatingByContent(@Param("content") Content content);
 
   long countByContent(Content content);
 }
