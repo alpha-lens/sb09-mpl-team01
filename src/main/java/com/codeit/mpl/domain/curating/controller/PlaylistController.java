@@ -8,6 +8,8 @@ import com.codeit.mpl.domain.curating.dto.response.PlaylistDto;
 import com.codeit.mpl.domain.curating.service.PlaylistService;
 import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
+import com.codeit.mpl.infra.exception.ErrorCode;
+import com.codeit.mpl.infra.exception.MplException;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +56,7 @@ public class PlaylistController implements PlaylistApi {
       @AuthenticationPrincipal UserDetails userDetails,
       @Valid @RequestBody PlaylistCreateRequest request
   ) {
-    UUID ownerId = userService.resolveUserId(userDetails.getUsername());
+    UUID ownerId = resolveAuthenticatedUserId(userDetails);
     PlaylistDto response = playlistService.createPlaylist(ownerId, request);
     return ResponseEntity.ok(response);
   }
@@ -71,7 +73,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID playlistId,
       @Valid @RequestBody PlaylistUpdateRequest request
   ) {
-    UUID ownerId = userService.resolveUserId(userDetails.getUsername());
+    UUID ownerId = resolveAuthenticatedUserId(userDetails);
     PlaylistDto response = playlistService.updatePlaylist(ownerId, playlistId, request);
     return ResponseEntity.ok(response);
   }
@@ -81,7 +83,7 @@ public class PlaylistController implements PlaylistApi {
       @AuthenticationPrincipal UserDetails userDetails,
       @PathVariable UUID playlistId
   ) {
-    UUID ownerId = userService.resolveUserId(userDetails.getUsername());
+    UUID ownerId = resolveAuthenticatedUserId(userDetails);
     playlistService.deletePlaylist(ownerId, playlistId);
     return ResponseEntity.noContent().build();
   }
@@ -92,7 +94,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID playlistId,
       @PathVariable UUID contentId
   ) {
-    UUID ownerId = userService.resolveUserId(userDetails.getUsername());
+    UUID ownerId = resolveAuthenticatedUserId(userDetails);
     playlistService.addContent(ownerId, playlistId, contentId);
     return ResponseEntity.ok().build();
   }
@@ -103,7 +105,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID playlistId,
       @PathVariable UUID contentId
   ) {
-    UUID ownerId = userService.resolveUserId(userDetails.getUsername());
+    UUID ownerId = resolveAuthenticatedUserId(userDetails);
     playlistService.removeContent(ownerId, playlistId, contentId);
     return ResponseEntity.noContent().build();
   }
@@ -113,7 +115,7 @@ public class PlaylistController implements PlaylistApi {
       @AuthenticationPrincipal UserDetails userDetails,
       @PathVariable UUID playlistId
   ) {
-    UUID subscriberId = userService.resolveUserId(userDetails.getUsername());
+    UUID subscriberId = resolveAuthenticatedUserId(userDetails);
     playlistService.subscribePlaylist(subscriberId, playlistId);
     return ResponseEntity.ok().build();
   }
@@ -123,8 +125,15 @@ public class PlaylistController implements PlaylistApi {
       @AuthenticationPrincipal UserDetails userDetails,
       @PathVariable UUID playlistId
   ) {
-    UUID subscriberId = userService.resolveUserId(userDetails.getUsername());
+    UUID subscriberId = resolveAuthenticatedUserId(userDetails);
     playlistService.unsubscribePlaylist(subscriberId, playlistId);
     return ResponseEntity.noContent().build();
+  }
+
+  private UUID resolveAuthenticatedUserId(UserDetails userDetails) {
+    if (userDetails == null) {
+      throw new MplException(ErrorCode.INVALID_TOKEN);
+    }
+    return userService.resolveUserId(userDetails.getUsername());
   }
 }
