@@ -66,7 +66,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
+    implementation('org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9') {
+        exclude group: 'com.querydsl', module: 'querydsl-core'
+    }
     runtimeOnly 'org.postgresql:postgresql'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
