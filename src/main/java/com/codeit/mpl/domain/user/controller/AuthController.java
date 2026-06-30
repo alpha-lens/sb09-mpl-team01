@@ -68,9 +68,12 @@ public class AuthController implements AuthApi {
 
     @GetMapping("/csrf-token")
     @Override
-    public ResponseEntity<Void> csrfToken(CsrfToken csrfToken) {
-        csrfToken.getToken();
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<java.util.Map<String, String>> csrfToken(CsrfToken csrfToken) {
+        return ResponseEntity.ok(java.util.Map.of(
+                "headerName", csrfToken.getHeaderName(),
+                "parameterName", csrfToken.getParameterName(),
+                "token", csrfToken.getToken()
+        ));
     }
 
     private void setRefreshTokenCookie(HttpServletResponse response, String token) {

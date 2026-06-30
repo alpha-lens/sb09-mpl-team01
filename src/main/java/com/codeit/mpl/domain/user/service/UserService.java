@@ -209,8 +209,7 @@ public class UserService {
     }
 
     private Specification<User> buildFilterSpec(String emailLike, UserRole roleEqual, Boolean isLocked) {
-        Specification<User> nullSpec = null;
-        Specification<User> spec = Specification.where(nullSpec);
+        Specification<User> spec = (root, q, cb) -> cb.conjunction();
         if (emailLike != null) {
             spec = spec.and((root, q, cb) -> cb.like(root.get("email"), "%" + emailLike + "%"));
         }
@@ -225,8 +224,7 @@ public class UserService {
 
     private Specification<User> buildCursorSpec(String cursor, UUID idAfter, String sortBy, Sort.Direction dir) {
         if (cursor == null || idAfter == null) {
-            Specification<User> nullSpec = null;
-            return Specification.where(nullSpec);
+            return (root, q, cb) -> cb.conjunction();
         }
         return (root, q, cb) -> {
             String field = mapSortBy(sortBy);

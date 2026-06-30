@@ -48,7 +48,7 @@ public interface AuthApi {
     })
     ResponseEntity<JwtDto> refresh(String refreshToken, HttpServletResponse response);
 
-    @Operation(summary = "CSRF 토큰 조회", description = "응답 쿠키(XSRF-TOKEN)에 CSRF 토큰이 저장됩니다.")
-    @ApiResponse(responseCode = "204", description = "CSRF 토큰 발급 성공")
-    ResponseEntity<Void> csrfToken(CsrfToken csrfToken);
+    @Operation(summary = "CSRF 토큰 조회", description = "응답 body와 쿠키(XSRF-TOKEN) 모두에 CSRF 토큰이 반환됩니다.")
+    @ApiResponse(responseCode = "200", description = "CSRF 토큰 발급 성공")
+    ResponseEntity<java.util.Map<String, String>> csrfToken(CsrfToken csrfToken);
 }
