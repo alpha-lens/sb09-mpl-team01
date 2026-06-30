@@ -96,4 +96,13 @@ public class SseEmitterRepository {
                 }
         );
     }
+
+    /**
+     * Retrieves all active emitters.
+     *
+     * @return a map of all currently active SseEmitters
+     */
+    public Map<String, SseEmitter> getEmitters() {
+        return emitters;
+    }
 }
