@@ -30,9 +30,10 @@ public class NotificationAsyncHandler {
         }
 
         try {
-            // 2. Redis Pub/Sub 발행 (수동 JSON 문자열 생성)
+            // 2. Redis Pub/Sub 발행 (수동 JSON 문자열 생성 - RedisNotificationWrapper 구조에 맞춰 data 필드로 래핑)
             String message = String.format(
-                "{\"id\":\"%s\",\"createdAt\":\"%s\",\"receiverId\":\"%s\",\"title\":\"%s\",\"content\":\"%s\",\"level\":\"%s\"}",
+                "{\"receiverId\":\"%s\",\"data\":{\"id\":\"%s\",\"createdAt\":\"%s\",\"receiverId\":\"%s\",\"title\":\"%s\",\"content\":\"%s\",\"level\":\"%s\"}}",
+                dto.receiverId(),
                 dto.id(),
                 dto.createdAt() != null ? dto.createdAt().toString() : "",
                 dto.receiverId(),
