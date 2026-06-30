@@ -28,6 +28,8 @@ public enum ErrorCode {
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "ReviewNotFoundException", "존재하지 않는 리뷰입니다."),
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "ReviewAlreadyExistsException", "이미 리뷰를 작성했습니다."),
     REVIEW_FORBIDDEN(HttpStatus.FORBIDDEN, "ReviewForbiddenException", "리뷰 작성자만 수정/삭제할 수 있습니다."),
+    INVALID_REVIEW_CURSOR(HttpStatus.BAD_REQUEST, "InvalidReviewCursorException", "리뷰 커서 값이 올바르지 않습니다."),
+    INVALID_REVIEW_SORT(HttpStatus.BAD_REQUEST, "InvalidReviewSortException", "리뷰 정렬 기준이 올바르지 않습니다."),
 
     // 플레이리스트
     PLAYLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistNotFoundException", "존재하지 않는 플레이리스트입니다."),

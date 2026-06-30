@@ -43,6 +43,7 @@ public class ReviewService {
     User author = userRepository.findById(authorId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
 
+    // ErrorCode.CONTENT_NOT_FOUND 추가하면 MplException으로 교체
     Content content = contentRepository.findById(request.contentId())
         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
 
@@ -55,7 +56,11 @@ public class ReviewService {
     try {
       reviewRepository.save(review);
     } catch (DataIntegrityViolationException e) {
-      throw new MplException(ErrorCode.REVIEW_ALREADY_EXISTS);
+      String message = e.getMostSpecificCause().getMessage();
+      if (message != null && message.contains("uk_review_author_content")) {
+        throw new MplException(ErrorCode.REVIEW_ALREADY_EXISTS);
+      }
+      throw e;
     }
 
     return reviewMapper.toDto(review);
@@ -93,6 +98,7 @@ public class ReviewService {
       String sortBy,
       Direction sortDirection
   ) {
+    // ErrorCode.CONTENT_NOT_FOUND 추가하면 MplException으로 교체
     Content content = contentRepository.findById(contentId)
         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
 
@@ -133,12 +139,14 @@ public class ReviewService {
       nextIdAfter = last.getId().toString();
     }
 
+    long totalCount = reviewRepository.count(contentSpec);
+
     return new CursorPageResponseDto<>(
         reviewDtos,
         nextCursor,
         nextIdAfter,
         hasNext,
-        reviewPage.getTotalElements(),
+        totalCount,
         sortBy,
         sortDirection
     );
@@ -149,13 +157,13 @@ public class ReviewService {
     boolean hasIdAfter = idAfter != null && !idAfter.isBlank();
 
     if (hasCursor != hasIdAfter) {
-      throw new IllegalArgumentException("cursor와 idAfter는 함께 전달하거나 모두 생략해야 합니다.");
+      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
     }
   }
 
   private void validateSortBy(String sortBy) {
     if (!"createdAt".equals(sortBy) && !"rating".equals(sortBy)) {
-      throw new IllegalArgumentException("sortBy는 createdAt 또는 rating만 사용할 수 있습니다.");
+      throw new MplException(ErrorCode.INVALID_REVIEW_SORT);
     }
   }
 
@@ -226,7 +234,7 @@ public class ReviewService {
     try {
       return UUID.fromString(idAfter);
     } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("idAfter는 올바른 UUID 형식이어야 합니다.");
+      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
     }
   }
 
@@ -234,7 +242,7 @@ public class ReviewService {
     try {
       return Instant.parse(cursor);
     } catch (DateTimeParseException e) {
-      throw new IllegalArgumentException("createdAt 정렬 시 cursor는 올바른 Instant 형식이어야 합니다.");
+      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
     }
   }
 
@@ -242,7 +250,7 @@ public class ReviewService {
     try {
       return Double.parseDouble(cursor);
     } catch (NumberFormatException e) {
-      throw new IllegalArgumentException("rating 정렬 시 cursor는 올바른 숫자 형식이어야 합니다.");
+      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
     }
   }
 
@@ -253,6 +261,6 @@ public class ReviewService {
     if ("rating".equals(sortBy)) {
       return String.valueOf(review.getRating());
     }
-    throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
+    throw new MplException(ErrorCode.INVALID_REVIEW_SORT);
   }
 }

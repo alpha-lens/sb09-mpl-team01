@@ -3,14 +3,17 @@ package com.codeit.mpl.domain.review.cotroller;
 import com.codeit.mpl.domain.review.cotroller.api.ReviewApi;
 import com.codeit.mpl.domain.review.dto.request.ReviewCreateRequest;
 import com.codeit.mpl.domain.review.dto.request.ReviewSearchRequest;
-import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.domain.review.dto.request.ReviewUpdateRequest;
+import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.domain.review.service.ReviewService;
+import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -27,31 +30,39 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReviewController implements ReviewApi {
 
   private final ReviewService reviewService;
-
-  // 임시 authorId (지금은 임시 작성자ID 사용. 나중에 교체예정)
-  private static final UUID TEMP_AUTHOR_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+  private final UserService userService;
 
   // 리뷰 생성
   @PostMapping
-  public ResponseEntity<ReviewDto> createReview(@Valid @RequestBody ReviewCreateRequest request) {
-    ReviewDto response = reviewService.createReview(TEMP_AUTHOR_ID, request);
+  public ResponseEntity<ReviewDto> createReview(
+      @AuthenticationPrincipal UserDetails userDetails,
+      @Valid @RequestBody ReviewCreateRequest request
+  ) {
+    UUID authorId = userService.resolveUserId(userDetails.getUsername());
+    ReviewDto response = reviewService.createReview(authorId, request);
     return ResponseEntity.ok(response);
   }
 
   // 리뷰 수정
   @PatchMapping("/{reviewId}")
   public ResponseEntity<ReviewDto> updateReview(
+      @AuthenticationPrincipal UserDetails userDetails,
       @PathVariable UUID reviewId,
       @Valid @RequestBody ReviewUpdateRequest request
   ) {
-    ReviewDto response = reviewService.updateReview(TEMP_AUTHOR_ID, reviewId, request);
+    UUID authorId = userService.resolveUserId(userDetails.getUsername());
+    ReviewDto response = reviewService.updateReview(authorId, reviewId, request);
     return ResponseEntity.ok(response);
   }
 
   // 리뷰 삭제
   @DeleteMapping("/{reviewId}")
-  public ResponseEntity<Void> deleteReview(@PathVariable UUID reviewId) {
-    reviewService.deleteReview(TEMP_AUTHOR_ID, reviewId);
+  public ResponseEntity<Void> deleteReview(
+      @AuthenticationPrincipal UserDetails userDetails,
+      @PathVariable UUID reviewId
+  ) {
+    UUID authorId = userService.resolveUserId(userDetails.getUsername());
+    reviewService.deleteReview(authorId, reviewId);
     return ResponseEntity.noContent().build();
   }
 
