@@ -1,6 +1,8 @@
 package com.codeit.mpl.domain.chat.service;
 
 import com.codeit.mpl.domain.content.dto.WatchingSessionDto;
+import com.codeit.mpl.domain.content.dto.response.ContentDto;
+import com.codeit.mpl.domain.content.service.ContentService;
 import com.codeit.mpl.domain.user.dto.UserSummary;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -26,6 +28,7 @@ public class WatchingSessionService {
 
     private final StringRedisTemplate redisTemplate;
     private final UserRepository userRepository;
+    private final ContentService contentService;
 
     // Lua 스크립트 리소스 정의 (Spring DefaultRedisScript는 내부적으로 SHA 캐싱을 처리함)
     private final RedisScript<Long> registerScript = RedisScript.of(new ClassPathResource("scripts/register_session.lua"), Long.class);
@@ -61,11 +64,17 @@ public class WatchingSessionService {
             return null;
         }
 
+        UUID contentId = UUID.fromString(contentIdStr);
         return userRepository.findById(watcherId)
-            .map(user -> new WatchingSessionDto(
-                UUID.fromString(contentIdStr),
-                new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl())
-            ))
+            .map(user -> {
+                ContentDto contentDto = contentService.getContent(contentId);
+                return new WatchingSessionDto(
+                    user.getId(),
+                    Instant.now(),
+                    new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl()),
+                    contentDto
+                );
+            })
             .orElse(null);
     }
 
@@ -103,10 +112,17 @@ public class WatchingSessionService {
             List<WatchingSessionDto> unsortedDtos = uuids.stream()
                 .map(userMap::get)
                 .filter(Objects::nonNull)
-                .map(user -> new WatchingSessionDto(
-                    contentId,
-                    new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl())
-                ))
+                .map(user -> {
+                    Double userScore = redisTemplate.opsForZSet().score(contentKey, user.getId().toString());
+                    Instant createdAt = userScore != null ? Instant.ofEpochMilli(userScore.longValue()) : Instant.now();
+                    ContentDto contentDto = contentService.getContent(contentId);
+                    return new WatchingSessionDto(
+                        user.getId(),
+                        createdAt,
+                        new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl()),
+                        contentDto
+                    );
+                })
                 .toList();
 
             hasNext = unsortedDtos.size() > limit;
@@ -147,10 +163,17 @@ public class WatchingSessionService {
             List<User> finalUsers = hasNext ? pageUsers.subList(0, limit) : pageUsers;
 
             dtos = finalUsers.stream()
-                .map(user -> new WatchingSessionDto(
-                    contentId,
-                    new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl())
-                ))
+                .map(user -> {
+                    Double userScore = redisTemplate.opsForZSet().score(contentKey, user.getId().toString());
+                    Instant createdAt = userScore != null ? Instant.ofEpochMilli(userScore.longValue()) : Instant.now();
+                    ContentDto contentDto = contentService.getContent(contentId);
+                    return new WatchingSessionDto(
+                        user.getId(),
+                        createdAt,
+                        new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl()),
+                        contentDto
+                    );
+                })
                 .toList();
         }
 
@@ -158,8 +181,8 @@ public class WatchingSessionService {
         String nextIdAfter = null;
         if (!dtos.isEmpty()) {
             WatchingSessionDto last = dtos.get(dtos.size() - 1);
-            nextCursor = last.user().userId().toString();
-            nextIdAfter = last.user().userId().toString();
+            nextCursor = last.watcher().userId().toString();
+            nextIdAfter = last.watcher().userId().toString();
         }
 
         Long totalCount = redisTemplate.opsForZSet().count(contentKey, minScore, Double.MAX_VALUE);

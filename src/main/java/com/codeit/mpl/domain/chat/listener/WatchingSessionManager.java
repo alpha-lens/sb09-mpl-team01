@@ -4,9 +4,12 @@ import com.codeit.mpl.domain.chat.service.WatchingSessionService;
 import com.codeit.mpl.domain.content.dto.ChangeType;
 import com.codeit.mpl.domain.content.dto.WatchingSessionChange;
 import com.codeit.mpl.domain.content.dto.WatchingSessionDto;
+import com.codeit.mpl.domain.content.dto.response.ContentDto;
+import com.codeit.mpl.domain.content.service.ContentService;
 import com.codeit.mpl.domain.user.dto.UserSummary;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,6 +35,7 @@ public class WatchingSessionManager {
     private final UserRepository userRepository;
     private final SimpMessageSendingOperations messagingTemplate;
     private final WatchingSessionService watchingSessionService;
+    private final ContentService contentService;
 
     // key: sessionId_subscriptionId
     private final Map<String, WatchingSessionDto> sessionMap = new ConcurrentHashMap<>();
@@ -66,7 +70,8 @@ public class WatchingSessionManager {
                 if (email != null) {
                     userRepository.findByEmail(email).ifPresent(user -> {
                         UserSummary userSummary = new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl());
-                        WatchingSessionDto watchingSession = new WatchingSessionDto(contentId, userSummary);
+                        ContentDto contentDto = contentService.getContent(contentId);
+                        WatchingSessionDto watchingSession = new WatchingSessionDto(user.getId(), Instant.now(), userSummary, contentDto);
 
                         sessionMap.put(key, watchingSession);
                         contentWatchers.computeIfAbsent(contentId, k -> new ConcurrentHashMap<>()).put(key, watchingSession);
@@ -93,15 +98,15 @@ public class WatchingSessionManager {
 
         WatchingSessionDto watchingSession = sessionMap.remove(key);
         if (watchingSession != null) {
-            UUID contentId = watchingSession.contentId();
+            UUID contentId = watchingSession.content().id();
             Map<String, WatchingSessionDto> watchers = contentWatchers.get(contentId);
             if (watchers != null) {
                 watchers.remove(key);
-                watchingSessionService.removeSession(watchingSession.user().userId());
+                watchingSessionService.removeSession(watchingSession.watcher().userId());
                 long watcherCount = watchers.size();
                 WatchingSessionChange change = new WatchingSessionChange(ChangeType.LEAVE, watchingSession, watcherCount);
 
-                log.info("[WebSocket Session] LEAVE: contentId={}, userId={}, count={}", contentId, watchingSession.user().userId(), watcherCount);
+                log.info("[WebSocket Session] LEAVE: contentId={}, userId={}, count={}", contentId, watchingSession.watcher().userId(), watcherCount);
                 messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/watch", change);
             }
         }
@@ -114,15 +119,15 @@ public class WatchingSessionManager {
         sessionMap.forEach((key, watchingSession) -> {
             if (key.startsWith(sessionId + "_")) {
                 sessionMap.remove(key);
-                UUID contentId = watchingSession.contentId();
+                UUID contentId = watchingSession.content().id();
                 Map<String, WatchingSessionDto> watchers = contentWatchers.get(contentId);
                 if (watchers != null) {
                     watchers.remove(key);
-                    watchingSessionService.removeSession(watchingSession.user().userId());
+                    watchingSessionService.removeSession(watchingSession.watcher().userId());
                     long watcherCount = watchers.size();
                     WatchingSessionChange change = new WatchingSessionChange(ChangeType.LEAVE, watchingSession, watcherCount);
 
-                    log.info("[WebSocket Session] DISCONNECT LEAVE: contentId={}, userId={}, count={}", contentId, watchingSession.user().userId(), watcherCount);
+                    log.info("[WebSocket Session] DISCONNECT LEAVE: contentId={}, userId={}, count={}", contentId, watchingSession.watcher().userId(), watcherCount);
                     messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/watch", change);
                 }
             }

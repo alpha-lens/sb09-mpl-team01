@@ -48,7 +48,7 @@ public class WebsocketController {
                     UUID.randomUUID(),
                     contentId,
                     sender,
-                    request.message(),
+                    request.content(),
                     Instant.now()
             );
 
