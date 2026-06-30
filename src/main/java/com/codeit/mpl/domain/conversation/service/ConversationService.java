@@ -9,6 +9,8 @@ import com.codeit.mpl.domain.conversation.entity.Conversation;
 import com.codeit.mpl.domain.conversation.entity.DirectMessage;
 import com.codeit.mpl.domain.conversation.repository.ConversationRepository;
 import com.codeit.mpl.domain.conversation.repository.DirectMessageRepository;
+import com.codeit.mpl.domain.notification.entity.NotificationLevel;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import com.codeit.mpl.domain.user.dto.UserSummary;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -19,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,7 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final DirectMessageRepository directMessageRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public Conversation getConversation(UUID conversationId) {
@@ -137,14 +141,15 @@ public class ConversationService {
     }
 
     public void readConversationMessages(UUID conversationId, UUID directMessageId, UUID userId) {
-        // [수정] 대화방 ID, 메시지 ID, 수신자 ID(나) 조건을 모두 만족하는 특정 메시지 1건만 정확히 조회
-        DirectMessage dm = directMessageRepository.findByIdAndConversationIdAndReceiverId(directMessageId, conversationId, userId)
-            .orElseThrow(() -> new IllegalArgumentException("읽음 처리할 수 있는 메시지가 존재하지 않습니다."));
-
-        // 이미 읽은 메시지가 아니라면 읽음 처리 (Dirty Checking으로 인해 트랜잭션 종료 시 자동 Update)
-        if (!dm.isRead()) {
-            dm.read();
-        }
+        // [수정] 자신이 보낸 메시지이거나 이미 읽은 메시지인 경우 예외를 던지는 대신 조용히 처리하여 500 에러 방지
+        directMessageRepository.findById(directMessageId)
+            .ifPresent(dm -> {
+                if (dm.getConversation().getId().equals(conversationId)
+                        && dm.getReceiver().getId().equals(userId)
+                        && !dm.isRead()) {
+                    dm.read();
+                }
+            });
     }
 
     public CursorPageResponseDto<DirectMessageDto> getDirectMessages(
@@ -213,6 +218,16 @@ public class ConversationService {
             .build();
 
         directMessageRepository.save(dm);
+
+        // DM 수신 시 실시간 알림을 위한 이벤트 발행
+        eventPublisher.publishEvent(new NotificationEvent(
+            receiver,
+            sender,
+            NotificationLevel.INFO,
+            sender.getName() + "님으로부터 메시지가 도착했습니다.",
+            request.content()
+        ));
+
         return toDmDto(dm);
     }
 
