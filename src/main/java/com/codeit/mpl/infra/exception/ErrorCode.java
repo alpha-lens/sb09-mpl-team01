@@ -37,7 +37,10 @@ public enum ErrorCode {
     PLAYLIST_CONTENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "PlaylistContentAlreadyExistsException", "이미 추가된 콘텐츠입니다."),
     PLAYLIST_CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistContentNotFoundException", "플레이리스트에 없는 콘텐츠입니다."),
     PLAYLIST_SUBSCRIPTION_ALREADY_EXISTS(HttpStatus.CONFLICT, "PlaylistSubscriptionAlreadyExistsException", "이미 구독중인 플레이리스트입니다."),
-    PLAYLIST_SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistSubscriptionNotFoundException", "구독하지 않은 플레이리스트입니다.");
+    PLAYLIST_SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistSubscriptionNotFoundException", "구독하지 않은 플레이리스트입니다."),
+
+    // 콘텐츠
+    CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "ContentNotFoundException", "존재하지 않는 콘텐츠입니다.");
 
     private final HttpStatus httpStatus;
     private final String exceptionName;

@@ -45,7 +45,7 @@ public class ReviewService {
 
     // ErrorCode.CONTENT_NOT_FOUND 추가하면 MplException으로 교체
     Content content = contentRepository.findById(request.contentId())
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     if (reviewRepository.existsByAuthorAndContent(author, content)) {
       throw new MplException(ErrorCode.REVIEW_ALREADY_EXISTS);
@@ -100,7 +100,7 @@ public class ReviewService {
   ) {
     // ErrorCode.CONTENT_NOT_FOUND 추가하면 MplException으로 교체
     Content content = contentRepository.findById(contentId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     validateCursorPair(cursor, idAfter);
     validateSortBy(sortBy);
