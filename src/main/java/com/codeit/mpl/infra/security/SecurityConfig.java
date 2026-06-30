@@ -68,6 +68,7 @@ public class SecurityConfig {
                     "/api/auth/refresh", "/api/auth/csrf-token").permitAll()
                 .requestMatchers(POST, "/api/users").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/", "/index.html", "/favicon.svg", "/static/**", "/assets/**").permitAll()
                 .requestMatchers("/api/notifications/subscribe").permitAll()
                 .requestMatchers("/ws/**", "/ws-chat/**").permitAll()
                 .anyRequest().authenticated()
