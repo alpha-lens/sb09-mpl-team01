@@ -4,9 +4,9 @@ import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 
 
-import com.codeit.mpl.domain.review.dto.ReviewCreateRequest;
-import com.codeit.mpl.domain.review.dto.ReviewDto;
-import com.codeit.mpl.domain.review.dto.ReviewUpdateRequest;
+import com.codeit.mpl.domain.review.dto.request.ReviewCreateRequest;
+import com.codeit.mpl.domain.review.dto.response.ReviewDto;
+import com.codeit.mpl.domain.review.dto.request.ReviewUpdateRequest;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.mapper.ReviewMapper;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;

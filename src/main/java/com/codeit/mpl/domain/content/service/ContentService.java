@@ -7,10 +7,16 @@ import com.codeit.mpl.domain.content.dto.response.ContentSummary;
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
+import com.codeit.mpl.domain.content.repository.WatchingSessionRepository;
+import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
+import jakarta.persistence.criteria.Predicate;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,10 +36,11 @@ public class ContentService {
     private final ContentRepository contentRepository;
     private final UserRepository userRepository;
     private final ContentMapper contentMapper;
+    private final ReviewRepository reviewRepository;
+    private final WatchingSessionRepository watchingSessionRepository;
 
-    public ContentDto createContent(UUID creatorId, ContentCreateRequest request) {
-        User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+    public ContentDto createContent(String requesterEmail, ContentCreateRequest request) {
+        User creator = getRequester(requesterEmail);
 
         Content content = Content.create(
                 creator,
@@ -56,8 +64,15 @@ public class ContentService {
         return toDto(content);
     }
 
-    public ContentDto updateContent(UUID contentId, ContentUpdateRequest request) {
+    public ContentDto updateContent(
+            String requesterEmail,
+            UUID contentId,
+            ContentUpdateRequest request
+    ) {
+        User requester = getRequester(requesterEmail);
         Content content = getContentEntity(contentId);
+
+        validateContentOwnerOrAdmin(requester, content);
 
         content.update(
                 request.title(),
@@ -68,8 +83,11 @@ public class ContentService {
         return toDto(content);
     }
 
-    public void deleteContent(UUID contentId) {
+    public void deleteContent(String requesterEmail, UUID contentId) {
+        User requester = getRequester(requesterEmail);
         Content content = getContentEntity(contentId);
+
+        validateContentOwnerOrAdmin(requester, content);
 
         contentRepository.delete(content);
     }
@@ -82,31 +100,76 @@ public class ContentService {
             String sortBy,
             Direction sortDirection
     ) {
+        validateCursorPair(cursor, idAfter);
+        validateSortBy(sortBy);
+
         Sort.Direction direction = sortDirection == Direction.ASCENDING
                 ? Sort.Direction.ASC
                 : Sort.Direction.DESC;
 
         Pageable pageable = PageRequest.of(
                 0,
-                limit,
-                Sort.by(direction, sortBy)
+                limit + 1,
+                Sort.by(direction, sortBy).and(Sort.by(direction, "id"))
         );
 
-        Page<Content> contentPage = contentRepository.findAll(pageable);
-
-        List<ContentSummary> contentSummaries = contentPage.getContent().stream()
-                .map(this::toSummary)
-                .toList();
-
-        return new CursorPageResponseDto<>(
-                contentSummaries,
-                null,
-                null,
-                contentPage.hasNext(),
-                contentPage.getTotalElements(),
+        Specification<Content> specification = createCursorSpecification(
+                cursor,
+                idAfter,
                 sortBy,
                 sortDirection
         );
+
+        Page<Content> contentPage = contentRepository.findAll(specification, pageable);
+
+        List<Content> contents = contentPage.getContent();
+
+        boolean hasNext = contents.size() > limit;
+
+        List<Content> pageContents = hasNext
+                ? contents.subList(0, limit)
+                : contents;
+
+        List<ContentSummary> contentSummaries = pageContents.stream()
+                .map(this::toSummary)
+                .toList();
+
+        String nextCursor = null;
+        String nextIdAfter = null;
+
+        if (hasNext && !pageContents.isEmpty()) {
+            Content lastContent = pageContents.get(pageContents.size() - 1);
+            nextCursor = getCursorValue(lastContent, sortBy);
+            nextIdAfter = lastContent.getId().toString();
+        }
+
+        return new CursorPageResponseDto<>(
+                contentSummaries,
+                nextCursor,
+                nextIdAfter,
+                hasNext,
+                contentRepository.count(),
+                sortBy,
+                sortDirection
+        );
+    }
+
+    private User getRequester(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("인증 정보가 유효하지 않습니다.");
+        }
+
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+    }
+
+    private void validateContentOwnerOrAdmin(User requester, Content content) {
+        boolean isOwner = content.getCreator().getId().equals(requester.getId());
+        boolean isAdmin = requester.getRole() == UserRole.ADMIN;
+
+        if (!isOwner && !isAdmin) {
+            throw new IllegalArgumentException("콘텐츠를 수정하거나 삭제할 권한이 없습니다.");
+        }
     }
 
     private Content getContentEntity(UUID contentId) {
@@ -114,43 +177,119 @@ public class ContentService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
     }
 
-    private ContentDto toDto(Content content) {
-        /*
-         * TODO (Review 파트 구현 후 연결)
-         *
-         * 현재 averageRating, reviewCount는 리뷰 파트의 집계 메서드가 아직 확정되지 않아
-         * 임시값으로 0.0, 0을 반환한다.
-         *
-         * ReviewRepository에 아래 메서드가 추가되면,
-         * ContentService에 ReviewRepository를 주입하고 아래 코드로 교체한다.
-         *
-         * 필요한 메서드 예시:
-         * - reviewRepository.findAverageRatingByContent(content)
-         * - reviewRepository.countByContent(content)
-         *
-         * 교체 예정 코드:
-         * Double averageRating = reviewRepository.findAverageRatingByContent(content);
-         * Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
-         */
-        Double averageRating = 0.0;
-        Integer reviewCount = 0;
+    private void validateCursorPair(String cursor, String idAfter) {
+        boolean hasCursor = cursor != null && !cursor.isBlank();
+        boolean hasIdAfter = idAfter != null && !idAfter.isBlank();
 
-        /*
-         * TODO (WatchingSession 파트 구현 후 연결)
-         *
-         * 현재 watcherCount는 실시간 같이보기 파트의 WatchingSessionRepository가 아직 확정되지 않아
-         * 임시값으로 0L을 반환한다.
-         *
-         * WatchingSessionRepository에 아래 메서드가 추가되면,
-         * ContentService에 WatchingSessionRepository를 주입하고 아래 코드로 교체한다.
-         *
-         * 필요한 메서드 예시:
-         * - watchingSessionRepository.countByContent(content)
-         *
-         * 교체 예정 코드:
-         * Long watcherCount = watchingSessionRepository.countByContent(content);
-         */
-        Long watcherCount = 0L;
+        if (hasCursor != hasIdAfter) {
+            throw new IllegalArgumentException("cursor와 idAfter는 함께 전달하거나 모두 생략해야 합니다.");
+        }
+    }
+
+    private Specification<Content> createCursorSpecification(
+            String cursor,
+            String idAfter,
+            String sortBy,
+            Direction sortDirection
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            if (cursor == null || cursor.isBlank() || idAfter == null || idAfter.isBlank()) {
+                return criteriaBuilder.conjunction();
+            }
+
+            UUID idAfterValue = parseIdAfter(idAfter);
+
+            if ("createdAt".equals(sortBy)) {
+                Instant cursorValue = parseInstantCursor(cursor);
+
+                Predicate sortPredicate;
+                Predicate sameSortValuePredicate;
+
+                if (sortDirection == Direction.ASCENDING) {
+                    sortPredicate = criteriaBuilder.greaterThan(root.get("createdAt"), cursorValue);
+                    sameSortValuePredicate = criteriaBuilder.and(
+                            criteriaBuilder.equal(root.get("createdAt"), cursorValue),
+                            criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
+                    );
+                } else {
+                    sortPredicate = criteriaBuilder.lessThan(root.get("createdAt"), cursorValue);
+                    sameSortValuePredicate = criteriaBuilder.and(
+                            criteriaBuilder.equal(root.get("createdAt"), cursorValue),
+                            criteriaBuilder.lessThan(root.get("id"), idAfterValue)
+                    );
+                }
+
+                return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
+            }
+
+            if ("title".equals(sortBy)) {
+                Predicate sortPredicate;
+                Predicate sameSortValuePredicate;
+
+                if (sortDirection == Direction.ASCENDING) {
+                    sortPredicate = criteriaBuilder.greaterThan(root.get("title"), cursor);
+                    sameSortValuePredicate = criteriaBuilder.and(
+                            criteriaBuilder.equal(root.get("title"), cursor),
+                            criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
+                    );
+                } else {
+                    sortPredicate = criteriaBuilder.lessThan(root.get("title"), cursor);
+                    sameSortValuePredicate = criteriaBuilder.and(
+                            criteriaBuilder.equal(root.get("title"), cursor),
+                            criteriaBuilder.lessThan(root.get("id"), idAfterValue)
+                    );
+                }
+
+                return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
+            }
+
+            return criteriaBuilder.conjunction();
+        };
+    }
+
+    private UUID parseIdAfter(String idAfter) {
+        try {
+            return UUID.fromString(idAfter);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("idAfter는 올바른 UUID 형식이어야 합니다.");
+        }
+    }
+
+    private Instant parseInstantCursor(String cursor) {
+        try {
+            return Instant.parse(cursor);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("createdAt 정렬 시 cursor는 올바른 Instant 형식이어야 합니다.");
+        }
+    }
+
+    private String getCursorValue(Content content, String sortBy) {
+        if ("createdAt".equals(sortBy)) {
+            return content.getCreatedAt().toString();
+        }
+
+        if ("title".equals(sortBy)) {
+            return content.getTitle();
+        }
+
+        throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
+    }
+
+    private void validateSortBy(String sortBy) {
+        if (!"createdAt".equals(sortBy) && !"title".equals(sortBy)) {
+            throw new IllegalArgumentException("sortBy는 createdAt 또는 title만 사용할 수 있습니다.");
+        }
+    }
+
+    private ContentDto toDto(Content content) {
+        Double averageRating = reviewRepository.findAverageRatingByContent(content);
+
+        if (averageRating == null) {
+            averageRating = 0.0;
+        }
+
+        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
+        Long watcherCount = watchingSessionRepository.countByContent(content);
 
         return contentMapper.toDto(
                 content,
@@ -161,25 +300,13 @@ public class ContentService {
     }
 
     private ContentSummary toSummary(Content content) {
-        /*
-         * TODO (Review 파트 구현 후 연결)
-         *
-         * 현재 averageRating, reviewCount는 리뷰 파트의 집계 메서드가 아직 확정되지 않아
-         * 임시값으로 0.0, 0을 반환한다.
-         *
-         * ReviewRepository에 아래 메서드가 추가되면,
-         * ContentService에 ReviewRepository를 주입하고 아래 코드로 교체한다.
-         *
-         * 필요한 메서드 예시:
-         * - reviewRepository.findAverageRatingByContent(content)
-         * - reviewRepository.countByContent(content)
-         *
-         * 교체 예정 코드:
-         * Double averageRating = reviewRepository.findAverageRatingByContent(content);
-         * Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
-         */
-        Double averageRating = 0.0;
-        Integer reviewCount = 0;
+        Double averageRating = reviewRepository.findAverageRatingByContent(content);
+
+        if (averageRating == null) {
+            averageRating = 0.0;
+        }
+
+        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
 
         return contentMapper.toSummary(
                 content,
