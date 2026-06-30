@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -79,26 +80,44 @@ public class ContentService {
             throw new IllegalArgumentException("SPORT 타입은 TMDB import를 지원하지 않습니다.");
         }
 
-        return contentRepository.findBySourceTypeAndExternalId(TMDB_SOURCE_TYPE, request.externalId())
+        return contentRepository.findBySourceTypeAndExternalId(
+                        TMDB_SOURCE_TYPE,
+                        request.externalId()
+                )
                 .map(this::toDto)
-                .orElseGet(() -> {
-                    TmdbContentItem item = switch (request.type()) {
-                        case MOVIE -> tmdbClient.getMovieDetail(request.externalId());
-                        case TVSERIES -> tmdbClient.getTvSeriesDetail(request.externalId());
-                        case SPORT -> throw new IllegalArgumentException("SPORT 타입은 TMDB import를 지원하지 않습니다.");
-                    };
+                .orElseGet(() -> importNewExternalContent(requester, request));
+    }
 
-                    Content content = createContentFromTmdb(
-                            requester,
-                            request.type(),
-                            request.externalId(),
+    private ContentDto importNewExternalContent(
+            User requester,
+            ContentImportRequest request
+    ) {
+        TmdbContentItem item = switch (request.type()) {
+            case MOVIE -> tmdbClient.getMovieDetail(request.externalId());
+            case TVSERIES -> tmdbClient.getTvSeriesDetail(request.externalId());
+            case SPORT -> throw new IllegalArgumentException("SPORT 타입은 TMDB import를 지원하지 않습니다.");
+        };
+
+        Content content = createContentFromTmdb(
+                requester,
+                request.type(),
+                request.externalId(),
+                TMDB_SOURCE_TYPE,
+                item
+        );
+
+        try {
+            Content savedContent = contentRepository.saveAndFlush(content);
+            return toDto(savedContent);
+        } catch (DataIntegrityViolationException e) {
+            Content existingContent = contentRepository.findBySourceTypeAndExternalId(
                             TMDB_SOURCE_TYPE,
-                            item
-                    );
+                            request.externalId()
+                    )
+                    .orElseThrow(() -> e);
 
-                    Content savedContent = contentRepository.save(content);
-                    return toDto(savedContent);
-                });
+            return toDto(existingContent);
+        }
     }
 
     @Transactional(readOnly = true)
