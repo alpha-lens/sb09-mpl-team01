@@ -7,7 +7,6 @@ import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.domain.review.dto.request.ReviewUpdateRequest;
 import com.codeit.mpl.domain.review.service.ReviewService;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
-import com.codeit.mpl.infra.common.dto.Direction;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
