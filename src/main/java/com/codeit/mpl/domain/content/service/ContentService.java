@@ -1,10 +1,16 @@
 package com.codeit.mpl.domain.content.service;
 
+import com.codeit.mpl.domain.content.client.TmdbClient;
+import com.codeit.mpl.domain.content.dto.external.TmdbContentItem;
+import com.codeit.mpl.domain.content.dto.external.TmdbSearchResponse;
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
+import com.codeit.mpl.domain.content.dto.request.ContentImportRequest;
 import com.codeit.mpl.domain.content.dto.request.ContentUpdateRequest;
 import com.codeit.mpl.domain.content.dto.response.ContentDto;
 import com.codeit.mpl.domain.content.dto.response.ContentSummary;
+import com.codeit.mpl.domain.content.dto.response.ExternalContentSearchResult;
 import com.codeit.mpl.domain.content.entity.Content;
+import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.content.repository.WatchingSessionRepository;
@@ -17,6 +23,7 @@ import com.codeit.mpl.infra.common.dto.Direction;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -33,14 +40,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class ContentService {
 
+    private static final String TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
+    private static final String TMDB_SOURCE_TYPE = "TMDB";
+
     private final ContentRepository contentRepository;
     private final UserRepository userRepository;
     private final ContentMapper contentMapper;
     private final ReviewRepository reviewRepository;
     private final WatchingSessionRepository watchingSessionRepository;
+    private final TmdbClient tmdbClient;
 
     public ContentDto createContent(String requesterEmail, ContentCreateRequest request) {
         User creator = getRequester(requesterEmail);
+        validateAdmin(creator);
 
         Content content = Content.create(
                 creator,
@@ -53,14 +65,45 @@ public class ContentService {
         );
 
         Content savedContent = contentRepository.save(content);
-
         return toDto(savedContent);
+    }
+
+    public ContentDto importExternalContent(
+            String requesterEmail,
+            ContentImportRequest request
+    ) {
+        User requester = getRequester(requesterEmail);
+        validateAdmin(requester);
+
+        if (request.type() == ContentType.SPORT) {
+            throw new IllegalArgumentException("SPORT 타입은 TMDB import를 지원하지 않습니다.");
+        }
+
+        return contentRepository.findBySourceTypeAndExternalId(TMDB_SOURCE_TYPE, request.externalId())
+                .map(this::toDto)
+                .orElseGet(() -> {
+                    TmdbContentItem item = switch (request.type()) {
+                        case MOVIE -> tmdbClient.getMovieDetail(request.externalId());
+                        case TVSERIES -> tmdbClient.getTvSeriesDetail(request.externalId());
+                        case SPORT -> throw new IllegalArgumentException("SPORT 타입은 TMDB import를 지원하지 않습니다.");
+                    };
+
+                    Content content = createContentFromTmdb(
+                            requester,
+                            request.type(),
+                            request.externalId(),
+                            TMDB_SOURCE_TYPE,
+                            item
+                    );
+
+                    Content savedContent = contentRepository.save(content);
+                    return toDto(savedContent);
+                });
     }
 
     @Transactional(readOnly = true)
     public ContentDto getContent(UUID contentId) {
         Content content = getContentEntity(contentId);
-
         return toDto(content);
     }
 
@@ -123,7 +166,6 @@ public class ContentService {
         Page<Content> contentPage = contentRepository.findAll(specification, pageable);
 
         List<Content> contents = contentPage.getContent();
-
         boolean hasNext = contents.size() > limit;
 
         List<Content> pageContents = hasNext
@@ -154,6 +196,87 @@ public class ContentService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<ExternalContentSearchResult> searchExternalContents(
+            String keyword,
+            ContentType type
+    ) {
+        TmdbSearchResponse response = switch (type) {
+            case MOVIE -> tmdbClient.searchMovies(keyword);
+            case TVSERIES -> tmdbClient.searchTvSeries(keyword);
+            case SPORT -> throw new IllegalArgumentException("SPORT 타입은 아직 TMDB 검색을 지원하지 않습니다.");
+        };
+
+        if (response == null || response.results() == null) {
+            return List.of();
+        }
+
+        return response.results().stream()
+                .map(item -> toExternalSearchResult(item, type))
+                .toList();
+    }
+
+    private ExternalContentSearchResult toExternalSearchResult(
+            TmdbContentItem item,
+            ContentType type
+    ) {
+        String title = type == ContentType.MOVIE
+                ? item.title()
+                : item.name();
+
+        String releaseDate = type == ContentType.MOVIE
+                ? item.release_date()
+                : item.first_air_date();
+
+        String thumbnailUrl = item.poster_path() == null
+                ? null
+                : TMDB_IMAGE_BASE_URL + item.poster_path();
+
+        return new ExternalContentSearchResult(
+                String.valueOf(item.id()),
+                type,
+                title,
+                item.overview(),
+                thumbnailUrl,
+                releaseDate
+        );
+    }
+
+    private Content createContentFromTmdb(
+            User creator,
+            ContentType type,
+            String externalId,
+            String sourceType,
+            TmdbContentItem item
+    ) {
+        String title = type == ContentType.MOVIE
+                ? item.title()
+                : item.name();
+
+        String thumbnailUrl = item.poster_path() == null
+                ? null
+                : TMDB_IMAGE_BASE_URL + item.poster_path();
+
+        String contentUrl = type == ContentType.MOVIE
+                ? "https://www.themoviedb.org/movie/" + externalId
+                : "https://www.themoviedb.org/tv/" + externalId;
+
+        List<String> tags = new ArrayList<>();
+        tags.add(type.name());
+
+        return Content.createFromExternalApi(
+                creator,
+                type,
+                title,
+                item.overview(),
+                thumbnailUrl,
+                contentUrl,
+                externalId,
+                sourceType,
+                tags
+        );
+    }
+
     private User getRequester(String email) {
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("인증 정보가 유효하지 않습니다.");
@@ -161,6 +284,12 @@ public class ContentService {
 
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+    }
+
+    private void validateAdmin(User requester) {
+        if (requester.getRole() != UserRole.ADMIN) {
+            throw new IllegalArgumentException("관리자만 콘텐츠를 등록할 수 있습니다.");
+        }
     }
 
     private void validateContentOwnerOrAdmin(User requester, Content content) {
