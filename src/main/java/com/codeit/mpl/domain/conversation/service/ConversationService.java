@@ -72,10 +72,21 @@ public class ConversationService {
     }
 
     @Transactional(readOnly = true)
-    public List<ConversationDto> getConversations(UUID userId) {
-        List<ConversationQueryDto> flatDtos = conversationRepository.findAllConversationsWithStats(userId);
+    public CursorPageResponseDto<ConversationDto> getConversations(UUID userId, String keywordLike, CursorPageRequestDto request) {
+        int limit = request.limit() != null ? request.limit() : 20;
+        String cursor = request.cursor();
+        UUID idAfter = request.idAfter();
 
-        return flatDtos.stream()
+        List<ConversationQueryDto> flatDtos = conversationRepository.findAllConversationsWithStats(
+            userId, keywordLike, cursor, idAfter, limit
+        );
+
+        boolean hasNext = flatDtos.size() > limit;
+        if (hasNext) {
+            flatDtos = flatDtos.subList(0, limit);
+        }
+
+        List<ConversationDto> dtos = flatDtos.stream()
             .map(flat -> {
                 UserSummary with = new UserSummary(
                     flat.otherUserId(),
@@ -89,7 +100,7 @@ public class ConversationService {
                         flat.lastMessageId(),
                         flat.conversationId(),
                         flat.lastMessageCreatedAt(),
-                        null, // 만약 프론트엔드에서 에러가 난다면 무의미한 빈 UserSummary 객체라도 넣어주어야 합니다.
+                        null,
                         null,
                         flat.lastMessageContent()
                     );
@@ -103,6 +114,26 @@ public class ConversationService {
                 );
             })
             .toList();
+
+        String nextCursor = null;
+        String nextIdAfter = null;
+        if (!flatDtos.isEmpty()) {
+            ConversationQueryDto last = flatDtos.get(flatDtos.size() - 1);
+            if (last.lastMessageCreatedAt() != null) {
+                nextCursor = last.lastMessageCreatedAt().toString();
+            }
+            nextIdAfter = last.conversationId().toString();
+        }
+
+        return new CursorPageResponseDto<>(
+            dtos,
+            nextCursor,
+            nextIdAfter,
+            hasNext,
+            (long) dtos.size(), // totalCount (가볍게 목록 크기로 대체하거나 캐싱 적용)
+            "createdAt",
+            Direction.DESCENDING
+        );
     }
 
     public void readConversationMessages(UUID conversationId, UUID directMessageId, UUID userId) {
