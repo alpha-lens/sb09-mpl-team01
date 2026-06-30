@@ -71,6 +71,21 @@ public class SseService {
     }
 
     /**
+     * Sends an SSE event directly to local emitters on this server instance (used for fallback).
+     */
+    public void sendLocal(UUID receiverId, Object data, String eventName) {
+        String eventId = makeTimeIncludeId(receiverId);
+        Map<String, SseEmitter> emitters = sseEmitterRepository.findAllEmitterStartWithByMemberId(receiverId.toString());
+        
+        emitters.forEach(
+                (key, emitter) -> {
+                    sseEmitterRepository.saveEventCache(key, data);
+                    sendNotification(emitter, eventId, key, eventName, data);
+                }
+        );
+    }
+
+    /**
      * Generates a time-inclusive identifier for the given user.
      *
      * @return a string identifier combining the user ID and current system time in milliseconds
