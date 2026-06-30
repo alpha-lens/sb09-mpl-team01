@@ -28,6 +28,7 @@ dependencies {
     implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
     implementation 'com.querydsl:querydsl-core:5.0.0'
     runtimeOnly 'com.h2database:h2'
+    implementation 'org.springframework.retry:spring-retry:2.0.6'
     
     // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
