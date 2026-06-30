@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -15,6 +16,27 @@ public class SseService {
 
     private static final Long DEFAULT_TIMEOUT = 60L * 1000 * 60; // 1시간
     private final SseEmitterRepository sseEmitterRepository;
+
+    /**
+     * Periodically sends a heartbeat event to all active emitters to prevent connection timeouts.
+     */
+    @Scheduled(fixedDelay = 15000)
+    public void sendHeartbeat() {
+        Map<String, SseEmitter> emitters = sseEmitterRepository.getEmitters();
+        if (!emitters.isEmpty()) {
+            log.trace("[SSE] Sending heartbeat to {} active emitters", emitters.size());
+            emitters.forEach((key, emitter) -> {
+                try {
+                    emitter.send(SseEmitter.event()
+                            .id(key)
+                            .name("heartbeat")
+                            .data("ping"));
+                } catch (IOException e) {
+                    sseEmitterRepository.deleteById(key);
+                }
+            });
+        }
+    }
 
     /**
      * Establishes and registers a server-sent events emitter for a user.
