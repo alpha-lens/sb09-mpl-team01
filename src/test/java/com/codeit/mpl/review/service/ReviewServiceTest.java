@@ -236,12 +236,10 @@ class ReviewServiceTest {
   @DisplayName("리뷰 목록 조회 실패 - 존재하지 않는 콘텐츠")
   void getReviews_fail_contentNotFound() {
     UUID contentId = UUID.randomUUID();
-
     when(contentRepository.findById(contentId)).thenReturn(Optional.empty());
-
     assertThatThrownBy(() ->
         reviewService.getReviews(contentId, null, null, 10, "createdAt", Direction.DESCENDING)
-    ).isInstanceOf(IllegalArgumentException.class);
+    ).isInstanceOf(MplException.class);
   }
 
   @Test
