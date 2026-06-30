@@ -10,8 +10,10 @@ import com.codeit.mpl.infra.security.JwtUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
@@ -31,9 +34,10 @@ public class AuthController implements AuthApi {
     private final UserService userService;
     private final JwtUtil jwtUtil;
 
-    @PostMapping("/sign-in")
+    @PostMapping(value = "/sign-in", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     @Override
-    public ResponseEntity<JwtDto> signIn(@Valid @RequestBody SignInRequest request, HttpServletResponse response) {
+    public ResponseEntity<JwtDto> signInForm(@Valid SignInRequest request, HttpServletResponse response) {
+        log.info("signIn (Form)");
         SignInResult result = userService.signIn(request);
         setRefreshTokenCookie(response, result.refreshToken());
         return ResponseEntity.ok(result.jwtDto());
