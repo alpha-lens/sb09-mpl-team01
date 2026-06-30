@@ -22,7 +22,25 @@ public enum ErrorCode {
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "TokenExpiredException", "만료된 토큰입니다."),
 
     // 인가
-    FORBIDDEN(HttpStatus.FORBIDDEN, "ForbiddenException", "접근 권한이 없습니다.");
+    FORBIDDEN(HttpStatus.FORBIDDEN, "ForbiddenException", "접근 권한이 없습니다."),
+
+    // 리뷰
+    REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "ReviewNotFoundException", "존재하지 않는 리뷰입니다."),
+    REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "ReviewAlreadyExistsException", "이미 리뷰를 작성했습니다."),
+    REVIEW_FORBIDDEN(HttpStatus.FORBIDDEN, "ReviewForbiddenException", "리뷰 작성자만 수정/삭제할 수 있습니다."),
+    INVALID_REVIEW_CURSOR(HttpStatus.BAD_REQUEST, "InvalidReviewCursorException", "리뷰 커서 값이 올바르지 않습니다."),
+    INVALID_REVIEW_SORT(HttpStatus.BAD_REQUEST, "InvalidReviewSortException", "리뷰 정렬 기준이 올바르지 않습니다."),
+
+    // 플레이리스트
+    PLAYLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistNotFoundException", "존재하지 않는 플레이리스트입니다."),
+    PLAYLIST_FORBIDDEN(HttpStatus.FORBIDDEN, "PlaylistForbiddenException", "플레이리스트 소유자만 수행할 수 있습니다."),
+    PLAYLIST_CONTENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "PlaylistContentAlreadyExistsException", "이미 추가된 콘텐츠입니다."),
+    PLAYLIST_CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistContentNotFoundException", "플레이리스트에 없는 콘텐츠입니다."),
+    PLAYLIST_SUBSCRIPTION_ALREADY_EXISTS(HttpStatus.CONFLICT, "PlaylistSubscriptionAlreadyExistsException", "이미 구독중인 플레이리스트입니다."),
+    PLAYLIST_SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistSubscriptionNotFoundException", "구독하지 않은 플레이리스트입니다."),
+
+    // 콘텐츠
+    CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "ContentNotFoundException", "존재하지 않는 콘텐츠입니다.");
 
     private final HttpStatus httpStatus;
     private final String exceptionName;

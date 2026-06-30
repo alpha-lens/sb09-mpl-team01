@@ -29,7 +29,7 @@ dependencies {
     implementation 'com.querydsl:querydsl-core:5.0.0'
     runtimeOnly 'com.h2database:h2'
     implementation 'org.springframework.retry:spring-retry:2.0.6'
-    
+
     // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
@@ -48,7 +48,7 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 
     // Swagger
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.8'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 
     // MapStruct
     implementation 'org.mapstruct:mapstruct:1.5.5.Final'
@@ -67,7 +67,6 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
     runtimeOnly 'org.postgresql:postgresql'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

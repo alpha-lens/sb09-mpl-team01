@@ -4,6 +4,7 @@ spring:
     username: postgres
     password: KfMbG3SU5npmWtM2
     driver-class-name: org.postgresql.Driver
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -11,12 +12,15 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
   sql:
     init:
       schema-locations: classpath:schema.sql
       mode: always
+
   kafka:
     bootstrap-servers: localhost:29092
+
   data:
     redis:
       host: localhost
@@ -29,3 +33,8 @@ admin:
   email: ${ADMIN_EMAIL}
   password: ${ADMIN_PASSWORD}
   name: ${ADMIN_NAME}
+
+tmdb:
+  base-url: https://api.themoviedb.org/3
+  image-base-url: https://image.tmdb.org/t/p/w500
+  bearer-token: ${TMDB_BEARER_TOKEN}

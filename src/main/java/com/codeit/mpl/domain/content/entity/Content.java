@@ -45,6 +45,12 @@ public class Content extends BaseUpdatableEntity {
     @Column(name = "content_url", columnDefinition = "TEXT")
     private String contentUrl;
 
+    @Column(name = "external_id", length = 100)
+    private String externalId;
+
+    @Column(name = "source_type", length = 50)
+    private String sourceType;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ContentType type;
@@ -78,6 +84,33 @@ public class Content extends BaseUpdatableEntity {
         if (tags != null) {
             content.tags.addAll(tags);
         }
+
+        return content;
+    }
+
+    public static Content createFromExternalApi(
+            User creator,
+            ContentType type,
+            String title,
+            String description,
+            String thumbnailUrl,
+            String contentUrl,
+            String externalId,
+            String sourceType,
+            List<String> tags
+    ) {
+        Content content = create(
+                creator,
+                type,
+                title,
+                description,
+                thumbnailUrl,
+                contentUrl,
+                tags
+        );
+
+        content.externalId = externalId;
+        content.sourceType = sourceType;
 
         return content;
     }
