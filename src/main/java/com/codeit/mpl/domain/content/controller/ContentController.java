@@ -1,4 +1,4 @@
-package com.codeit.mpl.domain.content.controlle;
+package com.codeit.mpl.domain.content.controller;
 
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
 import com.codeit.mpl.domain.content.dto.request.ContentUpdateRequest;
