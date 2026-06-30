@@ -1,5 +1,6 @@
 package com.codeit.mpl.domain.chat.listener;
 
+import com.codeit.mpl.domain.chat.service.WatchingSessionService;
 import com.codeit.mpl.domain.content.dto.ChangeType;
 import com.codeit.mpl.domain.content.dto.WatchingSessionChange;
 import com.codeit.mpl.domain.content.dto.WatchingSessionDto;
@@ -30,6 +31,7 @@ public class WatchingSessionManager {
 
     private final UserRepository userRepository;
     private final SimpMessageSendingOperations messagingTemplate;
+    private final WatchingSessionService watchingSessionService;
 
     // key: sessionId_subscriptionId
     private final Map<String, WatchingSessionDto> sessionMap = new ConcurrentHashMap<>();
@@ -69,6 +71,8 @@ public class WatchingSessionManager {
                         sessionMap.put(key, watchingSession);
                         contentWatchers.computeIfAbsent(contentId, k -> new ConcurrentHashMap<>()).put(key, watchingSession);
 
+                        watchingSessionService.registerSession(user.getId(), contentId);
+
                         long watcherCount = contentWatchers.get(contentId).size();
                         WatchingSessionChange change = new WatchingSessionChange(ChangeType.JOIN, watchingSession, watcherCount);
 
@@ -93,6 +97,7 @@ public class WatchingSessionManager {
             Map<String, WatchingSessionDto> watchers = contentWatchers.get(contentId);
             if (watchers != null) {
                 watchers.remove(key);
+                watchingSessionService.removeSession(watchingSession.user().userId());
                 long watcherCount = watchers.size();
                 WatchingSessionChange change = new WatchingSessionChange(ChangeType.LEAVE, watchingSession, watcherCount);
 
@@ -113,6 +118,7 @@ public class WatchingSessionManager {
                 Map<String, WatchingSessionDto> watchers = contentWatchers.get(contentId);
                 if (watchers != null) {
                     watchers.remove(key);
+                    watchingSessionService.removeSession(watchingSession.user().userId());
                     long watcherCount = watchers.size();
                     WatchingSessionChange change = new WatchingSessionChange(ChangeType.LEAVE, watchingSession, watcherCount);
 
