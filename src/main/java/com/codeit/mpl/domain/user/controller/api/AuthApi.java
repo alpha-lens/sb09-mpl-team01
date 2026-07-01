@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.RequestBody;
+import java.util.Map;
 
 @Tag(name = "인증 관리", description = "로그인·로그아웃·토큰 재발급·CSRF 토큰 API")
 public interface AuthApi {
@@ -50,5 +51,5 @@ public interface AuthApi {
 
     @Operation(summary = "CSRF 토큰 조회", description = "응답 body와 쿠키(XSRF-TOKEN) 모두에 CSRF 토큰이 반환됩니다.")
     @ApiResponse(responseCode = "200", description = "CSRF 토큰 발급 성공")
-    ResponseEntity<java.util.Map<String, String>> csrfToken(CsrfToken csrfToken);
+    ResponseEntity<Map<String, String>> csrfToken(CsrfToken csrfToken);
 }

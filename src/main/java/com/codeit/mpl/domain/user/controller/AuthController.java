@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -68,8 +69,8 @@ public class AuthController implements AuthApi {
 
     @GetMapping("/csrf-token")
     @Override
-    public ResponseEntity<java.util.Map<String, String>> csrfToken(CsrfToken csrfToken) {
-        return ResponseEntity.ok(java.util.Map.of(
+    public ResponseEntity<Map<String, String>> csrfToken(CsrfToken csrfToken) {
+        return ResponseEntity.ok(Map.of(
                 "headerName", csrfToken.getHeaderName(),
                 "parameterName", csrfToken.getParameterName(),
                 "token", csrfToken.getToken()

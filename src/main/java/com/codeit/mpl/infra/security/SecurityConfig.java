@@ -18,7 +18,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
 
 import static org.springframework.http.HttpMethod.POST;
 
@@ -86,7 +86,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Collections.singletonList("*"));
+
+        //// 로컬 개발용. 운영 배포 시 실제 도메인 추가 필요
+        configuration.setAllowedOriginPatterns(List.of("http://localhost:[*]"));
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Cache-Control", "X-XSRF-TOKEN"));
         configuration.setExposedHeaders(Arrays.asList("Authorization", "X-XSRF-TOKEN"));
