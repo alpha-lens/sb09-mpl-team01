@@ -19,10 +19,23 @@ CREATE TABLE IF NOT EXISTS contents (
                           description TEXT,
                           thumbnail_url TEXT,
                           content_url TEXT,
-                          type VARCHAR(20) NOT NULL CHECK (type IN ('movie', 'tvSeries', 'sport')),
+                          external_id VARCHAR(100),
+                          source_type VARCHAR(50),
+                          type VARCHAR(20) NOT NULL CHECK (type IN ('MOVIE', 'TVSERIES', 'SPORT')),
                           created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                           updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE contents
+    ADD COLUMN IF NOT EXISTS external_id VARCHAR(100);
+
+ALTER TABLE contents
+    ADD COLUMN IF NOT EXISTS source_type VARCHAR(50);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_contents_source_external
+    ON contents (source_type, external_id)
+    WHERE source_type IS NOT NULL
+    AND external_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS content_tags (
                               content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
@@ -37,8 +50,10 @@ CREATE TABLE IF NOT EXISTS reviews (
                          text TEXT NOT NULL,
                          rating DOUBLE PRECISION NOT NULL DEFAULT 0.0 CHECK (rating >= 0.0 AND rating <= 5.0),
                          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                         CONSTRAINT uk_review_author_content UNIQUE (author_id, content_id)
 );
+
 
 -- 4. 플레이리스트 테이블 (Playlist)
 CREATE TABLE IF NOT EXISTS playlists (

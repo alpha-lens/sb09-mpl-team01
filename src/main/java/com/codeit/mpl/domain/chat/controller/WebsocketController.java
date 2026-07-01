@@ -5,6 +5,7 @@ import com.codeit.mpl.domain.content.dto.ContentChatSendRequest;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageSendRequest;
 import com.codeit.mpl.domain.conversation.service.ConversationService;
+import com.codeit.mpl.domain.chat.service.WatchingSessionService;
 import com.codeit.mpl.domain.user.dto.UserSummary;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.sse.SseService;
@@ -30,6 +31,7 @@ public class WebsocketController {
     private final ConversationService conversationService;
     private final SseService sseService;
     private final SimpMessageSendingOperations messagingTemplate;
+    private final WatchingSessionService watchingSessionService;
 
     @MessageMapping("/contents/{contentId}/chat")
     public void handleContentChat(
@@ -46,7 +48,7 @@ public class WebsocketController {
                     UUID.randomUUID(),
                     contentId,
                     sender,
-                    request.message(),
+                    request.content(),
                     Instant.now()
             );
 
@@ -76,6 +78,17 @@ public class WebsocketController {
             UUID receiverId = messageDto.receiver().userId();
             sseService.send(receiverId, messageDto, "direct-messages");
         });
+    }
+
+    @MessageMapping("/contents/{contentId}/watch/heartbeat")
+    public void handleWatchingHeartbeat(
+            @DestinationVariable UUID contentId,
+            Principal principal
+    ) {
+        String email = getEmailFromPrincipal(principal);
+        if (email != null) {
+            watchingSessionService.touchSession(email, contentId);
+        }
     }
 
     private String getEmailFromPrincipal(Principal principal) {

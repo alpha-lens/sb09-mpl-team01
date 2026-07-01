@@ -4,23 +4,11 @@ import com.codeit.mpl.domain.conversation.entity.DirectMessage;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface DirectMessageRepository extends JpaRepository<DirectMessage, UUID> {
-
-    @Query("SELECT dm FROM DirectMessage dm WHERE dm.conversation.id = :conversationId " +
-           "AND (:idAfter IS NULL OR dm.createdAt < (SELECT cur.createdAt FROM DirectMessage cur WHERE cur.id = :idAfter)) " +
-           "ORDER BY dm.createdAt DESC")
-    List<DirectMessage> findMessages(
-            @Param("conversationId") UUID conversationId,
-            @Param("idAfter") UUID idAfter,
-            Pageable pageable
-    );
+public interface DirectMessageRepository extends JpaRepository<DirectMessage, UUID>, DirectMessageCustomRepository {
 
     long countByConversationIdAndIsReadFalseAndReceiverId(UUID conversationId, UUID receiverId);
 

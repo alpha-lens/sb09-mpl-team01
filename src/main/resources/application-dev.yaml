@@ -4,19 +4,34 @@ spring:
     username: postgres
     password: KfMbG3SU5npmWtM2
     driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 5000
+      leak-detection-threshold: 2000
+      data-source-properties:
+        # 1. 쿼리 준비 단계를 건너뛰도록 설정
+        prepareThreshold: 0
+        # 2. 드라이버 내부의 Prepared Statement 캐시 개수를 0으로 제한 (핵심)
+        preparedStatementCacheQueries: 0
+        # 3. 드라이버의 캐시 공간 크기를 0으로 제한 (핵심)
+        preparedStatementCacheSizeMiB: 0
+
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+
   sql:
     init:
       schema-locations: classpath:schema.sql
       mode: always
+
   kafka:
     bootstrap-servers: localhost:29092
+
   data:
     redis:
       host: localhost
@@ -29,3 +44,8 @@ admin:
   email: ${ADMIN_EMAIL}
   password: ${ADMIN_PASSWORD}
   name: ${ADMIN_NAME}
+
+tmdb:
+  base-url: https://api.themoviedb.org/3
+  image-base-url: https://image.tmdb.org/t/p/w500
+  bearer-token: ${TMDB_BEARER_TOKEN}

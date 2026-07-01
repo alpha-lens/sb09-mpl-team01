@@ -41,7 +41,7 @@ public class NotificationRedisListener implements MessageListener {
 
         try {
             RedisNotificationWrapper notification = objectMapper.readValue(body, RedisNotificationWrapper.class);
-            sseService.send(notification.getReceiverId(), notification.getData(), "notification");
+            sseService.send(notification.getReceiverId(), notification.getData(), "notifications");
         } catch (IOException e) {
             log.error("[Redis Notification] 메시지 역직렬화 및 전송 실패", e);
         }

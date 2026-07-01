@@ -18,14 +18,14 @@ import java.util.Map;
 @Tag(name = "인증 관리", description = "로그인·로그아웃·토큰 재발급·CSRF 토큰 API")
 public interface AuthApi {
 
-    @Operation(summary = "로그인", description = "응답 쿠키(REFRESH_TOKEN)에 refresh token이 저장됩니다.")
+    @Operation(summary = "로그인 (Form)", description = "Form URL-Encoded 형식으로 로그인 요청을 처리합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "로그인 성공"),
             @ApiResponse(responseCode = "400", description = "입력값 검증 실패"),
             @ApiResponse(responseCode = "401", description = "이메일 또는 비밀번호 불일치"),
             @ApiResponse(responseCode = "403", description = "잠긴 계정")
     })
-    ResponseEntity<JwtDto> signIn(@Valid @RequestBody SignInRequest request, HttpServletResponse response);
+    ResponseEntity<JwtDto> signInForm(@Valid SignInRequest request, HttpServletResponse response);
 
     @Operation(summary = "로그아웃")
     @ApiResponses({

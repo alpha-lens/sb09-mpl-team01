@@ -1,14 +1,18 @@
-package com.codeit.mpl.domain.content.controlle;
+package com.codeit.mpl.domain.content.controller;
 
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
+import com.codeit.mpl.domain.content.dto.request.ContentImportRequest;
 import com.codeit.mpl.domain.content.dto.request.ContentUpdateRequest;
 import com.codeit.mpl.domain.content.dto.response.ContentDto;
 import com.codeit.mpl.domain.content.dto.response.ContentSummary;
+import com.codeit.mpl.domain.content.dto.response.ExternalContentSearchResult;
+import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.service.ContentService;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +34,16 @@ public class ContentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ContentCreateRequest request
     ) {
-        ContentDto response = contentService.createContent(
+        ContentDto response = contentService.createContent(userDetails.getUsername(), request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/external/import")
+    public ResponseEntity<ContentDto> importExternalContent(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody ContentImportRequest request
+    ) {
+        ContentDto response = contentService.importExternalContent(
                 userDetails.getUsername(),
                 request
         );
@@ -39,12 +52,8 @@ public class ContentController {
     }
 
     @GetMapping("/{contentId}")
-    public ResponseEntity<ContentDto> getContent(
-            @PathVariable UUID contentId
-    ) {
-        ContentDto response = contentService.getContent(contentId);
-
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ContentDto> getContent(@PathVariable UUID contentId) {
+        return ResponseEntity.ok(contentService.getContent(contentId));
     }
 
     @PatchMapping("/{contentId}")
@@ -67,23 +76,10 @@ public class ContentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable UUID contentId
     ) {
-        contentService.deleteContent(
-                userDetails.getUsername(),
-                contentId
-        );
-
+        contentService.deleteContent(userDetails.getUsername(), contentId);
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * 콘텐츠 목록 조회
-     *
-     * cursor, idAfter를 기준으로 커서 기반 페이지네이션을 수행한다.
-     * 첫 페이지 조회 시에는 cursor, idAfter를 생략할 수 있다.
-     *
-     * 다음 페이지가 존재하는 경우 응답의 nextCursor, nextIdAfter 값을
-     * 다음 요청의 cursor, idAfter로 전달하면 된다.
-     */
     @GetMapping
     public ResponseEntity<CursorPageResponseDto<ContentSummary>> getContents(
             @RequestParam(required = false) String cursor,
@@ -101,5 +97,15 @@ public class ContentController {
         );
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/external/search")
+    public ResponseEntity<List<ExternalContentSearchResult>> searchExternalContents(
+            @RequestParam String keyword,
+            @RequestParam ContentType type
+    ) {
+        return ResponseEntity.ok(
+                contentService.searchExternalContents(keyword, type)
+        );
     }
 }

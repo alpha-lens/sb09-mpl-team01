@@ -1,6 +1,7 @@
 package com.codeit.mpl.domain.review.repository;
 
 import com.codeit.mpl.domain.content.entity.Content;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.repository.query.Param;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.user.entity.User;
@@ -10,7 +11,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
-public interface ReviewRepository extends JpaRepository<Review, UUID> {
+public interface ReviewRepository extends JpaRepository<Review, UUID>,
+    JpaSpecificationExecutor<Review> {
 
   boolean existsByAuthorAndContent(User author, Content content);
 

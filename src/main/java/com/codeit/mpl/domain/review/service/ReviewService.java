@@ -2,11 +2,9 @@ package com.codeit.mpl.domain.review.service;
 
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
-
-
-import com.codeit.mpl.domain.review.dto.ReviewCreateRequest;
-import com.codeit.mpl.domain.review.dto.ReviewDto;
-import com.codeit.mpl.domain.review.dto.ReviewUpdateRequest;
+import com.codeit.mpl.domain.review.dto.request.ReviewCreateRequest;
+import com.codeit.mpl.domain.review.dto.request.ReviewUpdateRequest;
+import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.mapper.ReviewMapper;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
@@ -14,6 +12,11 @@ import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
+import com.codeit.mpl.infra.exception.ErrorCode;
+import com.codeit.mpl.infra.exception.MplException;
+import jakarta.persistence.criteria.Predicate;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,13 +41,14 @@ public class ReviewService {
 
   public ReviewDto createReview(UUID authorId, ReviewCreateRequest request) {
     User author = userRepository.findById(authorId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
 
+    // ErrorCode.CONTENT_NOT_FOUND 추가하면 MplException으로 교체
     Content content = contentRepository.findById(request.contentId())
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     if (reviewRepository.existsByAuthorAndContent(author, content)) {
-      throw new IllegalArgumentException("이미 리뷰를 작성했습니다.");
+      throw new MplException(ErrorCode.REVIEW_ALREADY_EXISTS);
     }
 
     Review review = new Review(author, content, request.text(), request.rating());
@@ -51,7 +56,11 @@ public class ReviewService {
     try {
       reviewRepository.save(review);
     } catch (DataIntegrityViolationException e) {
-      throw new IllegalArgumentException("이미 리뷰를 작성했습니다.");
+      String message = e.getMostSpecificCause().getMessage();
+      if (message != null && message.contains("uk_review_author_content")) {
+        throw new MplException(ErrorCode.REVIEW_ALREADY_EXISTS);
+      }
+      throw e;
     }
 
     return reviewMapper.toDto(review);
@@ -59,10 +68,10 @@ public class ReviewService {
 
   public ReviewDto updateReview(UUID authorId, UUID reviewId, ReviewUpdateRequest request) {
     Review review = reviewRepository.findById(reviewId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 리뷰입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.REVIEW_NOT_FOUND));
 
     if (!review.getAuthor().getId().equals(authorId)) {
-      throw new IllegalArgumentException("리뷰 작성자만 수정할 수 있습니다.");
+      throw new MplException(ErrorCode.REVIEW_FORBIDDEN);
     }
 
     review.update(request.text(), request.rating());
@@ -71,10 +80,10 @@ public class ReviewService {
 
   public void deleteReview(UUID authorId, UUID reviewId) {
     Review review = reviewRepository.findById(reviewId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 리뷰입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.REVIEW_NOT_FOUND));
 
     if (!review.getAuthor().getId().equals(authorId)) {
-      throw new IllegalArgumentException("리뷰 작성자만 삭제할 수 있습니다.");
+      throw new MplException(ErrorCode.REVIEW_FORBIDDEN);
     }
 
     reviewRepository.delete(review);
@@ -89,29 +98,169 @@ public class ReviewService {
       String sortBy,
       Direction sortDirection
   ) {
+    // ErrorCode.CONTENT_NOT_FOUND 추가하면 MplException으로 교체
     Content content = contentRepository.findById(contentId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
+
+    validateCursorPair(cursor, idAfter);
+    validateSortBy(sortBy);
 
     Sort.Direction direction = sortDirection == Direction.ASCENDING
         ? Sort.Direction.ASC
         : Sort.Direction.DESC;
 
-    Pageable pageable = PageRequest.of(0, limit, Sort.by(direction, sortBy));
+    Pageable pageable = PageRequest.of(
+        0,
+        limit + 1,
+        Sort.by(direction, sortBy).and(Sort.by(direction, "id"))
+    );
 
-    Page<Review> reviewPage = reviewRepository.findByContent(content, pageable);
+    Specification<Review> contentSpec = (root, query, cb) -> cb.equal(root.get("content"), content);
+    Specification<Review> cursorSpec = createCursorSpecification(cursor, idAfter, sortBy, sortDirection);
+    Specification<Review> specification = contentSpec.and(cursorSpec);
 
-    List<ReviewDto> reviewDtos = reviewPage.getContent().stream()
+    Page<Review> reviewPage = reviewRepository.findAll(specification, pageable);
+
+    List<Review> reviews = reviewPage.getContent();
+    boolean hasNext = reviews.size() > limit;
+
+    List<Review> pageReviews = hasNext ? reviews.subList(0, limit) : reviews;
+
+    List<ReviewDto> reviewDtos = pageReviews.stream()
         .map(reviewMapper::toDto)
         .toList();
 
+    String nextCursor = null;
+    String nextIdAfter = null;
+
+    if (hasNext && !pageReviews.isEmpty()) {
+      Review last = pageReviews.get(pageReviews.size() - 1);
+      nextCursor = getCursorValue(last, sortBy);
+      nextIdAfter = last.getId().toString();
+    }
+
+    long totalCount = reviewRepository.count(contentSpec);
+
     return new CursorPageResponseDto<>(
         reviewDtos,
-        null,
-        null,
-        reviewPage.hasNext(),
-        reviewPage.getTotalElements(),
+        nextCursor,
+        nextIdAfter,
+        hasNext,
+        totalCount,
         sortBy,
         sortDirection
     );
+  }
+
+  private void validateCursorPair(String cursor, String idAfter) {
+    boolean hasCursor = cursor != null && !cursor.isBlank();
+    boolean hasIdAfter = idAfter != null && !idAfter.isBlank();
+
+    if (hasCursor != hasIdAfter) {
+      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
+    }
+  }
+
+  private void validateSortBy(String sortBy) {
+    if (!"createdAt".equals(sortBy) && !"rating".equals(sortBy)) {
+      throw new MplException(ErrorCode.INVALID_REVIEW_SORT);
+    }
+  }
+
+  private Specification<Review> createCursorSpecification(
+      String cursor,
+      String idAfter,
+      String sortBy,
+      Direction sortDirection
+  ) {
+    return (root, query, cb) -> {
+      if (cursor == null || cursor.isBlank() || idAfter == null || idAfter.isBlank()) {
+        return cb.conjunction();
+      }
+
+      UUID idAfterValue = parseIdAfter(idAfter);
+
+      if ("createdAt".equals(sortBy)) {
+        Instant cursorValue = parseInstantCursor(cursor);
+
+        Predicate sortPredicate;
+        Predicate sameSortValuePredicate;
+
+        if (sortDirection == Direction.ASCENDING) {
+          sortPredicate = cb.greaterThan(root.get("createdAt"), cursorValue);
+          sameSortValuePredicate = cb.and(
+              cb.equal(root.get("createdAt"), cursorValue),
+              cb.greaterThan(root.get("id"), idAfterValue)
+          );
+        } else {
+          sortPredicate = cb.lessThan(root.get("createdAt"), cursorValue);
+          sameSortValuePredicate = cb.and(
+              cb.equal(root.get("createdAt"), cursorValue),
+              cb.lessThan(root.get("id"), idAfterValue)
+          );
+        }
+
+        return cb.or(sortPredicate, sameSortValuePredicate);
+      }
+
+      if ("rating".equals(sortBy)) {
+        Double cursorValue = parseDoubleCursor(cursor);
+
+        Predicate sortPredicate;
+        Predicate sameSortValuePredicate;
+
+        if (sortDirection == Direction.ASCENDING) {
+          sortPredicate = cb.greaterThan(root.get("rating"), cursorValue);
+          sameSortValuePredicate = cb.and(
+              cb.equal(root.get("rating"), cursorValue),
+              cb.greaterThan(root.get("id"), idAfterValue)
+          );
+        } else {
+          sortPredicate = cb.lessThan(root.get("rating"), cursorValue);
+          sameSortValuePredicate = cb.and(
+              cb.equal(root.get("rating"), cursorValue),
+              cb.lessThan(root.get("id"), idAfterValue)
+          );
+        }
+
+        return cb.or(sortPredicate, sameSortValuePredicate);
+      }
+
+      return cb.conjunction();
+    };
+  }
+
+  private UUID parseIdAfter(String idAfter) {
+    try {
+      return UUID.fromString(idAfter);
+    } catch (IllegalArgumentException e) {
+      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
+    }
+  }
+
+  private Instant parseInstantCursor(String cursor) {
+    try {
+      return Instant.parse(cursor);
+    } catch (DateTimeParseException e) {
+      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
+    }
+  }
+
+  private Double parseDoubleCursor(String cursor) {
+    try {
+      return Double.parseDouble(cursor);
+    } catch (NumberFormatException e) {
+      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
+    }
+  }
+
+  private String getCursorValue(Review review, String sortBy) {
+    if ("createdAt".equals(sortBy)) {
+      return review.getCreatedAt().toString();
+    }
+    if ("rating".equals(sortBy)) {
+      return String.valueOf(review.getRating());
+    }
+    throw new MplException(ErrorCode.INVALID_REVIEW_SORT);
   }
 }

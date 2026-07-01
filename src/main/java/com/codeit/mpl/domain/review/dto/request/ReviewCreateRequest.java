@@ -1,4 +1,4 @@
-package com.codeit.mpl.domain.review.dto;
+package com.codeit.mpl.domain.review.dto.request;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;

@@ -32,16 +32,16 @@ public class ConversationController {
   private final ConversationService conversationService;
   private final UserRepository userRepository;
 
-  @GetMapping
-  public ResponseEntity<List<ConversationDto>> getConversations(
-      @AuthenticationPrincipal UserDetails userDetails,
-      @RequestParam(value = "keywordLike", required = false) String keywordLike,
-      @ModelAttribute SearchRequest searchRequest
-  ) {
-    UUID userId = getUserId(userDetails);
-    List<ConversationDto> list = conversationService.getConversations(userId);
-    return ResponseEntity.ok(list);
-  }
+    @GetMapping
+    public ResponseEntity<CursorPageResponseDto<ConversationDto>> getConversations(
+        @AuthenticationPrincipal UserDetails userDetails,
+        @RequestParam(value = "keywordLike", required = false) String keywordLike,
+        @ModelAttribute CursorPageRequestDto request
+    ) {
+        UUID userId = getUserId(userDetails);
+        CursorPageResponseDto<ConversationDto> response = conversationService.getConversations(userId, keywordLike, request);
+        return ResponseEntity.ok(response);
+    }
 
   @PostMapping
   public ResponseEntity<ConversationDto> createConversation(
