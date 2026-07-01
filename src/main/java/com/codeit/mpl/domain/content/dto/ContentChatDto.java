@@ -8,6 +8,6 @@ public record ContentChatDto(
     UUID id,
     UUID contentId,
     UserSummary sender,
-    String message,
+    String content,
     Instant createdAt
 ) {}

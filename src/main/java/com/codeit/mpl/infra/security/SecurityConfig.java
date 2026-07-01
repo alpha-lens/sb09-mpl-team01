@@ -52,14 +52,16 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf
+            .csrf(AbstractHttpConfigurer::disable)
+            /* 기존 csrf 형태인데, 알림이 제대로 가지 않는 것 때문에 일시적으로 비활성화해둠. 나중에 되돌리는 작업이 필요할 수 있음.
+              csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                 .ignoringRequestMatchers(
                     "/api/auth/sign-in", "/api/auth/sign-out", "/api/auth/reset-password",
                     "/api/auth/refresh", "/api/users"
                 )
-            )
+            * */
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
