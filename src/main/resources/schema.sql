@@ -54,8 +54,6 @@ CREATE TABLE IF NOT EXISTS reviews (
                          CONSTRAINT uk_review_author_content UNIQUE (author_id, content_id)
 );
 
--- 이미 테이블이 존재하던 환경에도 제약을 추가
--- ALTER TABLE reviews ADD CONSTRAINT uk_review_author_content UNIQUE (author_id, content_id);
 
 -- 4. 플레이리스트 테이블 (Playlist)
 CREATE TABLE IF NOT EXISTS playlists (

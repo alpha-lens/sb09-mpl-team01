@@ -15,6 +15,21 @@ import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
+import com.codeit.mpl.infra.common.dto.Direction;
+import com.codeit.mpl.infra.exception.ErrorCode;
+import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.playlist.InvalidPlaylistCursorException;
+import com.codeit.mpl.infra.exception.playlist.InvalidPlaylistLimitException;
+import com.codeit.mpl.infra.exception.playlist.InvalidPlaylistSortException;
+import com.codeit.mpl.infra.exception.playlist.PlaylistContentAlreadyExistsException;
+import com.codeit.mpl.infra.exception.playlist.PlaylistContentNotFoundException;
+import com.codeit.mpl.infra.exception.playlist.PlaylistForbiddenException;
+import com.codeit.mpl.infra.exception.playlist.PlaylistNotFoundException;
+import com.codeit.mpl.infra.exception.playlist.PlaylistSubscriptionAlreadyExistsException;
+import com.codeit.mpl.infra.exception.playlist.PlaylistSubscriptionNotFoundException;
+import jakarta.persistence.criteria.Predicate;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +37,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import com.codeit.mpl.infra.common.dto.Direction;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +53,6 @@ public class PlaylistService {
   private final UserRepository userRepository;
   private final PlaylistMapper playlistMapper;
 
-  // 플레이리스트 목록 조회
   @Transactional(readOnly = true)
   public CursorPageResponseDto<PlaylistDto> getPlaylists(
       String keywordLike,
@@ -51,162 +65,279 @@ public class PlaylistService {
       Direction sortDirection
   ) {
     if (limit <= 0) {
-      throw new IllegalArgumentException("limit은 1 이상이어야 합니다.");
+      throw new InvalidPlaylistLimitException();
     }
 
     List<String> allowedSortFields = List.of("createdAt", "updatedAt", "title");
     if (!allowedSortFields.contains(sortBy)) {
-      throw new IllegalArgumentException("허용되지 않은 정렬 필드입니다.");
+      throw new InvalidPlaylistSortException();
     }
+
+    validateCursorPair(cursor, idAfter);
 
     Sort.Direction direction = sortDirection == Direction.ASCENDING
         ? Sort.Direction.ASC
         : Sort.Direction.DESC;
 
-    Pageable pageable = PageRequest.of(0, limit + 1, Sort.by(direction, sortBy));
-    Page<Playlist> playlistPage = playlistRepository.findAllWithFilters(
-        keywordLike, ownerIdEqual, subscriberIdEqual, pageable
+    Pageable pageable = PageRequest.of(
+        0,
+        limit + 1,
+        Sort.by(direction, sortBy).and(Sort.by(direction, "id"))
     );
 
-    List<Playlist> content = playlistPage.getContent();
-    boolean hasNext = content.size() > limit;
+    Specification<Playlist> filterSpec = createFilterSpecification(keywordLike, ownerIdEqual, subscriberIdEqual);
+    Specification<Playlist> cursorSpec = createCursorSpecification(cursor, idAfter, sortBy, sortDirection);
+    Specification<Playlist> specification = filterSpec.and(cursorSpec);
 
-    if (hasNext) {
-      content = content.subList(0, limit);
-    }
+    Page<Playlist> playlistPage = playlistRepository.findAll(specification, pageable);
 
-    List<PlaylistDto> playlistDtos = content.stream()
+    List<Playlist> playlists = playlistPage.getContent();
+    boolean hasNext = playlists.size() > limit;
+
+    List<Playlist> pagePlaylists = hasNext ? playlists.subList(0, limit) : playlists;
+
+    List<PlaylistDto> playlistDtos = pagePlaylists.stream()
         .map(playlistMapper::toDto)
         .toList();
 
     String nextCursor = null;
     String nextIdAfter = null;
 
-    if (hasNext && !playlistDtos.isEmpty()) {
-      PlaylistDto last = playlistDtos.get(playlistDtos.size() - 1);
-      nextIdAfter = last.id().toString();
-      nextCursor = last.id().toString();
+    if (hasNext && !pagePlaylists.isEmpty()) {
+      Playlist last = pagePlaylists.get(pagePlaylists.size() - 1);
+      nextCursor = getCursorValue(last, sortBy);
+      nextIdAfter = last.getId().toString();
     }
+
+    long totalCount = playlistRepository.count(filterSpec);
 
     return new CursorPageResponseDto<>(
         playlistDtos,
         nextCursor,
         nextIdAfter,
         hasNext,
-        playlistPage.getTotalElements(),
+        totalCount,
         sortBy,
         sortDirection
     );
   }
 
-  // 플레이리스트 생성
   public PlaylistDto createPlaylist(UUID ownerId, PlaylistCreateRequest request) {
     User owner = userRepository.findById(ownerId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
-
+        .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
     Playlist playlist = new Playlist(owner, request.title(), request.description());
     playlistRepository.save(playlist);
     return playlistMapper.toDto(playlist);
   }
 
-  // 플레이리스트 단건 조회
   @Transactional(readOnly = true)
   public PlaylistDto getPlaylist(UUID playlistId) {
     Playlist playlist = playlistRepository.findById(playlistId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플레이리스트입니다."));
+        .orElseThrow(PlaylistNotFoundException::new);
     return playlistMapper.toDto(playlist);
   }
 
-  // 플레이리스트 수정
   public PlaylistDto updatePlaylist(UUID ownerId, UUID playlistId, PlaylistUpdateRequest request) {
     Playlist playlist = playlistRepository.findById(playlistId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플레이리스트입니다."));
+        .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlist.getOwner().getId().equals(ownerId)) {
-      throw new IllegalArgumentException("플레이리스트 소유자만 수정할 수 있습니다.");
+      throw new PlaylistForbiddenException();
     }
 
     playlist.update(request.title(), request.description());
     return playlistMapper.toDto(playlist);
   }
 
-  // 플레이리스트 삭제
   public void deletePlaylist(UUID ownerId, UUID playlistId) {
     Playlist playlist = playlistRepository.findById(playlistId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플레이리스트입니다."));
+        .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlist.getOwner().getId().equals(ownerId)) {
-      throw new IllegalArgumentException("플레이리스트 소유자만 삭제할 수 있습니다.");
+      throw new PlaylistForbiddenException();
     }
 
     playlistRepository.delete(playlist);
   }
 
-  // 콘텐츠 추가
   public void addContent(UUID ownerId, UUID playlistId, UUID contentId) {
     Playlist playlist = playlistRepository.findById(playlistId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플레이리스트입니다."));
+        .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlist.getOwner().getId().equals(ownerId)) {
-      throw new IllegalArgumentException("플레이리스트 소유자만 콘텐츠를 추가할 수 있습니다.");
+      throw new PlaylistForbiddenException();
     }
 
     Content content = contentRepository.findById(contentId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     if (playlistContentRepository.existsByPlaylistAndContent(playlist, content)) {
-      throw new IllegalArgumentException("이미 추가된 콘텐츠입니다.");
+      throw new PlaylistContentAlreadyExistsException();
     }
 
     playlistContentRepository.save(new PlaylistContent(playlist, content));
   }
 
-  // 콘텐츠 삭제
   public void removeContent(UUID ownerId, UUID playlistId, UUID contentId) {
     Playlist playlist = playlistRepository.findById(playlistId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플레이리스트입니다."));
+        .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlist.getOwner().getId().equals(ownerId)) {
-      throw new IllegalArgumentException("플레이리스트 소유자만 콘텐츠를 삭제할 수 있습니다.");
+      throw new PlaylistForbiddenException();
     }
 
     Content content = contentRepository.findById(contentId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 콘텐츠입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     if (!playlistContentRepository.existsByPlaylistAndContent(playlist, content)) {
-      throw new IllegalArgumentException("플레이리스트에 없는 콘텐츠입니다.");
+      throw new PlaylistContentNotFoundException();
     }
 
     playlistContentRepository.deleteByPlaylistAndContent(playlist, content);
   }
 
-  // 플레이리스트 구독
   public void subscribePlaylist(UUID subscriberId, UUID playlistId) {
     User subscriber = userRepository.findById(subscriberId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
 
     Playlist playlist = playlistRepository.findById(playlistId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플레이리스트입니다."));
+        .orElseThrow(PlaylistNotFoundException::new);
 
     if (playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, subscriber)) {
-      throw new IllegalArgumentException("이미 구독중인 플레이리스트입니다.");
+      throw new PlaylistSubscriptionAlreadyExistsException();
     }
 
     playlistSubscriptionRepository.save(new PlaylistSubscription(playlist, subscriber));
   }
 
-  // 플레이리스트 구독 취소
   public void unsubscribePlaylist(UUID subscriberId, UUID playlistId) {
     User subscriber = userRepository.findById(subscriberId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
 
     Playlist playlist = playlistRepository.findById(playlistId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플레이리스트입니다."));
+        .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, subscriber)) {
-      throw new IllegalArgumentException("구독하지 않은 플레이리스트입니다.");
+      throw new PlaylistSubscriptionNotFoundException();
     }
 
     playlistSubscriptionRepository.deleteByPlaylistAndSubscriber(playlist, subscriber);
+  }
+
+  private void validateCursorPair(String cursor, UUID idAfter) {
+    boolean hasCursor = cursor != null && !cursor.isBlank();
+    boolean hasIdAfter = idAfter != null;
+
+    if (hasCursor != hasIdAfter) {
+      throw new InvalidPlaylistCursorException();
+    }
+  }
+
+  private Specification<Playlist> createFilterSpecification(
+      String keywordLike,
+      UUID ownerIdEqual,
+      UUID subscriberIdEqual
+  ) {
+    return (root, query, cb) -> {
+      List<Predicate> predicates = new java.util.ArrayList<>();
+
+      if (keywordLike != null && !keywordLike.isBlank()) {
+        predicates.add(cb.like(root.get("title"), "%" + keywordLike + "%"));
+      }
+
+      if (ownerIdEqual != null) {
+        predicates.add(cb.equal(root.get("owner").get("id"), ownerIdEqual));
+      }
+
+      if (subscriberIdEqual != null) {
+        var subquery = query.subquery(UUID.class);
+        var subRoot = subquery.from(PlaylistSubscription.class);
+        subquery.select(subRoot.get("playlist").get("id"))
+            .where(cb.equal(subRoot.get("subscriber").get("id"), subscriberIdEqual));
+        predicates.add(root.get("id").in(subquery));
+      }
+
+      return cb.and(predicates.toArray(new Predicate[0]));
+    };
+  }
+
+  private Specification<Playlist> createCursorSpecification(
+      String cursor,
+      UUID idAfter,
+      String sortBy,
+      Direction sortDirection
+  ) {
+    return (root, query, cb) -> {
+      if (cursor == null || cursor.isBlank() || idAfter == null) {
+        return cb.conjunction();
+      }
+
+      if ("createdAt".equals(sortBy) || "updatedAt".equals(sortBy)) {
+        Instant cursorValue = parseInstantCursor(cursor);
+
+        Predicate sortPredicate;
+        Predicate sameSortValuePredicate;
+
+        if (sortDirection == Direction.ASCENDING) {
+          sortPredicate = cb.greaterThan(root.get(sortBy), cursorValue);
+          sameSortValuePredicate = cb.and(
+              cb.equal(root.get(sortBy), cursorValue),
+              cb.greaterThan(root.get("id"), idAfter)
+          );
+        } else {
+          sortPredicate = cb.lessThan(root.get(sortBy), cursorValue);
+          sameSortValuePredicate = cb.and(
+              cb.equal(root.get(sortBy), cursorValue),
+              cb.lessThan(root.get("id"), idAfter)
+          );
+        }
+
+        return cb.or(sortPredicate, sameSortValuePredicate);
+      }
+
+      if ("title".equals(sortBy)) {
+        Predicate sortPredicate;
+        Predicate sameSortValuePredicate;
+
+        if (sortDirection == Direction.ASCENDING) {
+          sortPredicate = cb.greaterThan(root.get("title"), cursor);
+          sameSortValuePredicate = cb.and(
+              cb.equal(root.get("title"), cursor),
+              cb.greaterThan(root.get("id"), idAfter)
+          );
+        } else {
+          sortPredicate = cb.lessThan(root.get("title"), cursor);
+          sameSortValuePredicate = cb.and(
+              cb.equal(root.get("title"), cursor),
+              cb.lessThan(root.get("id"), idAfter)
+          );
+        }
+
+        return cb.or(sortPredicate, sameSortValuePredicate);
+      }
+
+      return cb.conjunction();
+    };
+  }
+
+  private Instant parseInstantCursor(String cursor) {
+    try {
+      return Instant.parse(cursor);
+    } catch (DateTimeParseException e) {
+      throw new InvalidPlaylistCursorException();
+    }
+  }
+
+  private String getCursorValue(Playlist playlist, String sortBy) {
+    if ("createdAt".equals(sortBy)) {
+      return playlist.getCreatedAt().toString();
+    }
+    if ("updatedAt".equals(sortBy)) {
+      return playlist.getUpdatedAt().toString();
+    }
+    if ("title".equals(sortBy)) {
+      return playlist.getTitle();
+    }
+    throw new InvalidPlaylistSortException();
   }
 }

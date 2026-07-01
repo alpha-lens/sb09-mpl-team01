@@ -38,6 +38,9 @@ public enum ErrorCode {
     PLAYLIST_CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistContentNotFoundException", "플레이리스트에 없는 콘텐츠입니다."),
     PLAYLIST_SUBSCRIPTION_ALREADY_EXISTS(HttpStatus.CONFLICT, "PlaylistSubscriptionAlreadyExistsException", "이미 구독중인 플레이리스트입니다."),
     PLAYLIST_SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "PlaylistSubscriptionNotFoundException", "구독하지 않은 플레이리스트입니다."),
+    INVALID_PLAYLIST_LIMIT(HttpStatus.BAD_REQUEST, "InvalidPlaylistLimitException", "limit은 1 이상이어야 합니다."),
+    INVALID_PLAYLIST_SORT(HttpStatus.BAD_REQUEST, "InvalidPlaylistSortException", "허용되지 않은 정렬 필드입니다."),
+    INVALID_PLAYLIST_CURSOR(HttpStatus.BAD_REQUEST, "InvalidPlaylistCursorException", "플레이리스트 커서 값이 올바르지 않습니다."),
 
     // 콘텐츠
     CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "ContentNotFoundException", "존재하지 않는 콘텐츠입니다.");
