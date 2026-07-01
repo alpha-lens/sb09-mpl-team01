@@ -25,7 +25,7 @@ public class NotificationRedisListener implements MessageListener {
     private final RedisMessageListenerContainer redisMessageListenerContainer;
     private final ChannelTopic notificationTopic;
     private final SseService sseService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @PostConstruct
     public void init() {
