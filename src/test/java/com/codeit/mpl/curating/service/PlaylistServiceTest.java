@@ -16,11 +16,11 @@ import com.codeit.mpl.domain.curating.dto.response.PlaylistDto;
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.curating.entity.PlaylistContent;
 import com.codeit.mpl.domain.curating.entity.PlaylistSubscription;
-import com.codeit.mpl.domain.curating.mapper.PlaylistMapper;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
 import com.codeit.mpl.domain.curating.service.PlaylistService;
+import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
@@ -35,7 +35,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -58,9 +57,6 @@ class PlaylistServiceTest {
   @Mock
   private UserRepository userRepository;
 
-  @Mock
-  private PlaylistMapper playlistMapper;
-
   @InjectMocks
   private PlaylistService playlistService;
 
@@ -72,6 +68,10 @@ class PlaylistServiceTest {
 
     User owner = mock(User.class);
     when(userRepository.findById(ownerId)).thenReturn(Optional.of(owner));
+    when(owner.getId()).thenReturn(ownerId);
+    when(owner.getName()).thenReturn("테스트유저");
+    when(playlistSubscriptionRepository.countByPlaylist(any())).thenReturn(0L);
+    when(playlistContentRepository.findByPlaylist(any())).thenReturn(List.of());
 
     playlistService.createPlaylist(ownerId, request);
 
@@ -95,12 +95,18 @@ class PlaylistServiceTest {
   void getPlaylist_success() {
     UUID playlistId = UUID.randomUUID();
     Playlist playlist = mock(Playlist.class);
+    User owner = mock(User.class);
 
     when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(UUID.randomUUID());
+    when(owner.getName()).thenReturn("테스트유저");
+    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
+    when(playlistContentRepository.findByPlaylist(playlist)).thenReturn(List.of());
 
-    playlistService.getPlaylist(playlistId);
+    playlistService.getPlaylist(playlistId, null);
 
-    verify(playlistMapper).toDto(playlist);
+    verify(playlistRepository).findById(playlistId);
   }
 
   @Test
@@ -110,7 +116,7 @@ class PlaylistServiceTest {
 
     when(playlistRepository.findById(playlistId)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> playlistService.getPlaylist(playlistId))
+    assertThatThrownBy(() -> playlistService.getPlaylist(playlistId, null))
         .isInstanceOf(MplException.class);
   }
 
@@ -127,6 +133,9 @@ class PlaylistServiceTest {
     when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
     when(playlist.getOwner()).thenReturn(owner);
     when(owner.getId()).thenReturn(ownerId);
+    when(owner.getName()).thenReturn("테스트유저");
+    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
+    when(playlistContentRepository.findByPlaylist(playlist)).thenReturn(List.of());
 
     playlistService.updatePlaylist(ownerId, playlistId, request);
 
@@ -360,13 +369,14 @@ class PlaylistServiceTest {
   @DisplayName("플레이리스트 목록 조회 성공")
   void getPlaylists_success() {
     Playlist playlist = mock(Playlist.class);
+    User owner = mock(User.class);
 
     when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of(playlist)));
     when(playlistRepository.count(any(Specification.class))).thenReturn(1L);
-    when(playlistMapper.toDto(playlist)).thenReturn(
-        new PlaylistDto(UUID.randomUUID(), UUID.randomUUID(), "주인", "제목", "설명", null, null)
-    );
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(UUID.randomUUID());
+    when(owner.getName()).thenReturn("테스트유저");
 
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 10, "createdAt", Direction.DESCENDING
@@ -385,10 +395,23 @@ class PlaylistServiceTest {
   }
 
   @Test
-  @DisplayName("플레이리스트 목록 조회 실패 - 허용되지 않은 정렬 기준")
-  void getPlaylists_fail_invalidSortBy() {
-    assertThatThrownBy(() ->
-        playlistService.getPlaylists(null, null, null, null, null, 10, "invalidField", Direction.DESCENDING)
-    ).isInstanceOf(MplException.class);
+  @DisplayName("플레이리스트 목록 조회 - 허용되지 않은 정렬 기준은 createdAt으로 fallback")
+  void getPlaylists_fallback_invalidSortBy() {
+    Playlist playlist = mock(Playlist.class);
+    User owner = mock(User.class);
+
+    when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(playlist)));
+    when(playlistRepository.count(any(Specification.class))).thenReturn(1L);
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(UUID.randomUUID());
+    when(owner.getName()).thenReturn("테스트유저");
+
+    CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
+        null, null, null, null, null, 10, "invalidField", Direction.DESCENDING
+    );
+
+    assertThat(response.data()).hasSize(1);
+    assertThat(response.sortBy()).isEqualTo("createdAt");
   }
 }
