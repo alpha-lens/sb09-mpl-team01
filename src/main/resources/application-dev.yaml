@@ -13,6 +13,12 @@ spring:
       hibernate:
         format_sql: true
 
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false
+
   sql:
     init:
       schema-locations: classpath:schema.sql
@@ -38,3 +44,8 @@ tmdb:
   base-url: https://api.themoviedb.org/3
   image-base-url: https://image.tmdb.org/t/p/w500
   bearer-token: ${TMDB_BEARER_TOKEN}
+
+sportsdb:
+  base-url: https://www.thesportsdb.com/api/v1/json
+  api-key: ${SPORTSDB_API_KEY}
+

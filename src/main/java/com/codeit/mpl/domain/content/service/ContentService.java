@@ -1,6 +1,10 @@
 package com.codeit.mpl.domain.content.service;
 
+import com.codeit.mpl.domain.content.client.SportsDbClient;
 import com.codeit.mpl.domain.content.client.TmdbClient;
+import com.codeit.mpl.domain.content.dto.external.SportsDbEventItem;
+import com.codeit.mpl.domain.content.dto.external.SportsDbEventResponse;
+import com.codeit.mpl.domain.content.dto.external.SportsDbTeamResponse;
 import com.codeit.mpl.domain.content.dto.external.TmdbContentItem;
 import com.codeit.mpl.domain.content.dto.external.TmdbSearchResponse;
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
@@ -43,6 +47,7 @@ public class ContentService {
 
     private static final String TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
     private static final String TMDB_SOURCE_TYPE = "TMDB";
+    private static final String SPORTS_DB_SOURCE_TYPE = "THE_SPORTS_DB";
 
     private final ContentRepository contentRepository;
     private final UserRepository userRepository;
@@ -50,6 +55,7 @@ public class ContentService {
     private final ReviewRepository reviewRepository;
     private final WatchingSessionRepository watchingSessionRepository;
     private final TmdbClient tmdbClient;
+    private final SportsDbClient sportsDbClient;
 
     public ContentDto createContent(String requesterEmail, ContentCreateRequest request) {
         User creator = getRequester(requesterEmail);
@@ -76,42 +82,56 @@ public class ContentService {
         User requester = getRequester(requesterEmail);
         validateAdmin(requester);
 
-        if (request.type() == ContentType.SPORT) {
-            throw new IllegalArgumentException("SPORT 타입은 TMDB import를 지원하지 않습니다.");
-        }
+        String sourceType = getSourceType(request.type());
 
         return contentRepository.findBySourceTypeAndExternalId(
-                        TMDB_SOURCE_TYPE,
+                        sourceType,
                         request.externalId()
                 )
                 .map(this::toDto)
-                .orElseGet(() -> importNewExternalContent(requester, request));
+                .orElseGet(() -> importNewExternalContent(requester, request, sourceType));
     }
 
     private ContentDto importNewExternalContent(
             User requester,
-            ContentImportRequest request
+            ContentImportRequest request,
+            String sourceType
     ) {
-        TmdbContentItem item = switch (request.type()) {
-            case MOVIE -> tmdbClient.getMovieDetail(request.externalId());
-            case TVSERIES -> tmdbClient.getTvSeriesDetail(request.externalId());
-            case SPORT -> throw new IllegalArgumentException("SPORT 타입은 TMDB import를 지원하지 않습니다.");
-        };
+        Content content = switch (request.type()) {
+            case MOVIE, TVSERIES -> {
+                TmdbContentItem item = switch (request.type()) {
+                    case MOVIE -> tmdbClient.getMovieDetail(request.externalId());
+                    case TVSERIES -> tmdbClient.getTvSeriesDetail(request.externalId());
+                    case SPORT -> throw new IllegalArgumentException("SPORT 타입은 TMDB import를 지원하지 않습니다.");
+                };
 
-        Content content = createContentFromTmdb(
-                requester,
-                request.type(),
-                request.externalId(),
-                TMDB_SOURCE_TYPE,
-                item
-        );
+                yield createContentFromTmdb(
+                        requester,
+                        request.type(),
+                        request.externalId(),
+                        sourceType,
+                        item
+                );
+            }
+
+            case SPORT -> {
+                SportsDbEventItem item = getSportsEventItem(request.externalId());
+
+                yield createContentFromSportsDb(
+                        requester,
+                        request.externalId(),
+                        sourceType,
+                        item
+                );
+            }
+        };
 
         try {
             Content savedContent = contentRepository.saveAndFlush(content);
             return toDto(savedContent);
         } catch (DataIntegrityViolationException e) {
             Content existingContent = contentRepository.findBySourceTypeAndExternalId(
-                            TMDB_SOURCE_TYPE,
+                            sourceType,
                             request.externalId()
                     )
                     .orElseThrow(() -> e);
@@ -220,10 +240,14 @@ public class ContentService {
             String keyword,
             ContentType type
     ) {
+        if (type == ContentType.SPORT) {
+            return searchSportsContents(keyword);
+        }
+
         TmdbSearchResponse response = switch (type) {
             case MOVIE -> tmdbClient.searchMovies(keyword);
             case TVSERIES -> tmdbClient.searchTvSeries(keyword);
-            case SPORT -> throw new IllegalArgumentException("SPORT 타입은 아직 TMDB 검색을 지원하지 않습니다.");
+            case SPORT -> throw new IllegalArgumentException("SPORT 타입은 SportsDB 검색을 사용해야 합니다.");
         };
 
         if (response == null || response.results() == null) {
@@ -232,6 +256,28 @@ public class ContentService {
 
         return response.results().stream()
                 .map(item -> toExternalSearchResult(item, type))
+                .toList();
+    }
+
+    private List<ExternalContentSearchResult> searchSportsContents(String keyword) {
+        SportsDbTeamResponse teamResponse = sportsDbClient.searchTeams(keyword);
+
+        if (teamResponse == null || teamResponse.teams() == null) {
+            return List.of();
+        }
+
+        return teamResponse.teams().stream()
+                .flatMap(team -> {
+                    SportsDbEventResponse eventResponse =
+                            sportsDbClient.getNextEventsByTeam(team.idTeam());
+
+                    if (eventResponse == null || eventResponse.events() == null) {
+                        return List.<ExternalContentSearchResult>of().stream();
+                    }
+
+                    return eventResponse.events().stream()
+                            .map(this::toSportsExternalSearchResult);
+                })
                 .toList();
     }
 
@@ -258,6 +304,21 @@ public class ContentService {
                 item.overview(),
                 thumbnailUrl,
                 releaseDate
+        );
+    }
+
+    private ExternalContentSearchResult toSportsExternalSearchResult(SportsDbEventItem event) {
+        String thumbnailUrl = event.strThumb() != null
+                ? event.strThumb()
+                : event.strPoster();
+
+        return new ExternalContentSearchResult(
+                event.idEvent(),
+                ContentType.SPORT,
+                event.strEvent(),
+                createSportsDescription(event),
+                thumbnailUrl,
+                event.dateEvent()
         );
     }
 
@@ -294,6 +355,93 @@ public class ContentService {
                 sourceType,
                 tags
         );
+    }
+
+    private Content createContentFromSportsDb(
+            User creator,
+            String externalId,
+            String sourceType,
+            SportsDbEventItem item
+    ) {
+        String thumbnailUrl = item.strThumb() != null
+                ? item.strThumb()
+                : item.strPoster();
+
+        String contentUrl = "https://www.thesportsdb.com/event/" + externalId;
+
+        List<String> tags = new ArrayList<>();
+        tags.add(ContentType.SPORT.name());
+
+        if (item.strSport() != null && !item.strSport().isBlank()) {
+            tags.add(item.strSport());
+        }
+
+        if (item.strLeague() != null && !item.strLeague().isBlank()) {
+            tags.add(item.strLeague());
+        }
+
+        return Content.createFromExternalApi(
+                creator,
+                ContentType.SPORT,
+                item.strEvent(),
+                createSportsDescription(item),
+                thumbnailUrl,
+                contentUrl,
+                externalId,
+                sourceType,
+                tags
+        );
+    }
+
+    private SportsDbEventItem getSportsEventItem(String externalId) {
+        SportsDbEventResponse response = sportsDbClient.getEventDetail(externalId);
+
+        if (response == null || response.events() == null || response.events().isEmpty()) {
+            throw new IllegalArgumentException("존재하지 않는 스포츠 경기입니다.");
+        }
+
+        return response.events().get(0);
+    }
+
+    private String createSportsDescription(SportsDbEventItem item) {
+        List<String> descriptions = new ArrayList<>();
+
+        if (item.strLeague() != null && !item.strLeague().isBlank()) {
+            descriptions.add("리그: " + item.strLeague());
+        }
+
+        if (item.strSeason() != null && !item.strSeason().isBlank()) {
+            descriptions.add("시즌: " + item.strSeason());
+        }
+
+        if (item.strHomeTeam() != null && item.strAwayTeam() != null) {
+            descriptions.add("경기: " + item.strHomeTeam() + " vs " + item.strAwayTeam());
+        }
+
+        if (item.dateEvent() != null && !item.dateEvent().isBlank()) {
+            descriptions.add("날짜: " + item.dateEvent());
+        }
+
+        if (item.strTime() != null && !item.strTime().isBlank()) {
+            descriptions.add("시간: " + item.strTime());
+        }
+
+        if (item.strVenue() != null && !item.strVenue().isBlank()) {
+            descriptions.add("장소: " + item.strVenue());
+        }
+
+        if (item.strDescriptionEN() != null && !item.strDescriptionEN().isBlank()) {
+            descriptions.add(item.strDescriptionEN());
+        }
+
+        return String.join("\n", descriptions);
+    }
+
+    private String getSourceType(ContentType type) {
+        return switch (type) {
+            case MOVIE, TVSERIES -> TMDB_SOURCE_TYPE;
+            case SPORT -> SPORTS_DB_SOURCE_TYPE;
+        };
     }
 
     private User getRequester(String email) {
