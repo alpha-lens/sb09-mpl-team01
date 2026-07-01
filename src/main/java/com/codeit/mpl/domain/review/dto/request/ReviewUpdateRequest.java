@@ -6,5 +6,5 @@ import jakarta.validation.constraints.DecimalMin;
 public record ReviewUpdateRequest(
     String text,
     @DecimalMin("0.0")
-    @DecimalMax("5.0") Double rating
+    @DecimalMax("5.0") int rating
 ) {}

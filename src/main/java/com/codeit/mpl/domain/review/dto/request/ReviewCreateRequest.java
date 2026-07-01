@@ -11,5 +11,5 @@ public record ReviewCreateRequest(
     @NotBlank String text,      // ← @NotNull에서 @NotBlank로 변경
     @NotNull
     @DecimalMin("0.0")
-    @DecimalMax("5.0") Double rating
+    @DecimalMax("5.0") int rating
 ) {}

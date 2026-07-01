@@ -2,13 +2,27 @@ package com.codeit.mpl.domain.review.mapper;
 
 import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.domain.review.entity.Review;
+import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface ReviewMapper {
 
-  @Mapping(source = "content.id", target = "contentId")
-  @Mapping(source = "author.id", target = "authorId")
-  ReviewDto toDto(Review review);
+  default ReviewDto toDto(Review review) {
+    UserSummary author = new UserSummary(
+        review.getAuthor().getId(),
+        review.getAuthor().getName(),
+        review.getAuthor().getProfileImageUrl()
+    );
+
+    return new ReviewDto(
+        review.getId(),
+        review.getContent().getId(),
+        author,
+        review.getText(),
+        review.getRating(),
+        review.getCreatedAt(),
+        review.getUpdatedAt()
+    );
+  }
 }
