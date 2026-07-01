@@ -1,12 +1,15 @@
 package com.codeit.mpl.domain.user.repository;
 
 import com.codeit.mpl.domain.user.entity.User;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificationExecutor<User> {
+
+    List<User> findByIdInAndNameContaining(List<UUID> ids, String like);
 
     Optional<User> findByEmail(String email);
 

@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -15,6 +16,27 @@ public class SseService {
 
     private static final Long DEFAULT_TIMEOUT = 60L * 1000 * 60; // 1시간
     private final SseEmitterRepository sseEmitterRepository;
+
+    /**
+     * Periodically sends a heartbeat event to all active emitters to prevent connection timeouts.
+     */
+    @Scheduled(fixedDelay = 15000)
+    public void sendHeartbeat() {
+        Map<String, SseEmitter> emitters = sseEmitterRepository.getEmitters();
+        if (!emitters.isEmpty()) {
+            log.trace("[SSE] Sending heartbeat to {} active emitters", emitters.size());
+            emitters.forEach((key, emitter) -> {
+                try {
+                    emitter.send(SseEmitter.event()
+                            .id(key)
+                            .name("heartbeat")
+                            .data("ping"));
+                } catch (IOException e) {
+                    sseEmitterRepository.deleteById(key);
+                }
+            });
+        }
+    }
 
     /**
      * Establishes and registers a server-sent events emitter for a user.
@@ -65,6 +87,21 @@ public class SseService {
                     // 이벤트 유실을 대비하여 캐시에 저장
                     sseEmitterRepository.saveEventCache(key, data);
                     // 데이터 전송
+                    sendNotification(emitter, eventId, key, eventName, data);
+                }
+        );
+    }
+
+    /**
+     * Sends an SSE event directly to local emitters on this server instance (used for fallback).
+     */
+    public void sendLocal(UUID receiverId, Object data, String eventName) {
+        String eventId = makeTimeIncludeId(receiverId);
+        Map<String, SseEmitter> emitters = sseEmitterRepository.findAllEmitterStartWithByMemberId(receiverId.toString());
+        
+        emitters.forEach(
+                (key, emitter) -> {
+                    sseEmitterRepository.saveEventCache(key, data);
                     sendNotification(emitter, eventId, key, eventName, data);
                 }
         );

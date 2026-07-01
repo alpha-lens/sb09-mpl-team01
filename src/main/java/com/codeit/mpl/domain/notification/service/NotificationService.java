@@ -13,12 +13,38 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import org.springframework.transaction.annotation.Propagation;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class NotificationService {
   private final NotificationRepository notificationRepository;
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public NotificationDto saveNotification(NotificationEvent event) {
+    Notification notification = Notification.builder()
+        .receiver(event.getReceiver())
+        .sender(event.getSender())
+        .level(event.getLevel())
+        .title(event.getTitle())
+        .content(event.getContent())
+        .isRead(false)
+        .build();
+
+    Notification saved = notificationRepository.save(notification);
+
+    return new NotificationDto(
+        saved.getId(),
+        saved.getCreatedAt(),
+        saved.getReceiver().getId(),
+        saved.getTitle(),
+        saved.getContent(),
+        saved.getLevel()
+    );
+  }
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<NotificationDto> getNotifications(

@@ -50,8 +50,12 @@ CREATE TABLE IF NOT EXISTS reviews (
                          text TEXT NOT NULL,
                          rating DOUBLE PRECISION NOT NULL DEFAULT 0.0 CHECK (rating >= 0.0 AND rating <= 5.0),
                          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                         CONSTRAINT uk_review_author_content UNIQUE (author_id, content_id)
 );
+
+-- 이미 테이블이 존재하던 환경에도 제약을 추가
+-- ALTER TABLE reviews ADD CONSTRAINT uk_review_author_content UNIQUE (author_id, content_id);
 
 -- 4. 플레이리스트 테이블 (Playlist)
 CREATE TABLE IF NOT EXISTS playlists (
