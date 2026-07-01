@@ -60,3 +60,9 @@ sportsdb:
   base-url: https://www.thesportsdb.com/api/v1/json
   api-key: ${SPORTSDB_API_KEY}
 
+content:
+  collection:
+    scheduler:
+      enabled: false
+      cron: "0 0 3 * * *"
+      zone: "Asia/Seoul"

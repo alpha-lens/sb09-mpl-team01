@@ -15,7 +15,6 @@ import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
 @RequiredArgsConstructor
@@ -41,41 +40,32 @@ public class ContentCollectionBatchConfig {
     }
 
     @Bean
-    public Step tmdbMovieCollectionStep(
-            JobRepository jobRepository,
-            PlatformTransactionManager transactionManager
-    ) {
+    public Step tmdbMovieCollectionStep(JobRepository jobRepository) {
         return new StepBuilder("tmdbMovieCollectionStep", jobRepository)
                 .tasklet((contribution, chunkContext) -> {
                     collectContents(ContentType.MOVIE, List.of("Interstellar", "Inception", "Dune"));
                     return RepeatStatus.FINISHED;
-                }, transactionManager)
+                })
                 .build();
     }
 
     @Bean
-    public Step tmdbTvSeriesCollectionStep(
-            JobRepository jobRepository,
-            PlatformTransactionManager transactionManager
-    ) {
+    public Step tmdbTvSeriesCollectionStep(JobRepository jobRepository) {
         return new StepBuilder("tmdbTvSeriesCollectionStep", jobRepository)
                 .tasklet((contribution, chunkContext) -> {
                     collectContents(ContentType.TVSERIES, List.of("Breaking Bad", "Stranger Things", "Squid Game"));
                     return RepeatStatus.FINISHED;
-                }, transactionManager)
+                })
                 .build();
     }
 
     @Bean
-    public Step sportsCollectionStep(
-            JobRepository jobRepository,
-            PlatformTransactionManager transactionManager
-    ) {
+    public Step sportsCollectionStep(JobRepository jobRepository) {
         return new StepBuilder("sportsCollectionStep", jobRepository)
                 .tasklet((contribution, chunkContext) -> {
                     collectContents(ContentType.SPORT, List.of("Arsenal", "Barcelona", "Manchester United"));
                     return RepeatStatus.FINISHED;
-                }, transactionManager)
+                })
                 .build();
     }
 
@@ -86,13 +76,24 @@ public class ContentCollectionBatchConfig {
 
             results.stream()
                     .limit(3)
-                    .forEach(result -> contentService.importExternalContent(
-                            adminEmail,
-                            new ContentImportRequest(
-                                    result.externalId(),
-                                    type
-                            )
-                    ));
+                    .forEach(result -> importContentSafely(type, result));
+        }
+    }
+
+    private void importContentSafely(
+            ContentType type,
+            ExternalContentSearchResult result
+    ) {
+        try {
+            contentService.importExternalContent(
+                    adminEmail,
+                    new ContentImportRequest(
+                            result.externalId(),
+                            type
+                    )
+            );
+        } catch (RuntimeException e) {
+            // 특정 콘텐츠 import 실패가 전체 배치 실패로 이어지지 않도록 격리
         }
     }
 }
