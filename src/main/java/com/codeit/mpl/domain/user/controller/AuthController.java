@@ -15,6 +15,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -72,9 +73,12 @@ public class AuthController implements AuthApi {
 
     @GetMapping("/csrf-token")
     @Override
-    public ResponseEntity<Void> csrfToken(CsrfToken csrfToken) {
-        csrfToken.getToken();
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<Map<String, String>> csrfToken(CsrfToken csrfToken) {
+        return ResponseEntity.ok(Map.of(
+                "headerName", csrfToken.getHeaderName(),
+                "parameterName", csrfToken.getParameterName(),
+                "token", csrfToken.getToken()
+        ));
     }
 
     private void setRefreshTokenCookie(HttpServletResponse response, String token) {
