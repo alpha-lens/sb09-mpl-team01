@@ -43,7 +43,14 @@ public enum ErrorCode {
     INVALID_PLAYLIST_CURSOR(HttpStatus.BAD_REQUEST, "InvalidPlaylistCursorException", "플레이리스트 커서 값이 올바르지 않습니다."),
 
     // 콘텐츠
-    CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "ContentNotFoundException", "존재하지 않는 콘텐츠입니다.");
+    CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "ContentNotFoundException", "존재하지 않는 콘텐츠입니다."),
+
+    // 팔로우
+    FOLLOW_ALREADY_EXISTS(HttpStatus.CONFLICT, "FollowAlreadyExistsException", "이미 팔로우한 사용자입니다."),
+    FOLLOW_NOT_FOUND(HttpStatus.NOT_FOUND, "FollowNotFoundException", "팔로우 관계가 존재하지 않습니다."),
+    FOLLOW_SELF(HttpStatus.BAD_REQUEST, "FollowSelfException", "자기 자신을 팔로우할 수 없습니다."),
+    FOLLOW_FORBIDDEN(HttpStatus.FORBIDDEN, "FollowForbiddenException", "팔로우를 취소할 권한이 없습니다.");
+
 
     private final HttpStatus httpStatus;
     private final String exceptionName;
