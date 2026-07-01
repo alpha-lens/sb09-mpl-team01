@@ -17,6 +17,7 @@ import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.mapper.ReviewMapper;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.review.service.ReviewService;
+import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
@@ -221,7 +222,8 @@ class ReviewServiceTest {
         .thenReturn(new PageImpl<>(List.of(review)));
     when(reviewRepository.count(any(Specification.class))).thenReturn(1L);
     when(reviewMapper.toDto(review)).thenReturn(
-        new ReviewDto(UUID.randomUUID(), contentId, UUID.randomUUID(), "좋아요", 4, null, null)
+        new ReviewDto(UUID.randomUUID(), contentId,
+            new UserSummary(UUID.randomUUID(), "작성자", null), "좋아요", 4, null, null)
     );
 
     CursorPageResponseDto<ReviewDto> response = reviewService.getReviews(
