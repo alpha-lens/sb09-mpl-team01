@@ -11,4 +11,8 @@ public interface PlaylistSubscriptionRepository extends JpaRepository<PlaylistSu
   boolean existsByPlaylistAndSubscriber(Playlist playlist, User subscriber);
 
   void deleteByPlaylistAndSubscriber(Playlist playlist, User subscriber);
+
+  long countByPlaylist(Playlist playlist);
+
+  void deleteByPlaylist(Playlist playlist);
 }

@@ -44,7 +44,10 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "200", description = "조회 성공"),
       @ApiResponse(responseCode = "404", description = "플레이리스트 없음")
   })
-  ResponseEntity<PlaylistDto> getPlaylist(@PathVariable UUID playlistId);
+  ResponseEntity<PlaylistDto> getPlaylist(
+      @AuthenticationPrincipal UserDetails userDetails,
+      @PathVariable UUID playlistId
+  );
 
   @Operation(summary = "플레이리스트 수정")
   @ApiResponses({

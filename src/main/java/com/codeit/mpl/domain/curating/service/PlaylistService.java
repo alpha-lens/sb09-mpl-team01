@@ -1,5 +1,6 @@
 package com.codeit.mpl.domain.curating.service;
 
+import com.codeit.mpl.domain.content.dto.response.ContentSummary;
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.curating.dto.request.PlaylistCreateRequest;
@@ -8,10 +9,10 @@ import com.codeit.mpl.domain.curating.dto.response.PlaylistDto;
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.curating.entity.PlaylistContent;
 import com.codeit.mpl.domain.curating.entity.PlaylistSubscription;
-import com.codeit.mpl.domain.curating.mapper.PlaylistMapper;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
+import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
@@ -51,7 +52,6 @@ public class PlaylistService {
   private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final ContentRepository contentRepository;
   private final UserRepository userRepository;
-  private final PlaylistMapper playlistMapper;
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<PlaylistDto> getPlaylists(
@@ -70,7 +70,7 @@ public class PlaylistService {
 
     List<String> allowedSortFields = List.of("createdAt", "updatedAt", "title");
     if (!allowedSortFields.contains(sortBy)) {
-      throw new InvalidPlaylistSortException();
+      sortBy = "createdAt";
     }
 
     validateCursorPair(cursor, idAfter);
@@ -97,7 +97,7 @@ public class PlaylistService {
     List<Playlist> pagePlaylists = hasNext ? playlists.subList(0, limit) : playlists;
 
     List<PlaylistDto> playlistDtos = pagePlaylists.stream()
-        .map(playlistMapper::toDto)
+        .map(p -> toDto(p, null))
         .toList();
 
     String nextCursor = null;
@@ -127,14 +127,14 @@ public class PlaylistService {
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
     Playlist playlist = new Playlist(owner, request.title(), request.description());
     playlistRepository.save(playlist);
-    return playlistMapper.toDto(playlist);
+    return toDto(playlist, ownerId);
   }
 
   @Transactional(readOnly = true)
-  public PlaylistDto getPlaylist(UUID playlistId) {
+  public PlaylistDto getPlaylist(UUID playlistId, UUID currentUserId) {
     Playlist playlist = playlistRepository.findById(playlistId)
         .orElseThrow(PlaylistNotFoundException::new);
-    return playlistMapper.toDto(playlist);
+    return toDto(playlist, currentUserId);
   }
 
   public PlaylistDto updatePlaylist(UUID ownerId, UUID playlistId, PlaylistUpdateRequest request) {
@@ -146,7 +146,7 @@ public class PlaylistService {
     }
 
     playlist.update(request.title(), request.description());
-    return playlistMapper.toDto(playlist);
+    return toDto(playlist, ownerId);
   }
 
   public void deletePlaylist(UUID ownerId, UUID playlistId) {
@@ -156,6 +156,11 @@ public class PlaylistService {
     if (!playlist.getOwner().getId().equals(ownerId)) {
       throw new PlaylistForbiddenException();
     }
+
+    // 플레이리스트 콘텐츠 먼저 삭제
+    playlistContentRepository.deleteByPlaylist(playlist);
+    // 플레이리스트 구독 먼저 삭제
+    playlistSubscriptionRepository.deleteByPlaylist(playlist);
 
     playlistRepository.delete(playlist);
   }
@@ -222,6 +227,55 @@ public class PlaylistService {
     }
 
     playlistSubscriptionRepository.deleteByPlaylistAndSubscriber(playlist, subscriber);
+  }
+
+  // ===== private helper =====
+
+  private PlaylistDto toDto(Playlist playlist, UUID currentUserId) {
+    UserSummary owner = new UserSummary(
+        playlist.getOwner().getId(),
+        playlist.getOwner().getName(),
+        playlist.getOwner().getProfileImageUrl()
+    );
+
+    long subscriberCount = playlistSubscriptionRepository.countByPlaylist(playlist);
+
+    boolean subscribedByMe = false;
+    if (currentUserId != null) {
+      userRepository.findById(currentUserId).ifPresent(user -> {});
+      User currentUser = userRepository.findById(currentUserId).orElse(null);
+      if (currentUser != null) {
+        subscribedByMe = playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, currentUser);
+      }
+    }
+
+    List<ContentSummary> contents = playlistContentRepository.findByPlaylist(playlist)
+        .stream()
+        .map(pc -> {
+          Content c = pc.getContent();
+          return new ContentSummary(
+              c.getId(),
+              c.getType(),
+              c.getTitle(),
+              c.getDescription(),
+              c.getThumbnailUrl(),
+              List.of(), // tags는 lazy라 빈 리스트로 처리
+              0.0,
+              0
+          );
+        })
+        .toList();
+
+    return new PlaylistDto(
+        playlist.getId(),
+        owner,
+        playlist.getTitle(),
+        playlist.getDescription(),
+        playlist.getUpdatedAt(),
+        subscriberCount,
+        subscribedByMe,
+        contents
+    );
   }
 
   private void validateCursorPair(String cursor, UUID idAfter) {
