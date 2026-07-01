@@ -2,7 +2,10 @@ package com.codeit.mpl.domain.notification.listener;
 
 import com.codeit.mpl.domain.notification.dto.NotificationDto;
 import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import com.codeit.mpl.domain.notification.listener.NotificationRedisListener.RedisNotificationWrapper;
 import com.codeit.mpl.infra.sse.SseService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,6 +20,7 @@ public class NotificationAsyncHandler {
     private final NotificationRetryHandler notificationRetryHandler;
     private final StringRedisTemplate redisTemplate;
     private final SseService sseService;
+    private final ObjectMapper objectMapper;
 
     @Async("notificationExecutor")
     public void process(NotificationEvent event) {
@@ -30,20 +34,15 @@ public class NotificationAsyncHandler {
         }
 
         try {
-            // 2. Redis Pub/Sub 발행 (수동 JSON 문자열 생성 - RedisNotificationWrapper 구조에 맞춰 data 필드로 래핑)
-            String message = String.format(
-                "{\"receiverId\":\"%s\",\"data\":{\"id\":\"%s\",\"createdAt\":\"%s\",\"receiverId\":\"%s\",\"title\":\"%s\",\"content\":\"%s\",\"level\":\"%s\"}}",
-                dto.receiverId(),
-                dto.id(),
-                dto.createdAt() != null ? dto.createdAt().toString() : "",
-                dto.receiverId(),
-                dto.title().replace("\"", "\\\""),
-                dto.content().replace("\"", "\\\""),
-                dto.level().name()
+            // 2. Redis Pub/Sub 발행 (ObjectMapper를 사용한 안전한 JSON 직렬화)
+            String message = objectMapper.writeValueAsString(
+                new RedisNotificationWrapper(dto.receiverId(), dto)
             );
-
-            redisTemplate.convertAndSend("notification-topic", message);
+            redisTemplate.convertAndSend("ch-notification", message);
             log.info("[Redis Pub] 알림 이벤트 발행 성공. receiverId={}, title={}", event.getReceiver().getId(), event.getTitle());
+        } catch (JsonProcessingException e) {
+            log.error("Redis 메시지 직렬화 실패. receiverId={}", event.getReceiver().getId(), e);
+            sseService.sendLocal(event.getReceiver().getId(), dto, "notifications");
         } catch (Exception e) {
             log.error("Redis 발행 실패 - 로컬 폴백 수행. receiverId={}", event.getReceiver().getId(), e);
             // Redis 장애 시 로컬 SSE 전송으로 폴백
