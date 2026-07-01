@@ -14,6 +14,11 @@ import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.review.InvalidReviewCursorException;
+import com.codeit.mpl.infra.exception.review.InvalidReviewSortException;
+import com.codeit.mpl.infra.exception.review.ReviewAlreadyExistsException;
+import com.codeit.mpl.infra.exception.review.ReviewForbiddenException;
+import com.codeit.mpl.infra.exception.review.ReviewNotFoundException;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -43,12 +48,11 @@ public class ReviewService {
     User author = userRepository.findById(authorId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
 
-    // ErrorCode.CONTENT_NOT_FOUND 추가하면 MplException으로 교체
     Content content = contentRepository.findById(request.contentId())
         .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     if (reviewRepository.existsByAuthorAndContent(author, content)) {
-      throw new MplException(ErrorCode.REVIEW_ALREADY_EXISTS);
+      throw new ReviewAlreadyExistsException();
     }
 
     Review review = new Review(author, content, request.text(), request.rating());
@@ -58,7 +62,7 @@ public class ReviewService {
     } catch (DataIntegrityViolationException e) {
       String message = e.getMostSpecificCause().getMessage();
       if (message != null && message.contains("uk_review_author_content")) {
-        throw new MplException(ErrorCode.REVIEW_ALREADY_EXISTS);
+        throw new ReviewAlreadyExistsException();
       }
       throw e;
     }
@@ -68,10 +72,10 @@ public class ReviewService {
 
   public ReviewDto updateReview(UUID authorId, UUID reviewId, ReviewUpdateRequest request) {
     Review review = reviewRepository.findById(reviewId)
-        .orElseThrow(() -> new MplException(ErrorCode.REVIEW_NOT_FOUND));
+        .orElseThrow(ReviewNotFoundException::new);
 
     if (!review.getAuthor().getId().equals(authorId)) {
-      throw new MplException(ErrorCode.REVIEW_FORBIDDEN);
+      throw new ReviewForbiddenException();
     }
 
     review.update(request.text(), request.rating());
@@ -80,10 +84,10 @@ public class ReviewService {
 
   public void deleteReview(UUID authorId, UUID reviewId) {
     Review review = reviewRepository.findById(reviewId)
-        .orElseThrow(() -> new MplException(ErrorCode.REVIEW_NOT_FOUND));
+        .orElseThrow(ReviewNotFoundException::new);
 
     if (!review.getAuthor().getId().equals(authorId)) {
-      throw new MplException(ErrorCode.REVIEW_FORBIDDEN);
+      throw new ReviewForbiddenException();
     }
 
     reviewRepository.delete(review);
@@ -98,7 +102,6 @@ public class ReviewService {
       String sortBy,
       Direction sortDirection
   ) {
-    // ErrorCode.CONTENT_NOT_FOUND 추가하면 MplException으로 교체
     Content content = contentRepository.findById(contentId)
         .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
@@ -157,13 +160,13 @@ public class ReviewService {
     boolean hasIdAfter = idAfter != null && !idAfter.isBlank();
 
     if (hasCursor != hasIdAfter) {
-      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
+      throw new InvalidReviewCursorException();
     }
   }
 
   private void validateSortBy(String sortBy) {
     if (!"createdAt".equals(sortBy) && !"rating".equals(sortBy)) {
-      throw new MplException(ErrorCode.INVALID_REVIEW_SORT);
+      throw new InvalidReviewSortException();
     }
   }
 
@@ -234,7 +237,7 @@ public class ReviewService {
     try {
       return UUID.fromString(idAfter);
     } catch (IllegalArgumentException e) {
-      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
+      throw new InvalidReviewCursorException();
     }
   }
 
@@ -242,7 +245,7 @@ public class ReviewService {
     try {
       return Instant.parse(cursor);
     } catch (DateTimeParseException e) {
-      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
+      throw new InvalidReviewCursorException();
     }
   }
 
@@ -250,7 +253,7 @@ public class ReviewService {
     try {
       return Double.parseDouble(cursor);
     } catch (NumberFormatException e) {
-      throw new MplException(ErrorCode.INVALID_REVIEW_CURSOR);
+      throw new InvalidReviewCursorException();
     }
   }
 
@@ -261,6 +264,6 @@ public class ReviewService {
     if ("rating".equals(sortBy)) {
       return String.valueOf(review.getRating());
     }
-    throw new MplException(ErrorCode.INVALID_REVIEW_SORT);
+    throw new InvalidReviewSortException();
   }
 }
