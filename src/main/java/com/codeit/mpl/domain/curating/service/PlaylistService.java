@@ -101,8 +101,14 @@ public class PlaylistService {
 
     List<Playlist> pagePlaylists = hasNext ? playlists.subList(0, limit) : playlists;
 
+    User currentUser = null;
+    if (currentUserId != null) {
+      currentUser = userRepository.findById(currentUserId).orElse(null);
+    }
+
+    final User finalCurrentUser = currentUser;
     List<PlaylistDto> playlistDtos = pagePlaylists.stream()
-        .map(p -> toDtoSimple(p, currentUserId))
+        .map(p -> toDtoSimple(p, finalCurrentUser))
         .toList();
 
     String nextCursor = null;
@@ -411,7 +417,7 @@ public class PlaylistService {
     throw new InvalidPlaylistSortException();
   }
 
-  private PlaylistDto toDtoSimple(Playlist playlist, UUID currentUserId) {
+  private PlaylistDto toDtoSimple(Playlist playlist, User currentUser) {
     UserSummary owner = new UserSummary(
         playlist.getOwner().getId(),
         playlist.getOwner().getName(),
@@ -420,13 +426,8 @@ public class PlaylistService {
 
     long subscriberCount = playlistSubscriptionRepository.countByPlaylist(playlist);
 
-    boolean subscribedByMe = false;
-    if (currentUserId != null) {
-      User currentUser = userRepository.findById(currentUserId).orElse(null);
-      if (currentUser != null) {
-        subscribedByMe = playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, currentUser);
-      }
-    }
+    boolean subscribedByMe = currentUser != null &&
+        playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, currentUser);
 
     return new PlaylistDto(
         playlist.getId(),
