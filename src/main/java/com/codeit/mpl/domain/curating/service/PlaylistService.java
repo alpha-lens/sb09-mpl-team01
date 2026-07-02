@@ -12,6 +12,7 @@ import com.codeit.mpl.domain.curating.entity.PlaylistSubscription;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
+import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import com.codeit.mpl.domain.notification.entity.NotificationLevel;
 import com.codeit.mpl.domain.notification.event.NotificationEvent;
@@ -56,6 +57,7 @@ public class PlaylistService {
   private final ContentRepository contentRepository;
   private final UserRepository userRepository;
   private final ApplicationEventPublisher eventPublisher;
+  private final ReviewRepository reviewRepository;
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<PlaylistDto> getPlaylists(
@@ -275,15 +277,17 @@ public class PlaylistService {
         .stream()
         .map(pc -> {
           Content c = pc.getContent();
+          Double avgRating = reviewRepository.findAverageRatingByContent(c);
+          long reviewCount = reviewRepository.countByContent(c);
           return new ContentSummary(
               c.getId(),
               c.getType(),
               c.getTitle(),
               c.getDescription(),
               c.getThumbnailUrl(),
-              List.of(), // tags는 lazy라 빈 리스트로 처리
-              0.0,
-              0
+              List.of(),
+              avgRating != null ? avgRating : 0.0,
+              (int) reviewCount
           );
         })
         .toList();
