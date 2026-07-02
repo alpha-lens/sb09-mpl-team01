@@ -1,6 +1,5 @@
 HELP.md
 .gradle
-.env
 .idea
 build/
 !gradle/wrapper/gradle-wrapper.jar
