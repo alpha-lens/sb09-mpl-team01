@@ -1,10 +1,10 @@
 package com.codeit.mpl.domain.review.dto.request;
 
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 public record ReviewUpdateRequest(
     String text,
-    @DecimalMin("0.0")
-    @DecimalMax("5.0") Double rating
+    @Min(0)
+    @Max(5) Integer rating
 ) {}

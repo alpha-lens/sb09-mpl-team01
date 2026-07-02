@@ -207,7 +207,7 @@ public class ReviewService {
       }
 
       if ("rating".equals(sortBy)) {
-        Double cursorValue = parseDoubleCursor(cursor);
+        Integer cursorValue = parseIntCursor(cursor);
 
         Predicate sortPredicate;
         Predicate sameSortValuePredicate;
@@ -249,9 +249,9 @@ public class ReviewService {
     }
   }
 
-  private Double parseDoubleCursor(String cursor) {
+  private Integer parseIntCursor(String cursor) {
     try {
-      return Double.parseDouble(cursor);
+      return Integer.parseInt(cursor);
     } catch (NumberFormatException e) {
       throw new InvalidReviewCursorException();
     }

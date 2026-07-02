@@ -17,6 +17,7 @@ import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.mapper.ReviewMapper;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.review.service.ReviewService;
+import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
@@ -59,7 +60,7 @@ class ReviewServiceTest {
   void createReview_success() {
     UUID authorId = UUID.randomUUID();
     UUID contentId = UUID.randomUUID();
-    ReviewCreateRequest request = new ReviewCreateRequest(contentId, "재밌어요", 4.5);
+    ReviewCreateRequest request = new ReviewCreateRequest(contentId, "재밌어요", 4);
 
     User author = mock(User.class);
     Content content = mock(Content.class);
@@ -78,7 +79,7 @@ class ReviewServiceTest {
   void createReview_fail_alreadyExists() {
     UUID authorId = UUID.randomUUID();
     UUID contentId = UUID.randomUUID();
-    ReviewCreateRequest request = new ReviewCreateRequest(contentId, "재밌어요", 4.5);
+    ReviewCreateRequest request = new ReviewCreateRequest(contentId, "재밌어요", 4);
 
     User author = mock(User.class);
     Content content = mock(Content.class);
@@ -98,7 +99,7 @@ class ReviewServiceTest {
   void createReview_fail_userNotFound() {
     UUID authorId = UUID.randomUUID();
     UUID contentId = UUID.randomUUID();
-    ReviewCreateRequest request = new ReviewCreateRequest(contentId, "재밌어요", 4.5);
+    ReviewCreateRequest request = new ReviewCreateRequest(contentId, "재밌어요", 4);
 
     when(userRepository.findById(authorId)).thenReturn(Optional.empty());
 
@@ -111,7 +112,7 @@ class ReviewServiceTest {
   void updateReview_success() {
     UUID authorId = UUID.randomUUID();
     UUID reviewId = UUID.randomUUID();
-    ReviewUpdateRequest request = new ReviewUpdateRequest("수정된 리뷰", 3.5);
+    ReviewUpdateRequest request = new ReviewUpdateRequest("수정된 리뷰", 3);
 
     User author = mock(User.class);
     Review review = mock(Review.class);
@@ -131,7 +132,7 @@ class ReviewServiceTest {
     UUID authorId = UUID.randomUUID();
     UUID otherUserId = UUID.randomUUID();
     UUID reviewId = UUID.randomUUID();
-    ReviewUpdateRequest request = new ReviewUpdateRequest("수정된 리뷰", 3.5);
+    ReviewUpdateRequest request = new ReviewUpdateRequest("수정된 리뷰", 3);
 
     User author = mock(User.class);
     Review review = mock(Review.class);
@@ -151,7 +152,7 @@ class ReviewServiceTest {
   void updateReview_fail_notFound() {
     UUID authorId = UUID.randomUUID();
     UUID reviewId = UUID.randomUUID();
-    ReviewUpdateRequest request = new ReviewUpdateRequest("수정된 리뷰", 3.5);
+    ReviewUpdateRequest request = new ReviewUpdateRequest("수정된 리뷰", 3);
 
     when(reviewRepository.findById(reviewId)).thenReturn(Optional.empty());
 
@@ -221,7 +222,8 @@ class ReviewServiceTest {
         .thenReturn(new PageImpl<>(List.of(review)));
     when(reviewRepository.count(any(Specification.class))).thenReturn(1L);
     when(reviewMapper.toDto(review)).thenReturn(
-        new ReviewDto(UUID.randomUUID(), contentId, UUID.randomUUID(), "좋아요", 4.0, null, null)
+        new ReviewDto(UUID.randomUUID(), contentId,
+            new UserSummary(UUID.randomUUID(), "작성자", null), "좋아요", 4, null, null)
     );
 
     CursorPageResponseDto<ReviewDto> response = reviewService.getReviews(

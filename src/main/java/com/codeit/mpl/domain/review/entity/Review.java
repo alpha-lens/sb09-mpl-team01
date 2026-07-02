@@ -45,16 +45,16 @@ public class Review extends BaseUpdatableEntity {
   private String text;
 
   @Column(name = "rating", nullable = false)
-  private Double rating;
+  private int rating;
 
-  public Review(User author, Content content, String text, Double rating) {
+  public Review(User author, Content content, String text, int rating) {
     this.author = author;
     this.content = content;
     this.text = text;
     this.rating = rating;
   }
 
-  public void update(String text, Double rating) {
+  public void update(String text, Integer rating) {
     if (text != null) this.text = text;
     if (rating != null) this.rating = rating;
   }

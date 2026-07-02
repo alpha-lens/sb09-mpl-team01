@@ -158,9 +158,9 @@ public class DataInitializer implements ApplicationRunner {
             log.info("Linked contents to playlists.");
 
             // Create Reviews
-            reviewRepository.save(new Review(admin, inception, "인셉션은 정말 영화 역사에 남을 명작입니다. 꿈속의 꿈이라는 설정이 소름 돋아요.", 5.0));
-            reviewRepository.save(new Review(admin, interstellar, "놀란 감독의 우주적 상상력과 한스 짐mer의 음악이 어우러진 최고의 SF 영화입니다.", 4.8));
-            reviewRepository.save(new Review(admin, sonHighlight, "주말 예능 축구는 언제나 최고입니다. 손흥민 최고!", 5.0));
+            reviewRepository.save(new Review(admin, inception, "인셉션은 정말 영화 역사에 남을 명작입니다. 꿈속의 꿈이라는 설정이 소름 돋아요.", 5));
+            reviewRepository.save(new Review(admin, interstellar, "놀란 감독의 우주적 상상력과 한스 짐mer의 음악이 어우러진 최고의 SF 영화입니다.", 4));
+            reviewRepository.save(new Review(admin, sonHighlight, "주말 예능 축구는 언제나 최고입니다. 손흥민 최고!", 5));
             log.info("Seeded 3 reviews.");
         }
     }
