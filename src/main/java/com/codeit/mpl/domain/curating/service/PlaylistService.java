@@ -285,7 +285,7 @@ public class PlaylistService {
               c.getTitle(),
               c.getDescription(),
               c.getThumbnailUrl(),
-              List.of(),
+              c.getTags(),
               avgRating != null ? avgRating : 0.0,
               (int) reviewCount
           );
