@@ -28,6 +28,7 @@ import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -185,6 +186,15 @@ public class ContentService {
         validateCursorPair(cursor, idAfter);
         validateSortBy(sortBy);
 
+        if ("watcherCount".equals(sortBy) || "rate".equals(sortBy)) {
+            return getContentsByCalculatedSort(
+                    idAfter,
+                    limit,
+                    sortBy,
+                    sortDirection
+            );
+        }
+
         Sort.Direction direction = sortDirection == Direction.ASCENDING
                 ? Sort.Direction.ASC
                 : Sort.Direction.DESC;
@@ -192,13 +202,13 @@ public class ContentService {
         Pageable pageable = PageRequest.of(
                 0,
                 limit + 1,
-                Sort.by(direction, sortBy).and(Sort.by(direction, "id"))
+                Sort.by(direction, "createdAt").and(Sort.by(direction, "id"))
         );
 
         Specification<Content> specification = createCursorSpecification(
                 cursor,
                 idAfter,
-                sortBy,
+                "createdAt",
                 sortDirection
         );
 
@@ -220,7 +230,7 @@ public class ContentService {
 
         if (hasNext && !pageContents.isEmpty()) {
             Content lastContent = pageContents.get(pageContents.size() - 1);
-            nextCursor = getCursorValue(lastContent, sortBy);
+            nextCursor = getCursorValue(lastContent, "createdAt");
             nextIdAfter = lastContent.getId().toString();
         }
 
@@ -233,6 +243,127 @@ public class ContentService {
                 sortBy,
                 sortDirection
         );
+    }
+
+    private CursorPageResponseDto<ContentSummary> getContentsByCalculatedSort(
+            String idAfter,
+            int limit,
+            String sortBy,
+            Direction sortDirection
+    ) {
+        List<ContentSortView> sortedContents = contentRepository.findAll().stream()
+                .map(this::toContentSortView)
+                .sorted(createContentSortComparator(sortBy, sortDirection))
+                .toList();
+
+        int startIndex = resolveStartIndex(sortedContents, idAfter);
+        int endIndex = Math.min(startIndex + limit + 1, sortedContents.size());
+
+        List<ContentSortView> selectedContents = sortedContents.subList(startIndex, endIndex);
+        boolean hasNext = selectedContents.size() > limit;
+
+        List<ContentSortView> pageContents = hasNext
+                ? selectedContents.subList(0, limit)
+                : selectedContents;
+
+        List<ContentSummary> contentSummaries = pageContents.stream()
+                .map(ContentSortView::summary)
+                .toList();
+
+        String nextCursor = null;
+        String nextIdAfter = null;
+
+        if (hasNext && !pageContents.isEmpty()) {
+            ContentSortView lastContent = pageContents.get(pageContents.size() - 1);
+            nextCursor = getCalculatedCursorValue(lastContent, sortBy);
+            nextIdAfter = lastContent.id().toString();
+        }
+
+        return new CursorPageResponseDto<>(
+                contentSummaries,
+                nextCursor,
+                nextIdAfter,
+                hasNext,
+                contentRepository.count(),
+                sortBy,
+                sortDirection
+        );
+    }
+
+    private ContentSortView toContentSortView(Content content) {
+        Double averageRating = reviewRepository.findAverageRatingByContent(content);
+
+        if (averageRating == null) {
+            averageRating = 0.0;
+        }
+
+        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
+        Long watcherCount = watchingSessionRepository.countByContent(content);
+
+        ContentSummary summary = contentMapper.toSummary(
+                content,
+                averageRating,
+                reviewCount
+        );
+
+        return new ContentSortView(
+                content.getId(),
+                content.getCreatedAt(),
+                watcherCount,
+                averageRating,
+                summary
+        );
+    }
+
+    private Comparator<ContentSortView> createContentSortComparator(
+            String sortBy,
+            Direction sortDirection
+    ) {
+        Comparator<ContentSortView> comparator = switch (sortBy) {
+            case "watcherCount" -> Comparator.comparing(ContentSortView::watcherCount);
+            case "rate" -> Comparator.comparing(ContentSortView::averageRating);
+            default -> throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
+        };
+
+        comparator = comparator
+                .thenComparing(ContentSortView::createdAt)
+                .thenComparing(ContentSortView::id);
+
+        if (sortDirection == Direction.DESCENDING) {
+            comparator = comparator.reversed();
+        }
+
+        return comparator;
+    }
+
+    private int resolveStartIndex(
+            List<ContentSortView> sortedContents,
+            String idAfter
+    ) {
+        if (idAfter == null || idAfter.isBlank()) {
+            return 0;
+        }
+
+        UUID idAfterValue = parseIdAfter(idAfter);
+
+        for (int i = 0; i < sortedContents.size(); i++) {
+            if (sortedContents.get(i).id().equals(idAfterValue)) {
+                return i + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    private String getCalculatedCursorValue(
+            ContentSortView content,
+            String sortBy
+    ) {
+        return switch (sortBy) {
+            case "watcherCount" -> String.valueOf(content.watcherCount());
+            case "rate" -> String.valueOf(content.averageRating());
+            default -> throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
+        };
     }
 
     @Transactional(readOnly = true)
@@ -267,6 +398,7 @@ public class ContentService {
         }
 
         return teamResponse.teams().stream()
+                .limit(3)
                 .flatMap(team -> {
                     SportsDbEventResponse eventResponse =
                             sportsDbClient.getNextEventsByTeam(team.idTeam());
@@ -276,6 +408,7 @@ public class ContentService {
                     }
 
                     return eventResponse.events().stream()
+                            .limit(3)
                             .map(this::toSportsExternalSearchResult);
                 })
                 .toList();
@@ -518,27 +651,6 @@ public class ContentService {
                 return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
             }
 
-            if ("title".equals(sortBy)) {
-                Predicate sortPredicate;
-                Predicate sameSortValuePredicate;
-
-                if (sortDirection == Direction.ASCENDING) {
-                    sortPredicate = criteriaBuilder.greaterThan(root.get("title"), cursor);
-                    sameSortValuePredicate = criteriaBuilder.and(
-                            criteriaBuilder.equal(root.get("title"), cursor),
-                            criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
-                    );
-                } else {
-                    sortPredicate = criteriaBuilder.lessThan(root.get("title"), cursor);
-                    sameSortValuePredicate = criteriaBuilder.and(
-                            criteriaBuilder.equal(root.get("title"), cursor),
-                            criteriaBuilder.lessThan(root.get("id"), idAfterValue)
-                    );
-                }
-
-                return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
-            }
-
             return criteriaBuilder.conjunction();
         };
     }
@@ -564,16 +676,14 @@ public class ContentService {
             return content.getCreatedAt().toString();
         }
 
-        if ("title".equals(sortBy)) {
-            return content.getTitle();
-        }
-
         throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
     }
 
     private void validateSortBy(String sortBy) {
-        if (!"createdAt".equals(sortBy) && !"title".equals(sortBy)) {
-            throw new IllegalArgumentException("sortBy는 createdAt 또는 title만 사용할 수 있습니다.");
+        if (!"createdAt".equals(sortBy)
+                && !"watcherCount".equals(sortBy)
+                && !"rate".equals(sortBy)) {
+            throw new IllegalArgumentException("sortBy는 createdAt, watcherCount, rate만 사용할 수 있습니다.");
         }
     }
 
@@ -609,5 +719,14 @@ public class ContentService {
                 averageRating,
                 reviewCount
         );
+    }
+
+    private record ContentSortView(
+            UUID id,
+            Instant createdAt,
+            Long watcherCount,
+            Double averageRating,
+            ContentSummary summary
+    ) {
     }
 }
