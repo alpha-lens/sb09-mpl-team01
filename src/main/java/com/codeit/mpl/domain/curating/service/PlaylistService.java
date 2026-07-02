@@ -12,6 +12,8 @@ import com.codeit.mpl.domain.curating.mapper.PlaylistMapper;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
+import com.codeit.mpl.domain.notification.entity.NotificationLevel;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
@@ -33,6 +35,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -52,6 +55,7 @@ public class PlaylistService {
   private final ContentRepository contentRepository;
   private final UserRepository userRepository;
   private final PlaylistMapper playlistMapper;
+  private final ApplicationEventPublisher eventPublisher;
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<PlaylistDto> getPlaylists(
@@ -208,6 +212,18 @@ public class PlaylistService {
     }
 
     playlistSubscriptionRepository.save(new PlaylistSubscription(playlist, subscriber));
+
+    // 소유자와 구독자가 다를 때만 알림 발행 (트랜잭션 커밋 후 AFTER_COMMIT 리스너가 처리)
+    User owner = playlist.getOwner();
+    if (!owner.getId().equals(subscriberId)) {
+      eventPublisher.publishEvent(new NotificationEvent(
+          owner,
+          subscriber,
+          NotificationLevel.INFO,
+          "새로운 구독자",
+          subscriber.getName() + "님이 '" + playlist.getTitle() + "' 플레이리스트를 구독했습니다."
+      ));
+    }
   }
 
   public void unsubscribePlaylist(UUID subscriberId, UUID playlistId) {

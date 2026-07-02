@@ -69,7 +69,7 @@ public class NotificationService {
 
     String nextCursor = null;
     String nextIdAfter = null;
-    if (!dtos.isEmpty()) {
+    if (hasNext && !dtos.isEmpty()) {
       NotificationDto last = dtos.get(dtos.size() - 1);
       nextCursor = last.createdAt().toString();
       nextIdAfter = last.id().toString();

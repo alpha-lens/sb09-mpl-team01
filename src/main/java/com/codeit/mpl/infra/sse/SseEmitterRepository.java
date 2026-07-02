@@ -73,13 +73,9 @@ public class SseEmitterRepository {
      * @param memberId the prefix to match against emitter identifiers
      */
     public void deleteAllEmitterStartWithByMemberId(String memberId) {
-        emitters.forEach(
-                (key, emitter) -> {
-                    if (key.startsWith(memberId)) {
-                        emitters.remove(key);
-                    }
-                }
-        );
+    emitters.keySet().stream()
+                .filter(key -> key.startsWith(memberId))
+                .forEach(emitters::remove);
     }
 
     /**
@@ -88,13 +84,9 @@ public class SseEmitterRepository {
      * @param memberId the prefix that keys must match to be deleted
      */
     public void deleteAllEventCacheStartWithByMemberId(String memberId) {
-        eventCache.forEach(
-                (key, cache) -> {
-                    if (key.startsWith(memberId)) {
-                        eventCache.remove(key);
-                    }
-                }
-        );
+        eventCache.keySet().stream()
+                .filter(key -> key.startsWith(memberId))
+                .forEach(eventCache::remove);
     }
 
     /**
