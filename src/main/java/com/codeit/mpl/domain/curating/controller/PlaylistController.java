@@ -62,8 +62,14 @@ public class PlaylistController implements PlaylistApi {
   }
 
   @GetMapping("/{playlistId}")
-  public ResponseEntity<PlaylistDto> getPlaylist(@PathVariable UUID playlistId) {
-    PlaylistDto response = playlistService.getPlaylist(playlistId);
+  public ResponseEntity<PlaylistDto> getPlaylist(
+      @AuthenticationPrincipal UserDetails userDetails,
+      @PathVariable UUID playlistId
+  ) {
+    UUID currentUserId = userDetails != null
+        ? userService.resolveUserId(userDetails.getUsername())
+        : null;
+    PlaylistDto response = playlistService.getPlaylist(playlistId, currentUserId);
     return ResponseEntity.ok(response);
   }
 
