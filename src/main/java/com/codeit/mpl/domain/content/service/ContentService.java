@@ -186,8 +186,11 @@ public class ContentService {
         validateCursorPair(cursor, idAfter);
         validateSortBy(sortBy);
 
+        // watcherCount, rate는 Content 테이블 컬럼이 아니라 계산값입니다.
+        // 따라서 현재는 메모리 정렬 경로로 분기합니다.
         if ("watcherCount".equals(sortBy) || "rate".equals(sortBy)) {
             return getContentsByCalculatedSort(
+                    cursor,
                     idAfter,
                     limit,
                     sortBy,
@@ -195,6 +198,7 @@ public class ContentService {
             );
         }
 
+        // createdAt은 실제 Content 컬럼이므로 DB 정렬 + Specification 커서를 사용합니다.
         Sort.Direction direction = sortDirection == Direction.ASCENDING
                 ? Sort.Direction.ASC
                 : Sort.Direction.DESC;
@@ -245,7 +249,15 @@ public class ContentService {
         );
     }
 
+    /**
+     * watcherCount, rate 계산 정렬용 목록 조회입니다.
+     *
+     * 현재는 임시로 전체 Content를 조회한 뒤 메모리에서 정렬합니다.
+     * cursor + idAfter를 함께 사용해서 이전 페이지의 마지막 항목을 찾고,
+     * 그 다음 인덱스부터 다음 페이지를 구성합니다.
+     */
     private CursorPageResponseDto<ContentSummary> getContentsByCalculatedSort(
+            String cursor,
             String idAfter,
             int limit,
             String sortBy,
@@ -256,7 +268,13 @@ public class ContentService {
                 .sorted(createContentSortComparator(sortBy, sortDirection))
                 .toList();
 
-        int startIndex = resolveStartIndex(sortedContents, idAfter);
+        int startIndex = resolveStartIndex(
+                sortedContents,
+                cursor,
+                idAfter,
+                sortBy
+        );
+
         int endIndex = Math.min(startIndex + limit + 1, sortedContents.size());
 
         List<ContentSortView> selectedContents = sortedContents.subList(startIndex, endIndex);
@@ -290,6 +308,9 @@ public class ContentService {
         );
     }
 
+    /**
+     * 계산 정렬에 필요한 값을 한 번에 담는 View 객체를 만듭니다.
+     */
     private ContentSortView toContentSortView(Content content) {
         Double averageRating = reviewRepository.findAverageRatingByContent(content);
 
@@ -315,6 +336,11 @@ public class ContentService {
         );
     }
 
+    /**
+     * watcherCount 또는 rate 기준 Comparator를 만듭니다.
+     *
+     * 같은 정렬값이 나올 수 있으므로 createdAt, id를 보조 정렬 기준으로 사용합니다.
+     */
     private Comparator<ContentSortView> createContentSortComparator(
             String sortBy,
             Direction sortDirection
@@ -336,23 +362,80 @@ public class ContentService {
         return comparator;
     }
 
+    /**
+     * 계산 정렬용 cursor 시작 위치를 계산합니다.
+     *
+     * cursor: 이전 응답의 nextCursor
+     * idAfter: 이전 응답의 nextIdAfter
+     *
+     * 둘 다 없으면 첫 페이지입니다.
+     * 둘 다 있으면 정렬값과 id가 모두 일치하는 항목을 찾고, 그 다음부터 반환합니다.
+     */
     private int resolveStartIndex(
             List<ContentSortView> sortedContents,
-            String idAfter
+            String cursor,
+            String idAfter,
+            String sortBy
     ) {
-        if (idAfter == null || idAfter.isBlank()) {
+        if (cursor == null || cursor.isBlank()
+                || idAfter == null || idAfter.isBlank()) {
             return 0;
         }
 
         UUID idAfterValue = parseIdAfter(idAfter);
 
         for (int i = 0; i < sortedContents.size(); i++) {
-            if (sortedContents.get(i).id().equals(idAfterValue)) {
+            ContentSortView content = sortedContents.get(i);
+
+            boolean sameCursorValue = matchesCalculatedCursorValue(
+                    content,
+                    cursor,
+                    sortBy
+            );
+
+            boolean sameId = content.id().equals(idAfterValue);
+
+            if (sameCursorValue && sameId) {
                 return i + 1;
             }
         }
 
-        return 0;
+        // 첫 페이지로 되돌리면 중복 페이지가 발생하므로 명시적으로 잘못된 요청 처리
+        throw new IllegalArgumentException("cursor와 idAfter가 현재 정렬 결과와 일치하지 않습니다.");
+    }
+
+    /**
+     * cursor 문자열을 실제 계산 정렬값과 비교합니다.
+     */
+    private boolean matchesCalculatedCursorValue(
+            ContentSortView content,
+            String cursor,
+            String sortBy
+    ) {
+        return switch (sortBy) {
+            case "watcherCount" ->
+                    content.watcherCount().equals(parseLongCursor(cursor));
+            case "rate" ->
+                    Double.compare(content.averageRating(), parseDoubleCursor(cursor)) == 0;
+            default ->
+                    throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
+        };
+    }
+
+    private Long parseLongCursor(String cursor) {
+        try {
+            return Long.parseLong(cursor);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("watcherCount 정렬 시 cursor는 숫자여야 합니다.");
+        }
+    }
+
+    private Double parseDoubleCursor(String cursor) {
+        try {
+            return Double.parseDouble(cursor);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("rate 정렬 시 cursor는 숫자여야 합니다.");
+        }
     }
 
     private String getCalculatedCursorValue(
@@ -721,6 +804,9 @@ public class ContentService {
         );
     }
 
+    /**
+     * 계산 정렬에 필요한 내부 전용 데이터입니다.
+     */
     private record ContentSortView(
             UUID id,
             Instant createdAt,
