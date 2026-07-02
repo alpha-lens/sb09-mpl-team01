@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -70,6 +71,17 @@ public interface UserApi {
             @Parameter(description = "사용자 ID") @PathVariable UUID userId,
             @Valid UserUpdateRequest request,
             MultipartFile image
+    );
+
+    @Operation(summary = "프로필 이미지 다운로드", description = "PresignedURL(S3) 또는 파일(local)로 302 리다이렉트/응답합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "302", description = "리다이렉트 (S3)"),
+            @ApiResponse(responseCode = "200", description = "파일 응답 (local)"),
+            @ApiResponse(responseCode = "404", description = "프로필 이미지 없음")
+    })
+    void downloadProfileImage(
+            @Parameter(description = "사용자 ID") @PathVariable UUID userId,
+            HttpServletResponse response
     );
 
     @Operation(summary = "[어드민] 권한 수정")

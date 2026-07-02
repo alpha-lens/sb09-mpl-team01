@@ -11,6 +11,7 @@ import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -71,6 +72,12 @@ public class UserController implements UserApi {
             @RequestPart(value = "image", required = false) MultipartFile image
     ) {
         return ResponseEntity.ok(userService.updateUser(userId, request, image));
+    }
+
+    @GetMapping("/{userId}/profile-image")
+    @Override
+    public void downloadProfileImage(@PathVariable UUID userId, HttpServletResponse response) {
+        userService.downloadProfileImage(userId, response);
     }
 
     @PatchMapping("/{userId}/role")

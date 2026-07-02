@@ -19,6 +19,8 @@ import com.codeit.mpl.infra.common.dto.JwtDto;
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
 import com.codeit.mpl.infra.security.JwtUtil;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -44,6 +46,7 @@ public class UserService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final BinaryContentStorage binaryContentStorage;
 
     private static final String TEMP_PASSWORD_PREFIX = "temporary_password:";
     private static final long TEMP_PASSWORD_TTL_SECONDS = 180;
@@ -145,10 +148,20 @@ public class UserService {
         User user = findUserById(userId);
         user.updateName(request.name());
         if (image != null && !image.isEmpty()) {
-            // TODO: 추후 스토리지 계층 연동 및 실제 URL 저장 로직 구현
-            user.updateProfileImageUrl(image.getOriginalFilename());
+            String key = "profile-images/" + userId + "/" + UUID.randomUUID() + "-" + image.getOriginalFilename();
+            String storedKey = binaryContentStorage.put(key, image);
+            user.updateProfileImageUrl(storedKey);
         }
         return userMapper.toDto(user);
+    }
+
+    @Transactional(readOnly = true)
+    public void downloadProfileImage(UUID userId, HttpServletResponse response) {
+        User user = findUserById(userId);
+        if (user.getProfileImageUrl() == null) {
+            throw new MplException(ErrorCode.STORAGE_FILE_NOT_FOUND);
+        }
+        binaryContentStorage.download(user.getProfileImageUrl(), response);
     }
 
     public UserDto updateRole(UUID userId, UserRoleUpdateRequest request) {
