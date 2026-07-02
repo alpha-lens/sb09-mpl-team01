@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS reviews (
                          content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
                          author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                          text TEXT NOT NULL,
-                         rating DOUBLE PRECISION NOT NULL DEFAULT 0.0 CHECK (rating >= 0.0 AND rating <= 5.0),
+                         rating INTEGER NOT NULL DEFAULT 0 CHECK (rating >= 0 AND rating <= 5),
                          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                          CONSTRAINT uk_review_author_content UNIQUE (author_id, content_id)
