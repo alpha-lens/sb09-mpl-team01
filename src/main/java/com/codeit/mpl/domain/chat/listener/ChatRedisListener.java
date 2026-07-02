@@ -13,6 +13,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -35,7 +36,7 @@ public class ChatRedisListener implements MessageListener {
     @Override
     public void onMessage(Message message, byte[] pattern) {
         String topic = new String(message.getChannel());
-        String body = (String) redisTemplate.getValueSerializer().deserialize(message.getBody());
+        String body = RedisSerializer.string().deserialize(message.getBody());
         
         log.info("[Redis Chat] 메시지 수신 성공. topic={}, body={}", topic, body);
 
