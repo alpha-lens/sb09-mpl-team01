@@ -34,4 +34,4 @@ RUN chown spring:spring app.jar
 USER spring:spring
 
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "java $JVM_OPTS -Dspring.profiles.active=prod -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JVM_OPTS -jar app.jar"]
