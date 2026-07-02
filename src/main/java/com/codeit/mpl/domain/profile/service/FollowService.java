@@ -8,6 +8,7 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
 import com.codeit.mpl.infra.exception.follow.FollowAlreadyExistsException;
+import com.codeit.mpl.infra.exception.follow.FollowForbiddenException;
 import com.codeit.mpl.infra.exception.follow.FollowNotFoundException;
 import com.codeit.mpl.infra.exception.follow.FollowSelfException;
 import java.util.UUID;
@@ -50,7 +51,7 @@ public class FollowService {
         .orElseThrow(FollowNotFoundException::new);
 
     if (!follow.getFollower().getId().equals(followerId)) {
-      throw new MplException(ErrorCode.FOLLOW_FORBIDDEN);
+      throw new FollowForbiddenException();
     }
 
     followRepository.delete(follow);
@@ -61,10 +62,8 @@ public class FollowService {
   public FollowDto getFollowedByMe(UUID followerId, UUID followeeId) {
     User follower = userRepository.findById(followerId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
-
     User followee = userRepository.findById(followeeId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
-
     Follow follow = followRepository.findByFollowerAndFollowee(follower, followee)
         .orElseThrow(FollowNotFoundException::new);
 

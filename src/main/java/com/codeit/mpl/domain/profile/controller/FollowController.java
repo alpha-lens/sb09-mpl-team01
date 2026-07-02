@@ -5,8 +5,7 @@ import com.codeit.mpl.domain.profile.dto.request.FollowRequest;
 import com.codeit.mpl.domain.profile.dto.response.FollowDto;
 import com.codeit.mpl.domain.profile.service.FollowService;
 import com.codeit.mpl.domain.user.service.UserService;
-import com.codeit.mpl.infra.exception.ErrorCode;
-import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.follow.FollowForbiddenException;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -68,7 +67,7 @@ public class FollowController implements FollowApi {
 
   private UUID resolveAuthenticatedUserId(UserDetails userDetails) {
     if (userDetails == null) {
-      throw new MplException(ErrorCode.INVALID_TOKEN);
+      throw new FollowForbiddenException();
     }
     return userService.resolveUserId(userDetails.getUsername());
   }

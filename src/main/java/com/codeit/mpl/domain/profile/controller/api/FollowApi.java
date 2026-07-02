@@ -33,7 +33,7 @@ public interface FollowApi {
   @Operation(summary = "팔로우 여부 조회")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "팔로우 중"),
-      @ApiResponse(responseCode = "404", description = "팔로우하지 않음")
+      @ApiResponse(responseCode = "404", description = "팔로우 정보를 찾을 수 없음")
   })
   ResponseEntity<FollowDto> getFollowedByMe(
       @AuthenticationPrincipal UserDetails userDetails,
