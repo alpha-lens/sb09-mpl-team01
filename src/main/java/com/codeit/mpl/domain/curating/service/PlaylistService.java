@@ -55,7 +55,6 @@ public class PlaylistService {
   private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final ContentRepository contentRepository;
   private final UserRepository userRepository;
-  private final PlaylistMapper playlistMapper;
   private final ApplicationEventPublisher eventPublisher;
 
   @Transactional(readOnly = true)
