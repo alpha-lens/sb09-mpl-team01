@@ -27,6 +27,7 @@ import static org.springframework.http.HttpMethod.POST;
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final JwtUtil jwtUtil;
 
     /**
      * Provides a password encoder bean using BCrypt hashing.
@@ -66,7 +67,7 @@ public class SecurityConfig {
                 .requestMatchers("/ws/**", "/ws-chat/**").permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, jwtUtil), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
