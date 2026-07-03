@@ -2,7 +2,6 @@ package com.codeit.mpl.infra.storage;
 
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -74,7 +73,7 @@ public class S3BinaryContentStorage implements BinaryContentStorage {
     }
 
     @Override
-    public void download(String key, HttpServletResponse response) {
+    public String getUrl(String key) {
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                 .bucket(properties.bucket())
                 .key(key)
@@ -84,10 +83,6 @@ public class S3BinaryContentStorage implements BinaryContentStorage {
                 .getObjectRequest(getObjectRequest)
                 .build();
         PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
-        try {
-            response.sendRedirect(presignedRequest.url().toString());
-        } catch (IOException e) {
-            throw new MplException(ErrorCode.STORAGE_DOWNLOAD_FAILED);
-        }
+        return presignedRequest.url().toString();
     }
 }

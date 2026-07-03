@@ -52,9 +52,7 @@ public enum ErrorCode {
     FOLLOW_FORBIDDEN(HttpStatus.FORBIDDEN, "FollowForbiddenException", "팔로우를 취소할 권한이 없습니다."),
 
     // 스토리지
-    STORAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "StorageUploadFailedException", "파일 업로드에 실패했습니다."),
-    STORAGE_DOWNLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "StorageDownloadFailedException", "파일 다운로드에 실패했습니다."),
-    STORAGE_FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "StorageFileNotFoundException", "파일을 찾을 수 없습니다.");
+    STORAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "StorageUploadFailedException", "파일 업로드에 실패했습니다.");
 
 
     private final HttpStatus httpStatus;

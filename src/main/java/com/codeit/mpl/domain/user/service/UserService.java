@@ -20,7 +20,6 @@ import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
 import com.codeit.mpl.infra.security.JwtUtil;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -153,15 +152,6 @@ public class UserService {
             user.updateProfileImageUrl(storedKey);
         }
         return userMapper.toDto(user);
-    }
-
-    @Transactional(readOnly = true)
-    public void downloadProfileImage(UUID userId, HttpServletResponse response) {
-        User user = findUserById(userId);
-        if (user.getProfileImageUrl() == null) {
-            throw new MplException(ErrorCode.STORAGE_FILE_NOT_FOUND);
-        }
-        binaryContentStorage.download(user.getProfileImageUrl(), response);
     }
 
     public UserDto updateRole(UUID userId, UserRoleUpdateRequest request) {

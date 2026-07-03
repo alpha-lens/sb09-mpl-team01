@@ -14,7 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -62,14 +61,13 @@ class S3BinaryContentStorageTest {
     }
 
     @Test
-    void 다운로드하면_presigned_url로_302_리다이렉트한다() throws Exception {
+    void getUrl은_presigner가_생성한_presigned_url_문자열을_그대로_반환한다() throws Exception {
         PresignedGetObjectRequest presignedRequest = mock(PresignedGetObjectRequest.class);
         when(presignedRequest.url()).thenReturn(URI.create("https://test-bucket.s3.amazonaws.com/key?signature=abc").toURL());
         when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(presignedRequest);
 
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        storage.download("profile-images/user-1/profile.png", response);
+        String url = storage.getUrl("profile-images/user-1/profile.png");
 
-        assertThat(response.getRedirectedUrl()).isEqualTo("https://test-bucket.s3.amazonaws.com/key?signature=abc");
+        assertThat(url).isEqualTo("https://test-bucket.s3.amazonaws.com/key?signature=abc");
     }
 }
