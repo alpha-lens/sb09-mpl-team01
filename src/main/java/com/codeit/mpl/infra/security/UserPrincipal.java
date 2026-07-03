@@ -8,8 +8,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 public record UserPrincipal(
     UUID userId,
     String email,
-    Collection<? extends GrantedAuthority> authorities
+    Collection<? extends GrantedAuthority> authorities,
+    int tokenVersion
 ) implements UserDetails {
+
+  public UserPrincipal(UUID userId, String email, Collection<? extends GrantedAuthority> authorities) {
+    this(userId, email, authorities, 1);
+  }
 
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
