@@ -2,6 +2,7 @@ package com.codeit.mpl.infra.storage;
 
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+@Slf4j
 @Component
 @ConditionalOnProperty(prefix = "mpl.storage", name = "type", havingValue = "local", matchIfMissing = true)
 public class LocalBinaryContentStorage implements BinaryContentStorage {
@@ -37,5 +39,14 @@ public class LocalBinaryContentStorage implements BinaryContentStorage {
     @Override
     public String getUrl(String key) {
         return PUBLIC_PATH_PREFIX + key;
+    }
+
+    @Override
+    public void delete(String key) {
+        try {
+            Files.deleteIfExists(rootPath.resolve(key));
+        } catch (IOException e) {
+            log.warn("로컬 스토리지 파일 삭제 실패: {}", key, e);
+        }
     }
 }

@@ -48,4 +48,21 @@ class LocalBinaryContentStorageTest {
 
         assertThat(url).isEqualTo("/uploads/profile-images/user-1/profile.png");
     }
+
+    @Test
+    void 삭제하면_저장된_파일이_제거된다() throws IOException {
+        MockMultipartFile file = new MockMultipartFile(
+                "image", "profile.png", "image/png", "test-bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String key = storage.put("profile-images/user-1/profile.png", file);
+
+        storage.delete(key);
+
+        assertThat(Files.exists(rootPath.resolve(key))).isFalse();
+    }
+
+    @Test
+    void 존재하지_않는_key를_삭제해도_예외가_발생하지_않는다() {
+        storage.delete("no-such-key.png");
+    }
 }

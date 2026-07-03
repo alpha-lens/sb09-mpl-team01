@@ -28,6 +28,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.SecureRandom;
@@ -144,14 +146,52 @@ public class UserService {
     }
 
     public UserDto updateUser(UUID userId, UserUpdateRequest request, MultipartFile image) {
+        String storedKey = null;
+        if (image != null && !image.isEmpty()) {
+            // DB 접근 전에 업로드를 끝내 트랜잭션이 S3/디스크 I/O를 물고 있지 않게 한다.
+            String key = "profile-images/" + userId + "/" + UUID.randomUUID() + "-" + image.getOriginalFilename();
+            storedKey = binaryContentStorage.put(key, image);
+            registerCleanupOnRollback(storedKey);
+        }
+
         User user = findUserById(userId);
         user.updateName(request.name());
-        if (image != null && !image.isEmpty()) {
-            String key = "profile-images/" + userId + "/" + UUID.randomUUID() + "-" + image.getOriginalFilename();
-            String storedKey = binaryContentStorage.put(key, image);
+        if (storedKey != null) {
+            String previousKey = user.getProfileImageUrl();
             user.updateProfileImageUrl(storedKey);
+            if (previousKey != null) {
+                registerCleanupOnCommit(previousKey);
+            }
         }
         return userMapper.toDto(user);
+    }
+
+    // 커밋 실패로 트랜잭션이 롤백되면 이미 업로드된 새 파일이 고아로 남으므로 함께 지운다.
+    private void registerCleanupOnRollback(String key) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+                    binaryContentStorage.delete(key);
+                }
+            }
+        });
+    }
+
+    // 새 이미지로 교체하는 커밋이 성공하면, 더 이상 참조되지 않는 이전 파일을 지운다.
+    private void registerCleanupOnCommit(String key) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                binaryContentStorage.delete(key);
+            }
+        });
     }
 
     public UserDto updateRole(UUID userId, UserRoleUpdateRequest request) {

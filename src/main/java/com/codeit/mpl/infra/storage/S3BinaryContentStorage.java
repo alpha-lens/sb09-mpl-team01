@@ -2,14 +2,17 @@ package com.codeit.mpl.infra.storage;
 
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -19,6 +22,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 import java.io.IOException;
 import java.time.Duration;
 
+@Slf4j
 @Component
 @ConditionalOnProperty(prefix = "mpl.storage", name = "type", havingValue = "s3")
 public class S3BinaryContentStorage implements BinaryContentStorage {
@@ -67,7 +71,7 @@ public class S3BinaryContentStorage implements BinaryContentStorage {
                     .build();
             s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
             return key;
-        } catch (IOException e) {
+        } catch (IOException | SdkException e) {
             throw new MplException(ErrorCode.STORAGE_UPLOAD_FAILED);
         }
     }
@@ -84,5 +88,17 @@ public class S3BinaryContentStorage implements BinaryContentStorage {
                 .build();
         PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
         return presignedRequest.url().toString();
+    }
+
+    @Override
+    public void delete(String key) {
+        try {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(properties.bucket())
+                    .key(key)
+                    .build());
+        } catch (SdkException e) {
+            log.warn("S3 파일 삭제 실패: {}", key, e);
+        }
     }
 }

@@ -7,4 +7,6 @@ public interface BinaryContentStorage {
     String put(String key, MultipartFile file);
 
     String getUrl(String key);
+
+    void delete(String key);
 }
