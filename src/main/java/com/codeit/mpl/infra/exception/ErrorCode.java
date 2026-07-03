@@ -49,7 +49,13 @@ public enum ErrorCode {
     FOLLOW_ALREADY_EXISTS(HttpStatus.CONFLICT, "FollowAlreadyExistsException", "이미 팔로우한 사용자입니다."),
     FOLLOW_NOT_FOUND(HttpStatus.NOT_FOUND, "FollowNotFoundException", "팔로우 관계가 존재하지 않습니다."),
     FOLLOW_SELF(HttpStatus.BAD_REQUEST, "FollowSelfException", "자기 자신을 팔로우할 수 없습니다."),
-    FOLLOW_FORBIDDEN(HttpStatus.FORBIDDEN, "FollowForbiddenException", "팔로우를 취소할 권한이 없습니다.");
+    FOLLOW_FORBIDDEN(HttpStatus.FORBIDDEN, "FollowForbiddenException", "팔로우를 취소할 권한이 없습니다."),
+
+    // 알림
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NotificationNotFoundException", "존재하지 않는 알림입니다."),
+
+    // 대화
+    CONVERSATION_NOT_FOUND(HttpStatus.NOT_FOUND, "ConversationNotFoundException", "존재하지 않는 대화방입니다.");
 
 
     private final HttpStatus httpStatus;

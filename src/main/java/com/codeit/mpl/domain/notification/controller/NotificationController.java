@@ -8,6 +8,7 @@ import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.common.dto.SearchRequest;
 import com.codeit.mpl.infra.sse.SseService;
+import com.codeit.mpl.infra.exception.user.UserNotFoundException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,6 +75,6 @@ public class NotificationController {
     }
     return userRepository.findByEmail(userDetails.getUsername())
         .map(User::getId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+        .orElseThrow(UserNotFoundException::new);
   }
 }
