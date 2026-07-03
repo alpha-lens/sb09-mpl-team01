@@ -36,8 +36,13 @@ public class PlaylistController implements PlaylistApi {
 
   @GetMapping
   public ResponseEntity<CursorPageResponseDto<PlaylistDto>> getPlaylists(
+      @AuthenticationPrincipal UserDetails userDetails,
       @Valid @ModelAttribute PlaylistSearchRequest request
   ) {
+    UUID currentUserId = userDetails != null
+        ? userService.resolveUserId(userDetails.getUsername())
+        : null;
+
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         request.getKeywordLike(),
         request.getOwnerIdEqual(),
@@ -46,7 +51,8 @@ public class PlaylistController implements PlaylistApi {
         request.getIdAfter(),
         request.getLimit(),
         request.getSortBy(),
-        request.getSortDirection()
+        request.getSortDirection(),
+        currentUserId
     );
     return ResponseEntity.ok(response);
   }

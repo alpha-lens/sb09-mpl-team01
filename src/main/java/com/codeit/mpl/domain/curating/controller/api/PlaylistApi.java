@@ -26,6 +26,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "200", description = "조회 성공")
   })
   ResponseEntity<CursorPageResponseDto<PlaylistDto>> getPlaylists(
+      @AuthenticationPrincipal UserDetails userDetails,
       @Valid @ModelAttribute PlaylistSearchRequest request
   );
 
