@@ -36,6 +36,8 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +54,8 @@ public class UserService {
     private static final String TEMP_PASSWORD_PREFIX = "temporary_password:";
     private static final long TEMP_PASSWORD_TTL_SECONDS = 180;
     private static final String CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    // 원본 파일명은 key에 절대 그대로 넣지 않고, 이 화이트리스트를 통과한 확장자만 뽑아 붙인다.
+    private static final Pattern SAFE_EXTENSION_PATTERN = Pattern.compile("\\.[a-zA-Z0-9]{1,10}$");
 
     public UserDto register(UserCreateRequest request) {
         if (userRepository.existsByEmail(request.email())) {
@@ -149,7 +153,8 @@ public class UserService {
         String storedKey = null;
         if (image != null && !image.isEmpty()) {
             // DB 접근 전에 업로드를 끝내 트랜잭션이 S3/디스크 I/O를 물고 있지 않게 한다.
-            String key = "profile-images/" + userId + "/" + UUID.randomUUID() + "-" + image.getOriginalFilename();
+            String key = "profile-images/" + userId + "/" + UUID.randomUUID()
+                    + extractSafeExtension(image.getOriginalFilename());
             storedKey = binaryContentStorage.put(key, image);
             registerCleanupOnRollback(storedKey);
         }
@@ -192,6 +197,16 @@ public class UserService {
                 binaryContentStorage.delete(key);
             }
         });
+    }
+
+    // 클라이언트가 보낸 원본 파일명은 절대 신뢰하지 않는다.
+    // 경로 구분자("/", "..")가 섞여 있어도 key에 반영되지 않도록, 끝의 확장자만 화이트리스트로 추출한다.
+    private String extractSafeExtension(String originalFilename) {
+        if (originalFilename == null) {
+            return "";
+        }
+        Matcher matcher = SAFE_EXTENSION_PATTERN.matcher(originalFilename);
+        return matcher.find() ? originalFilename.substring(matcher.start()) : "";
     }
 
     public UserDto updateRole(UUID userId, UserRoleUpdateRequest request) {

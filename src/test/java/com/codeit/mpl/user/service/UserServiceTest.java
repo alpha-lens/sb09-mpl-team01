@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -107,6 +108,39 @@ class UserServiceTest {
 
         verify(binaryContentStorage).delete("profile-images/new-key.png");
         verify(binaryContentStorage, never()).delete("profile-images/old-key.png");
+    }
+
+    @Test
+    void 악성_파일명이_들어와도_스토리지_key에_경로_탈출_문자가_섞이지_않는다() {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder().name("우디").profileImageUrl(null).build();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        when(binaryContentStorage.put(keyCaptor.capture(), any(MultipartFile.class))).thenReturn("stored-key");
+        MockMultipartFile image = new MockMultipartFile(
+                "image", "../../../../etc/passwd.png", "image/png", "bytes".getBytes()
+        );
+
+        userService.updateUser(userId, new UserUpdateRequest("우디"), image);
+
+        String capturedKey = keyCaptor.getValue();
+        assertThat(capturedKey).doesNotContain("..");
+        assertThat(capturedKey).startsWith("profile-images/" + userId + "/");
+        assertThat(capturedKey).endsWith(".png");
+    }
+
+    @Test
+    void 파일명에_확장자가_없거나_null이어도_안전하게_처리된다() {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder().name("우디").profileImageUrl(null).build();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        when(binaryContentStorage.put(keyCaptor.capture(), any(MultipartFile.class))).thenReturn("stored-key");
+        MockMultipartFile image = new MockMultipartFile("image", null, "image/png", "bytes".getBytes());
+
+        userService.updateUser(userId, new UserUpdateRequest("우디"), image);
+
+        assertThat(keyCaptor.getValue()).startsWith("profile-images/" + userId + "/");
     }
 
     private void simulateCommit() {

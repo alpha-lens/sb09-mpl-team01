@@ -78,16 +78,20 @@ public class S3BinaryContentStorage implements BinaryContentStorage {
 
     @Override
     public String getUrl(String key) {
-        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(properties.bucket())
-                .key(key)
-                .build();
-        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofSeconds(properties.presignedUrlExpiration()))
-                .getObjectRequest(getObjectRequest)
-                .build();
-        PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
-        return presignedRequest.url().toString();
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(properties.bucket())
+                    .key(key)
+                    .build();
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofSeconds(properties.presignedUrlExpiration()))
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+            return presignedRequest.url().toString();
+        } catch (SdkException e) {
+            throw new MplException(ErrorCode.STORAGE_URL_GENERATION_FAILED);
+        }
     }
 
     @Override
