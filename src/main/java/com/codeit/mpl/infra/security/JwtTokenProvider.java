@@ -12,12 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Collections;
 import java.util.Date;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
@@ -42,13 +42,14 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Creates a JWT token with the specified username and role.
+     * Creates a JWT token with the specified username, role, and userId.
      *
      * @return a compact JWT string
      */
-    public String createToken(String username, String role) {
+    public String createToken(String username, String role, String userId) {
         Claims claims = Jwts.claims().setSubject(username);
         claims.put("role", role);
+        claims.put("userId", userId);
 
         Date now = new Date();
         Date validity = new Date(now.getTime() + validityInMilliseconds);
@@ -72,9 +73,11 @@ public class JwtTokenProvider {
         Claims claims = parseClaims(token);
         String username = claims.getSubject();
         String role = claims.get("role", String.class);
+        String userIdStr = claims.get("userId", String.class);
+        UUID userId = userIdStr != null ? UUID.fromString(userIdStr) : null;
 
         SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role != null ? role : "ROLE_USER");
-        UserDetails userDetails = new User(username, "", Collections.singletonList(authority));
+        UserDetails userDetails = new UserPrincipal(userId, username, Collections.singletonList(authority));
 
         return new UsernamePasswordAuthenticationToken(userDetails, token, userDetails.getAuthorities());
     }
