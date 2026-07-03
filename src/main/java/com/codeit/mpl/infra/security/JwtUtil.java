@@ -24,7 +24,7 @@ public class JwtUtil {
     private static final String REFRESH_TOKEN_PREFIX = "refresh_token:";
 
     public String generateAccessToken(User user) {
-        return jwtTokenProvider.createToken(user.getEmail(), "ROLE_" + user.getRole().name());
+        return jwtTokenProvider.createToken(user.getEmail(), "ROLE_" + user.getRole().name(), user.getId().toString());
     }
 
     public String generateRefreshToken(UUID userId) {
