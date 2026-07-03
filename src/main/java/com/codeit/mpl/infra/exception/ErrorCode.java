@@ -53,6 +53,12 @@ public enum ErrorCode {
 
     // 스토리지
     STORAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "StorageUploadFailedException", "파일 업로드에 실패했습니다.");
+  
+    // 알림
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NotificationNotFoundException", "존재하지 않는 알림입니다."),
+
+    // 대화
+    CONVERSATION_NOT_FOUND(HttpStatus.NOT_FOUND, "ConversationNotFoundException", "존재하지 않는 대화방입니다.");
 
 
     private final HttpStatus httpStatus;

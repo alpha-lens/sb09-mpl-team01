@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+
+jwt:
+  secret: testsecretkeytestsecretkeytestsecretkeytestsecretkeytestsecretkey
+admin:
+  email: admin@test.com
+  password: adminpassword
+  name: admin
+
+tmdb:
+  base-url: https://api.themoviedb.org/3
+  image-base-url: https://image.tmdb.org/t/p/w500
+  bearer-token: testtoken
+
+sportsdb:
+  base-url: https://www.thesportsdb.com/api/v1/json
+  api-key: testkey

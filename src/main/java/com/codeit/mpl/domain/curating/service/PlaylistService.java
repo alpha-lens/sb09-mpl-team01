@@ -12,6 +12,7 @@ import com.codeit.mpl.domain.curating.entity.PlaylistSubscription;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
+import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import com.codeit.mpl.domain.notification.entity.NotificationLevel;
 import com.codeit.mpl.domain.notification.event.NotificationEvent;
@@ -56,6 +57,7 @@ public class PlaylistService {
   private final ContentRepository contentRepository;
   private final UserRepository userRepository;
   private final ApplicationEventPublisher eventPublisher;
+  private final ReviewRepository reviewRepository;
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<PlaylistDto> getPlaylists(
@@ -66,7 +68,8 @@ public class PlaylistService {
       UUID idAfter,
       int limit,
       String sortBy,
-      Direction sortDirection
+      Direction sortDirection,
+      UUID currentUserId
   ) {
     if (limit <= 0) {
       throw new InvalidPlaylistLimitException();
@@ -100,8 +103,14 @@ public class PlaylistService {
 
     List<Playlist> pagePlaylists = hasNext ? playlists.subList(0, limit) : playlists;
 
+    User currentUser = null;
+    if (currentUserId != null) {
+      currentUser = userRepository.findById(currentUserId).orElse(null);
+    }
+
+    final User finalCurrentUser = currentUser;
     List<PlaylistDto> playlistDtos = pagePlaylists.stream()
-        .map(p -> toDtoSimple(p))
+        .map(p -> toDtoSimple(p, finalCurrentUser))
         .toList();
 
     String nextCursor = null;
@@ -268,15 +277,17 @@ public class PlaylistService {
         .stream()
         .map(pc -> {
           Content c = pc.getContent();
+          Double avgRating = reviewRepository.findAverageRatingByContent(c);
+          long reviewCount = reviewRepository.countByContent(c);
           return new ContentSummary(
               c.getId(),
               c.getType(),
               c.getTitle(),
               c.getDescription(),
               c.getThumbnailUrl(),
-              List.of(), // tags는 lazy라 빈 리스트로 처리
-              0.0,
-              0
+              c.getTags(),
+              avgRating != null ? avgRating : 0.0,
+              (int) reviewCount
           );
         })
         .toList();
@@ -410,12 +421,17 @@ public class PlaylistService {
     throw new InvalidPlaylistSortException();
   }
 
-  private PlaylistDto toDtoSimple(Playlist playlist) {
+  private PlaylistDto toDtoSimple(Playlist playlist, User currentUser) {
     UserSummary owner = new UserSummary(
         playlist.getOwner().getId(),
         playlist.getOwner().getName(),
         playlist.getOwner().getProfileImageUrl()
     );
+
+    long subscriberCount = playlistSubscriptionRepository.countByPlaylist(playlist);
+
+    boolean subscribedByMe = currentUser != null &&
+        playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, currentUser);
 
     return new PlaylistDto(
         playlist.getId(),
@@ -423,8 +439,8 @@ public class PlaylistService {
         playlist.getTitle(),
         playlist.getDescription(),
         playlist.getUpdatedAt(),
-        0L,
-        false,
+        subscriberCount,
+        subscribedByMe,
         List.of()
     );
   }
