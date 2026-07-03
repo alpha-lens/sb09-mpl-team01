@@ -70,6 +70,7 @@ dependencies {
     annotationProcessor "jakarta.annotation:jakarta.annotation-api"
     annotationProcessor "jakarta.persistence:jakarta.persistence-api"
 
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-elasticsearch-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
@@ -83,6 +84,9 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     ignoreFailures = false
+    testLogging {
+        showStandardStreams = true
+    }
     finalizedBy jacocoTestReport
 }
 
@@ -93,7 +97,7 @@ jacoco {
 jacocoTestReport {
     dependsOn test
     reports {
-        xml.required = true
+        xml.required = false
         html.required = true
     }
 }
