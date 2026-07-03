@@ -44,7 +44,7 @@ public interface FollowApi {
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "조회 성공")
   })
-  ResponseEntity<Long> getFollowerCount(@RequestParam UUID userId);
+  ResponseEntity<Long> getFollowerCount(@RequestParam UUID followeeId);
 
   @Operation(summary = "팔로우 취소")
   @ApiResponses({
