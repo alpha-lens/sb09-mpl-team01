@@ -28,7 +28,7 @@ public class JwtTokenProvider {
     @Value("${jwt.secret}")
     private String secretKey;
 
-    @Value("${jwt.expiration:86400000}") // 1 day
+    @Value("${jwt.expiration:900000}") // 15 minute
     private long validityInMilliseconds;
 
     private Key key;
@@ -42,14 +42,15 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Creates a JWT token with the specified username, role, and userId.
+     * Creates a JWT token with the specified username, role, userId, and token version.
      *
      * @return a compact JWT string
      */
-    public String createToken(String username, String role, String userId) {
+    public String createToken(String username, String role, String userId, int tokenVersion) {
         Claims claims = Jwts.claims().setSubject(username);
         claims.put("role", role);
         claims.put("userId", userId);
+        claims.put("version", tokenVersion);
 
         Date now = new Date();
         Date validity = new Date(now.getTime() + validityInMilliseconds);
@@ -75,9 +76,11 @@ public class JwtTokenProvider {
         String role = claims.get("role", String.class);
         String userIdStr = claims.get("userId", String.class);
         UUID userId = userIdStr != null ? UUID.fromString(userIdStr) : null;
+        Integer tokenVersionObj = claims.get("version", Integer.class);
+        int tokenVersion = tokenVersionObj != null ? tokenVersionObj : 1;
 
         SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role != null ? role : "ROLE_USER");
-        UserDetails userDetails = new UserPrincipal(userId, username, Collections.singletonList(authority));
+        UserDetails userDetails = new UserPrincipal(userId, username, Collections.singletonList(authority), tokenVersion);
 
         return new UsernamePasswordAuthenticationToken(userDetails, token, userDetails.getAuthorities());
     }
@@ -112,6 +115,13 @@ public class JwtTokenProvider {
             log.error("JWT 토큰이 잘못되었습니다.");
         }
         return false;
+    }
+
+    /**
+     * Extracts the expiration time (in milliseconds) from a JWT token.
+     */
+    public long getExpirationTime(String token) {
+        return parseClaims(token).getExpiration().getTime();
     }
 
     /**
