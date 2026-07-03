@@ -382,10 +382,13 @@ class PlaylistServiceTest {
     when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of(playlist)));
     when(playlistRepository.count(any(Specification.class))).thenReturn(1L);
+    UUID playlistId = UUID.randomUUID();
+    when(playlist.getId()).thenReturn(playlistId);
     when(playlist.getOwner()).thenReturn(owner);
     when(owner.getId()).thenReturn(UUID.randomUUID());
     when(owner.getName()).thenReturn("테스트유저");
-    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
+    List<Object[]> stats = java.util.Collections.singletonList(new Object[]{playlistId, 0L, 0});
+    when(playlistSubscriptionRepository.findSubscriptionStats(any(), any())).thenReturn(stats);
 
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 10, "createdAt", Direction.DESCENDING, null
@@ -412,10 +415,13 @@ class PlaylistServiceTest {
     when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of(playlist)));
     when(playlistRepository.count(any(Specification.class))).thenReturn(1L);
+    UUID playlistId = UUID.randomUUID();
+    when(playlist.getId()).thenReturn(playlistId);
     when(playlist.getOwner()).thenReturn(owner);
     when(owner.getId()).thenReturn(UUID.randomUUID());
     when(owner.getName()).thenReturn("테스트유저");
-    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
+    List<Object[]> stats = java.util.Collections.singletonList(new Object[]{playlistId, 0L, 0});
+    when(playlistSubscriptionRepository.findSubscriptionStats(any(), any())).thenReturn(stats);
 
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 10, "invalidField", Direction.DESCENDING, null
