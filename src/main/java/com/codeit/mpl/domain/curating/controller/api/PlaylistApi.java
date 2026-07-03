@@ -13,7 +13,7 @@ import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,7 +26,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "200", description = "조회 성공")
   })
   ResponseEntity<CursorPageResponseDto<PlaylistDto>> getPlaylists(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @Valid @ModelAttribute PlaylistSearchRequest request
   );
 
@@ -36,7 +36,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "400", description = "입력값 검증 실패")
   })
   ResponseEntity<PlaylistDto> createPlaylist(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @Valid @RequestBody PlaylistCreateRequest request
   );
 
@@ -46,7 +46,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "404", description = "플레이리스트 없음")
   })
   ResponseEntity<PlaylistDto> getPlaylist(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID playlistId
   );
 
@@ -57,7 +57,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "404", description = "플레이리스트 없음")
   })
   ResponseEntity<PlaylistDto> updatePlaylist(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID playlistId,
       @Valid @RequestBody PlaylistUpdateRequest request
   );
@@ -69,7 +69,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "404", description = "플레이리스트 없음")
   })
   ResponseEntity<Void> deletePlaylist(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID playlistId
   );
 
@@ -80,7 +80,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "404", description = "플레이리스트 또는 콘텐츠 없음")
   })
   ResponseEntity<Void> addContent(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID playlistId,
       @PathVariable UUID contentId
   );
@@ -92,7 +92,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "404", description = "플레이리스트 또는 콘텐츠 없음")
   })
   ResponseEntity<Void> removeContent(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID playlistId,
       @PathVariable UUID contentId
   );
@@ -103,7 +103,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "404", description = "플레이리스트 없음")
   })
   ResponseEntity<Void> subscribePlaylist(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID playlistId
   );
 
@@ -113,7 +113,7 @@ public interface PlaylistApi {
       @ApiResponse(responseCode = "404", description = "플레이리스트 없음")
   })
   ResponseEntity<Void> unsubscribePlaylist(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID playlistId
   );
 }

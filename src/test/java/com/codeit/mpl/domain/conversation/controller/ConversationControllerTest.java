@@ -15,15 +15,14 @@ import com.codeit.mpl.domain.conversation.dto.ConversationDto;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
 import com.codeit.mpl.domain.conversation.service.ConversationService;
 import com.codeit.mpl.domain.user.dto.UserSummary;
-import com.codeit.mpl.domain.user.entity.User;
-import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.exception.GlobalExceptionHandler;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +34,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.support.WebDataBinderFactory;
@@ -51,19 +49,16 @@ class ConversationControllerTest {
   @Mock
   private ConversationService conversationService;
 
-  @Mock
-  private UserRepository userRepository;
-
   @InjectMocks
   private ConversationController conversationController;
 
-  private UserDetails mockUserDetails;
-  private ObjectMapper objectMapper = new ObjectMapper();
+  private UserPrincipal mockUserPrincipal;
+  private final UUID testUserId = UUID.fromString("11111111-2222-3333-4444-555555555555");
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   @BeforeEach
   void setUp() {
-    mockUserDetails = mock(UserDetails.class);
-    given(mockUserDetails.getUsername()).willReturn("test@example.com");
+    mockUserPrincipal = new UserPrincipal(testUserId, "test@example.com", Collections.emptyList());
 
     HandlerMethodArgumentResolver resolver = new HandlerMethodArgumentResolver() {
       @Override
@@ -74,7 +69,7 @@ class ConversationControllerTest {
       @Override
       public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
           NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-        return mockUserDetails;
+        return mockUserPrincipal;
       }
     };
 
@@ -88,15 +83,22 @@ class ConversationControllerTest {
   @DisplayName("대화방 목록 조회 성공")
   void getConversations_success() throws Exception {
     // given
-    UUID userId = UUID.randomUUID();
-    User user = mock(User.class);
-    given(user.getId()).willReturn(userId);
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
-
-    CursorPageResponseDto responseDto = new CursorPageResponseDto(
-        Collections.emptyList(), null, null, false, 0L, "createdAt", Direction.DESCENDING
+    ConversationDto conversationDto = new ConversationDto(
+        UUID.randomUUID(),
+        new UserSummary(UUID.randomUUID(), "상대방", null),
+        new DirectMessageDto(UUID.randomUUID(), UUID.randomUUID(), Instant.now(), null, null, "안녕"),
+        false
     );
-    given(conversationService.getConversations(eq(userId), any(), any()))
+    CursorPageResponseDto<ConversationDto> responseDto = new CursorPageResponseDto<>(
+        List.of(conversationDto),
+        null,
+        null,
+        false,
+        1L,
+        "createdAt",
+        Direction.DESCENDING
+    );
+    given(conversationService.getConversations(eq(testUserId), any(), any()))
         .willReturn(responseDto);
 
     // when & then
@@ -104,18 +106,13 @@ class ConversationControllerTest {
             .param("limit", "10"))
         .andExpect(status().isOk());
 
-    then(conversationService).should().getConversations(eq(userId), any(), any());
+    then(conversationService).should().getConversations(eq(testUserId), any(), any());
   }
 
   @Test
   @DisplayName("대화방 생성 성공")
   void createConversation_success() throws Exception {
     // given
-    UUID userId = UUID.randomUUID();
-    User user = mock(User.class);
-    given(user.getId()).willReturn(userId);
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
-
     UUID otherUserId = UUID.randomUUID();
     ConversationCreateRequest request = new ConversationCreateRequest(otherUserId);
 
@@ -125,7 +122,7 @@ class ConversationControllerTest {
         new DirectMessageDto(UUID.randomUUID(), UUID.randomUUID(), Instant.now(), null, null, "안녕"),
         false
     );
-    given(conversationService.createConversation(eq(userId), any(ConversationCreateRequest.class)))
+    given(conversationService.createConversation(eq(testUserId), any(ConversationCreateRequest.class)))
         .willReturn(conversationDto);
 
     // when & then
@@ -135,18 +132,13 @@ class ConversationControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").exists());
 
-    then(conversationService).should().createConversation(eq(userId), any(ConversationCreateRequest.class));
+    then(conversationService).should().createConversation(eq(testUserId), any(ConversationCreateRequest.class));
   }
 
   @Test
   @DisplayName("메시지 읽음 처리 성공")
   void readConversationMessage_success() throws Exception {
     // given
-    UUID userId = UUID.randomUUID();
-    User user = mock(User.class);
-    given(user.getId()).willReturn(userId);
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
-
     UUID conversationId = UUID.randomUUID();
     UUID directMessageId = UUID.randomUUID();
 
@@ -155,18 +147,13 @@ class ConversationControllerTest {
             conversationId, directMessageId))
         .andExpect(status().isOk());
 
-    then(conversationService).should().readConversationMessages(conversationId, directMessageId, userId);
+    then(conversationService).should().readConversationMessages(conversationId, directMessageId, testUserId);
   }
 
   @Test
   @DisplayName("대화방 단건 조회 성공")
   void getConversation_success() throws Exception {
     // given
-    UUID userId = UUID.randomUUID();
-    User user = mock(User.class);
-    given(user.getId()).willReturn(userId);
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
-
     UUID conversationId = UUID.randomUUID();
     ConversationDto conversationDto = new ConversationDto(
         conversationId,
@@ -174,7 +161,7 @@ class ConversationControllerTest {
         null,
         false
     );
-    given(conversationService.getConversationDto(conversationId, userId))
+    given(conversationService.getConversationDto(conversationId, testUserId))
         .willReturn(conversationDto);
 
     // when & then
@@ -182,23 +169,18 @@ class ConversationControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(conversationId.toString()));
 
-    then(conversationService).should().getConversationDto(conversationId, userId);
+    then(conversationService).should().getConversationDto(conversationId, testUserId);
   }
 
   @Test
   @DisplayName("대화방 메시지 목록 조회 성공")
   void getDirectMessage_success() throws Exception {
     // given
-    UUID userId = UUID.randomUUID();
-    User user = mock(User.class);
-    given(user.getId()).willReturn(userId);
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
-
     UUID conversationId = UUID.randomUUID();
     CursorPageResponseDto responseDto = new CursorPageResponseDto(
         Collections.emptyList(), null, null, false, 0L, "createdAt", Direction.DESCENDING
     );
-    given(conversationService.getDirectMessages(eq(conversationId), eq(userId), any()))
+    given(conversationService.getDirectMessages(eq(conversationId), eq(testUserId), any()))
         .willReturn(responseDto);
 
     // when & then
@@ -206,18 +188,13 @@ class ConversationControllerTest {
             .param("limit", "10"))
         .andExpect(status().isOk());
 
-    then(conversationService).should().getDirectMessages(eq(conversationId), eq(userId), any());
+    then(conversationService).should().getDirectMessages(eq(conversationId), eq(testUserId), any());
   }
 
   @Test
   @DisplayName("상대 유저와의 대화방 조회 성공")
   void getWith_success() throws Exception {
     // given
-    UUID userId = UUID.randomUUID();
-    User user = mock(User.class);
-    given(user.getId()).willReturn(userId);
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
-
     UUID targetUserId = UUID.randomUUID();
     ConversationDto conversationDto = new ConversationDto(
         UUID.randomUUID(),
@@ -225,33 +202,28 @@ class ConversationControllerTest {
         null,
         false
     );
-    given(conversationService.getWith(userId, targetUserId)).willReturn(conversationDto);
+    given(conversationService.getWith(testUserId, targetUserId)).willReturn(conversationDto);
 
     // when & then
     mockMvc.perform(get("/api/conversations/with")
             .param("userId", targetUserId.toString()))
         .andExpect(status().isOk());
 
-    then(conversationService).should().getWith(userId, targetUserId);
+    then(conversationService).should().getWith(testUserId, targetUserId);
   }
 
   @Test
   @DisplayName("상대 유저와의 대화방 조회 실패 - 대화방 없음")
   void getWith_notFound() throws Exception {
     // given
-    UUID userId = UUID.randomUUID();
-    User user = mock(User.class);
-    given(user.getId()).willReturn(userId);
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
-
     UUID targetUserId = UUID.randomUUID();
-    given(conversationService.getWith(userId, targetUserId)).willReturn(null);
+    given(conversationService.getWith(testUserId, targetUserId)).willReturn(null);
 
     // when & then
     mockMvc.perform(get("/api/conversations/with")
             .param("userId", targetUserId.toString()))
         .andExpect(status().isNotFound());
 
-    then(conversationService).should().getWith(userId, targetUserId);
+    then(conversationService).should().getWith(testUserId, targetUserId);
   }
 }
