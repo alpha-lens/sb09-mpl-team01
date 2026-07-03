@@ -50,8 +50,8 @@ public class FollowController implements FollowApi {
   }
 
   @GetMapping("/count")
-  public ResponseEntity<Long> getFollowerCount(@RequestParam UUID userId) {
-    long count = followService.getFollowerCount(userId);
+  public ResponseEntity<Long> getFollowerCount(@RequestParam UUID followeeId) {
+    long count = followService.getFollowerCount(followeeId);
     return ResponseEntity.ok(count);
   }
 
