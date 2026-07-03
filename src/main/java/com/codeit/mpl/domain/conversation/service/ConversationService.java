@@ -26,6 +26,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.codeit.mpl.infra.exception.conversation.ConversationNotFoundException;
+import com.codeit.mpl.infra.exception.user.UserNotFoundException;
 
 @Service
 @RequiredArgsConstructor
@@ -39,7 +41,7 @@ public class ConversationService {
     @Transactional(readOnly = true)
     public Conversation getConversation(UUID conversationId) {
         return conversationRepository.findById(conversationId)
-            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 대화방입니다."));
+            .orElseThrow(ConversationNotFoundException::new);
     }
 
     @Transactional(readOnly = true)
@@ -52,9 +54,9 @@ public class ConversationService {
 
     public ConversationDto createConversation(UUID currentUserId, ConversationCreateRequest request) {
         User user1 = userRepository.findById(currentUserId)
-            .orElseThrow(() -> new IllegalArgumentException("로그인 유저가 유효하지 않습니다."));
+            .orElseThrow(UserNotFoundException::new);
         User user2 = userRepository.findById(request.withUserId())
-            .orElseThrow(() -> new IllegalArgumentException("상대방 유저가 존재하지 않습니다."));
+            .orElseThrow(UserNotFoundException::new);
 
         Conversation conversation = conversationRepository.findBetweenUsers(currentUserId, request.withUserId())
             .orElseGet(() -> {
@@ -205,7 +207,7 @@ public class ConversationService {
     public DirectMessageDto saveDirectMessage(UUID conversationId, UUID senderId, DirectMessageSendRequest request) {
         Conversation conversation = getConversation(conversationId);
         User sender = userRepository.findById(senderId)
-            .orElseThrow(() -> new IllegalArgumentException("보낸 사람이 유효하지 않습니다."));
+            .orElseThrow(UserNotFoundException::new);
 
         User receiver = conversation.getUser1().getId().equals(senderId) ? conversation.getUser2() : conversation.getUser1();
 
