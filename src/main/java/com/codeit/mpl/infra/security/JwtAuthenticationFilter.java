@@ -6,21 +6,21 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+@Slf4j
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final JwtUtil jwtUtil;
 
     /**
-     * Authenticates requests using JWT tokens.
-     * <p>
-     * Extracts a token from the request and, if valid, establishes the authenticated
-     * principal in the security context before continuing the filter chain.
+     * Authenticates requests using JWT tokens and checks blacklist and token version.
      */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -28,8 +28,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
 
         if (token != null && jwtTokenProvider.validateToken(token)) {
-            Authentication authentication = jwtTokenProvider.getAuthentication(token);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            // Step 1: Check Blacklist (Fail-Open policy is inside jwtUtil)
+            if (!jwtUtil.isAccessTokenBlacklisted(token)) {
+                Authentication authentication = jwtTokenProvider.getAuthentication(token);
+                Object principalObj = authentication.getPrincipal();
+
+                if (principalObj instanceof UserPrincipal userPrincipal) {
+                    // Step 2: Check Token Version (Fail-Open policy is inside jwtUtil)
+                    int currentVersion = jwtUtil.getCurrentTokenVersion(userPrincipal.userId());
+
+                    if (userPrincipal.tokenVersion() > currentVersion) {
+                        log.warn("Anomaly detected: Token version ({}) is greater than current cached version ({}) for user {}",
+                                userPrincipal.tokenVersion(), currentVersion, userPrincipal.userId());
+                    }
+
+                    if (userPrincipal.tokenVersion() >= currentVersion) {
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    } else {
+                        log.info("Token version stale for user {}: token version={}, current version={}",
+                                userPrincipal.userId(), userPrincipal.tokenVersion(), currentVersion);
+                    }
+                } else {
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            } else {
+                log.info("Attempted access with blacklisted token");
+            }
         }
 
         filterChain.doFilter(request, response);
@@ -46,7 +70,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return bearerToken.substring(7);
         }
         
-        // SSE나 WebSocket 등 특정 요청에 대해 Query Parameter로 토큰이 들어올 때의 대체 추출 지원
         String tokenParam = request.getParameter("token");
         if (StringUtils.hasText(tokenParam)) {
             return tokenParam;
