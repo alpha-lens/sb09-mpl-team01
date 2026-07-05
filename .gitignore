@@ -39,3 +39,6 @@ out/
 
 ### Environment ###
 .env
+
+### Local storage (mpl.storage.type=local) ###
+.mpl/

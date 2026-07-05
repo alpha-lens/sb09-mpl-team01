@@ -19,6 +19,7 @@ import com.codeit.mpl.infra.common.dto.JwtDto;
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
 import com.codeit.mpl.infra.security.JwtUtil;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -27,12 +28,16 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -44,10 +49,13 @@ public class UserService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final BinaryContentStorage binaryContentStorage;
 
     private static final String TEMP_PASSWORD_PREFIX = "temporary_password:";
     private static final long TEMP_PASSWORD_TTL_SECONDS = 180;
     private static final String CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    // 원본 파일명은 key에 절대 그대로 넣지 않고, 이 화이트리스트를 통과한 확장자만 뽑아 붙인다.
+    private static final Pattern SAFE_EXTENSION_PATTERN = Pattern.compile("\\.[a-zA-Z0-9]{1,10}$");
 
     public UserDto register(UserCreateRequest request) {
         if (userRepository.existsByEmail(request.email())) {
@@ -142,13 +150,63 @@ public class UserService {
     }
 
     public UserDto updateUser(UUID userId, UserUpdateRequest request, MultipartFile image) {
+        String storedKey = null;
+        if (image != null && !image.isEmpty()) {
+            // DB 접근 전에 업로드를 끝내 트랜잭션이 S3/디스크 I/O를 물고 있지 않게 한다.
+            String key = "profile-images/" + userId + "/" + UUID.randomUUID()
+                    + extractSafeExtension(image.getOriginalFilename());
+            storedKey = binaryContentStorage.put(key, image);
+            registerCleanupOnRollback(storedKey);
+        }
+
         User user = findUserById(userId);
         user.updateName(request.name());
-        if (image != null && !image.isEmpty()) {
-            // TODO: 추후 스토리지 계층 연동 및 실제 URL 저장 로직 구현
-            user.updateProfileImageUrl(image.getOriginalFilename());
+        if (storedKey != null) {
+            String previousKey = user.getProfileImageUrl();
+            user.updateProfileImageUrl(storedKey);
+            if (previousKey != null) {
+                registerCleanupOnCommit(previousKey);
+            }
         }
         return userMapper.toDto(user);
+    }
+
+    // 커밋 실패로 트랜잭션이 롤백되면 이미 업로드된 새 파일이 고아로 남으므로 함께 지운다.
+    private void registerCleanupOnRollback(String key) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+                    binaryContentStorage.delete(key);
+                }
+            }
+        });
+    }
+
+    // 새 이미지로 교체하는 커밋이 성공하면, 더 이상 참조되지 않는 이전 파일을 지운다.
+    private void registerCleanupOnCommit(String key) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                binaryContentStorage.delete(key);
+            }
+        });
+    }
+
+    // 클라이언트가 보낸 원본 파일명은 절대 신뢰하지 않는다.
+    // 경로 구분자("/", "..")가 섞여 있어도 key에 반영되지 않도록, 끝의 확장자만 화이트리스트로 추출한다.
+    private String extractSafeExtension(String originalFilename) {
+        if (originalFilename == null) {
+            return "";
+        }
+        Matcher matcher = SAFE_EXTENSION_PATTERN.matcher(originalFilename);
+        return matcher.find() ? originalFilename.substring(matcher.start()) : "";
     }
 
     public UserDto updateRole(UUID userId, UserRoleUpdateRequest request) {

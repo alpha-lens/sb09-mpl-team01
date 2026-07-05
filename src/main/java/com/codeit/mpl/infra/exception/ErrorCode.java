@@ -51,6 +51,11 @@ public enum ErrorCode {
     FOLLOW_SELF(HttpStatus.BAD_REQUEST, "FollowSelfException", "자기 자신을 팔로우할 수 없습니다."),
     FOLLOW_FORBIDDEN(HttpStatus.FORBIDDEN, "FollowForbiddenException", "팔로우를 취소할 권한이 없습니다."),
 
+    // 스토리지
+    STORAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "StorageUploadFailedException", "파일 업로드에 실패했습니다."),
+    STORAGE_URL_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "StorageUrlGenerationFailedException", "파일 URL 생성에 실패했습니다."),
+    STORAGE_INVALID_KEY(HttpStatus.BAD_REQUEST, "StorageInvalidKeyException", "허용되지 않는 파일 경로입니다."),
+
     // 알림
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NotificationNotFoundException", "존재하지 않는 알림입니다."),
 
