@@ -32,10 +32,9 @@ public interface FollowApi {
 
   @Operation(summary = "팔로우 여부 조회")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "팔로우 중"),
-      @ApiResponse(responseCode = "404", description = "팔로우 정보를 찾을 수 없음")
+      @ApiResponse(responseCode = "200", description = "조회 성공 (팔로우 중이면 정보 반환, 아니면 null 반환)")
   })
-  ResponseEntity<FollowDto> getFollowedByMe(
+  ResponseEntity<String> getFollowedByMe(
       @AuthenticationPrincipal UserPrincipal userPrincipal,
       @RequestParam(value = "followeeId", required = true) UUID followeeId
   );

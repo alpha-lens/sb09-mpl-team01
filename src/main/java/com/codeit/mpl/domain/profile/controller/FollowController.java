@@ -5,9 +5,12 @@ import com.codeit.mpl.domain.profile.dto.request.FollowRequest;
 import com.codeit.mpl.domain.profile.dto.response.FollowDto;
 import com.codeit.mpl.domain.profile.service.FollowService;
 import com.codeit.mpl.infra.security.UserPrincipal;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class FollowController implements FollowApi {
 
   private final FollowService followService;
+  private final ObjectMapper objectMapper;
 
   @PostMapping
   public ResponseEntity<FollowDto> follow(
@@ -37,13 +41,23 @@ public class FollowController implements FollowApi {
   }
 
   @GetMapping("/followed-by-me")
-  public ResponseEntity<FollowDto> getFollowedByMe(
+  public ResponseEntity<String> getFollowedByMe(
       @AuthenticationPrincipal UserPrincipal userPrincipal,
       @RequestParam(value = "followeeId", required = true) UUID followeeId
   ) {
     UUID followerId = userPrincipal.userId();
     FollowDto response = followService.getFollowedByMe(followerId, followeeId);
-    return ResponseEntity.ok(response);
+
+    String json;
+    try {
+      json = response == null ? "null" : objectMapper.writeValueAsString(response);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+
+    return ResponseEntity.ok()
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(json);
   }
 
   @GetMapping("/count")
