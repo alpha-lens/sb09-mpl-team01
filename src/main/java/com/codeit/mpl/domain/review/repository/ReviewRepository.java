@@ -1,6 +1,7 @@
 package com.codeit.mpl.domain.review.repository;
 
 import com.codeit.mpl.domain.content.entity.Content;
+import com.codeit.mpl.domain.review.dto.response.ReviewStats;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.repository.query.Param;
 import com.codeit.mpl.domain.review.entity.Review;
@@ -24,6 +25,6 @@ public interface ReviewRepository extends JpaRepository<Review, UUID>,
 
   long countByContent(Content content);
 
-  @Query("SELECT r.content.id, AVG(r.rating), COUNT(r) FROM Review r WHERE r.content.id IN :contentIds GROUP BY r.content.id")
-  List<Object[]> findReviewStatsByContentIds(@Param("contentIds") List<UUID> contentIds);
+  @Query("SELECT new com.codeit.mpl.domain.review.dto.response.ReviewStats(r.content.id, AVG(r.rating), COUNT(r)) FROM Review r WHERE r.content.id IN :contentIds GROUP BY r.content.id")
+  List<ReviewStats> findReviewStatsByContentIds(@Param("contentIds") List<UUID> contentIds);
 }
