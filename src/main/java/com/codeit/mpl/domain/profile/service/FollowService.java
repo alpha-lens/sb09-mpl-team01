@@ -60,14 +60,19 @@ public class FollowService {
   // 팔로우 여부 조회
   @Transactional(readOnly = true)
   public FollowDto getFollowedByMe(UUID followerId, UUID followeeId) {
+    if (followerId.equals(followeeId)) {
+      return null;
+    }
+
     User follower = userRepository.findById(followerId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
+
     User followee = userRepository.findById(followeeId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
-    Follow follow = followRepository.findByFollowerAndFollowee(follower, followee)
-        .orElseThrow(FollowNotFoundException::new);
 
-    return new FollowDto(follow.getId(), followee.getId(), follower.getId());
+    return followRepository.findByFollowerAndFollowee(follower, followee)
+        .map(follow -> new FollowDto(follow.getId(), followee.getId(), follower.getId()))
+        .orElse(null);
   }
 
   // 팔로워 수 조회

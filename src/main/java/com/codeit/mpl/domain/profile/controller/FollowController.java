@@ -42,7 +42,7 @@ public class FollowController implements FollowApi {
   @GetMapping("/followed-by-me")
   public ResponseEntity<FollowDto> getFollowedByMe(
       @AuthenticationPrincipal UserDetails userDetails,
-      @RequestParam UUID followeeId
+      @RequestParam(value = "followeeId", required = true) UUID followeeId
   ) {
     UUID followerId = resolveAuthenticatedUserId(userDetails);
     FollowDto response = followService.getFollowedByMe(followerId, followeeId);
