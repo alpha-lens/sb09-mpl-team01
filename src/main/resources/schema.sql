@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
                        profile_image_url TEXT,
                        role VARCHAR(20) NOT NULL DEFAULT 'USER' CHECK (role IN ('USER', 'ADMIN')),
                        is_locked BOOLEAN NOT NULL DEFAULT FALSE,
+                       token_version INTEGER NOT NULL DEFAULT 1,
                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -31,6 +32,9 @@ ALTER TABLE contents
 
 ALTER TABLE contents
     ADD COLUMN IF NOT EXISTS source_type VARCHAR(50);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 1;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_contents_source_external
     ON contents (source_type, external_id)

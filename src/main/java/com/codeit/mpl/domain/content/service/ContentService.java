@@ -18,6 +18,7 @@ import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.content.repository.WatchingSessionRepository;
+import com.codeit.mpl.domain.review.dto.response.ReviewStats;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
@@ -29,8 +30,11 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -225,9 +229,7 @@ public class ContentService {
                 ? contents.subList(0, limit)
                 : contents;
 
-        List<ContentSummary> contentSummaries = pageContents.stream()
-                .map(this::toSummary)
-                .toList();
+        List<ContentSummary> contentSummaries = toSummaries(pageContents);
 
         String nextCursor = null;
         String nextIdAfter = null;
@@ -263,8 +265,51 @@ public class ContentService {
             String sortBy,
             Direction sortDirection
     ) {
-        List<ContentSortView> sortedContents = contentRepository.findAll().stream()
-                .map(this::toContentSortView)
+        List<Content> allContents = contentRepository.findAll();
+        List<UUID> allContentIds = allContents.stream().map(Content::getId).toList();
+
+        Map<UUID, ReviewStats> statsMap = new HashMap<>();
+        Map<UUID, Long> watcherCountMap = new HashMap<>();
+
+        if (!allContentIds.isEmpty()) {
+            List<Object[]> reviewStats = reviewRepository.findReviewStatsByContentIds(allContentIds);
+            statsMap = reviewStats.stream()
+                    .collect(Collectors.toMap(
+                            row -> (UUID) row[0],
+                            row -> new ReviewStats(
+                                    row[1] != null ? (Double) row[1] : 0.0,
+                                    ((Long) row[2]).intValue()
+                            )
+                    ));
+
+            List<Object[]> watcherCounts = watchingSessionRepository.findWatcherCountsByContentIds(allContentIds);
+            watcherCountMap = watcherCounts.stream()
+                    .collect(Collectors.toMap(
+                            row -> (UUID) row[0],
+                            row -> (Long) row[1]
+                    ));
+        }
+
+        final Map<UUID, ReviewStats> finalStatsMap = statsMap;
+        final Map<UUID, Long> finalWatcherCountMap = watcherCountMap;
+
+        List<ContentSortView> sortedContents = allContents.stream()
+                .map(content -> {
+                    ReviewStats stats = finalStatsMap.getOrDefault(content.getId(), new ReviewStats(0.0, 0));
+                    Long watcherCount = finalWatcherCountMap.getOrDefault(content.getId(), 0L);
+                    ContentSummary summary = contentMapper.toSummary(
+                            content,
+                            stats.averageRating(),
+                            stats.reviewCount()
+                    );
+                    return new ContentSortView(
+                            content.getId(),
+                            content.getCreatedAt(),
+                            watcherCount,
+                            stats.averageRating(),
+                            summary
+                    );
+                })
                 .sorted(createContentSortComparator(sortBy, sortDirection))
                 .toList();
 
@@ -308,32 +353,29 @@ public class ContentService {
         );
     }
 
-    /**
-     * 계산 정렬에 필요한 값을 한 번에 담는 View 객체를 만듭니다.
-     */
-    private ContentSortView toContentSortView(Content content) {
-        Double averageRating = reviewRepository.findAverageRatingByContent(content);
-
-        if (averageRating == null) {
-            averageRating = 0.0;
+    private List<ContentSummary> toSummaries(List<Content> contents) {
+        if (contents.isEmpty()) {
+            return List.of();
         }
 
-        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
-        Long watcherCount = watchingSessionRepository.countByContent(content);
+        List<UUID> contentIds = contents.stream().map(Content::getId).toList();
 
-        ContentSummary summary = contentMapper.toSummary(
-                content,
-                averageRating,
-                reviewCount
-        );
+        List<Object[]> reviewStats = reviewRepository.findReviewStatsByContentIds(contentIds);
+        Map<UUID, ReviewStats> statsMap = reviewStats.stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> new ReviewStats(
+                                row[1] != null ? (Double) row[1] : 0.0,
+                                ((Long) row[2]).intValue()
+                        )
+                ));
 
-        return new ContentSortView(
-                content.getId(),
-                content.getCreatedAt(),
-                watcherCount,
-                averageRating,
-                summary
-        );
+        return contents.stream()
+                .map(content -> {
+                    ReviewStats stats = statsMap.getOrDefault(content.getId(), new ReviewStats(0.0, 0));
+                    return contentMapper.toSummary(content, stats.averageRating(), stats.reviewCount());
+                })
+                .toList();
     }
 
     /**

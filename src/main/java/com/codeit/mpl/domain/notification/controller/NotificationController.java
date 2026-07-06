@@ -2,19 +2,17 @@ package com.codeit.mpl.domain.notification.controller;
 
 import com.codeit.mpl.domain.notification.dto.NotificationDto;
 import com.codeit.mpl.domain.notification.service.NotificationService;
-import com.codeit.mpl.domain.user.entity.User;
-import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.common.dto.SearchRequest;
 import com.codeit.mpl.infra.sse.SseService;
 import com.codeit.mpl.infra.exception.user.UserNotFoundException;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,15 +28,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/notifications")
 public class NotificationController {
   private final NotificationService notificationService;
-  private final UserRepository userRepository;
   private final SseService sseService;
 
   @GetMapping
   public ResponseEntity<CursorPageResponseDto<NotificationDto>> getNotifications(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @ModelAttribute SearchRequest request
   ) {
-    UUID userId = getUserIdFromUserDetails(userDetails);
+    UUID userId = getUserIdFromPrincipal(userPrincipal);
 
     String cursor = request.cursor();
     UUID idAfter = request.idAfter();
@@ -69,12 +66,14 @@ public class NotificationController {
     return ResponseEntity.noContent().build();
   }
 
-  private UUID getUserIdFromUserDetails(UserDetails userDetails) {
-    if (userDetails == null) {
+  private UUID getUserIdFromPrincipal(UserPrincipal userPrincipal) {
+    if (userPrincipal == null) {
       throw new IllegalArgumentException("인증 정보가 유효하지 않습니다.");
     }
-    return userRepository.findByEmail(userDetails.getUsername())
-        .map(User::getId)
-        .orElseThrow(UserNotFoundException::new);
+    UUID userId = userPrincipal.userId();
+    if (userId == null) {
+      throw new UserNotFoundException();
+    }
+    return userId;
   }
 }

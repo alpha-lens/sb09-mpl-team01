@@ -1,30 +1,39 @@
 package com.codeit.mpl.infra.security;
 
 import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtUtil {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final UserRepository userRepository;
 
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshExpirationMs;
 
     private static final String REFRESH_TOKEN_PREFIX = "refresh_token:";
+    private static final String BLACKLIST_ACCESS_TOKEN_PREFIX = "blacklist:access_token:";
+    private static final String TOKEN_VERSION_PREFIX = "user:token_version:";
 
     public String generateAccessToken(User user) {
-        return jwtTokenProvider.createToken(user.getEmail(), "ROLE_" + user.getRole().name());
+        return jwtTokenProvider.createToken(user.getEmail(), "ROLE_" + user.getRole().name(), user.getId().toString(), user.getTokenVersion());
     }
 
     public String generateRefreshToken(UUID userId) {
@@ -61,5 +70,71 @@ public class JwtUtil {
 
     public long getRefreshExpirationMs() {
         return refreshExpirationMs;
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not found", e);
+        }
+    }
+
+    public void blacklistAccessToken(String token, long expirationTimeMs) {
+        long remainingTimeMs = expirationTimeMs - System.currentTimeMillis();
+        if (remainingTimeMs > 0) {
+            String key = BLACKLIST_ACCESS_TOKEN_PREFIX + hashToken(token);
+            redisTemplate.opsForValue().set(key, "true", remainingTimeMs, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public boolean isAccessTokenBlacklisted(String token) {
+        try {
+            String key = BLACKLIST_ACCESS_TOKEN_PREFIX + hashToken(token);
+            return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+        } catch (Exception e) {
+            log.warn("Fail-Open: Redis error occurred during blacklist check: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    public int getCurrentTokenVersion(UUID userId) {
+        String key = TOKEN_VERSION_PREFIX + userId;
+        try {
+            Object cached = redisTemplate.opsForValue().get(key);
+            if (cached != null) {
+                return Integer.parseInt(cached.toString());
+            }
+            Integer dbVersion = userRepository.findTokenVersionById(userId);
+            int version = dbVersion != null ? dbVersion : 1;
+            redisTemplate.opsForValue().set(key, version, 4200, TimeUnit.SECONDS);
+            return version;
+        } catch (Exception e) {
+            log.error("Fail-Open: Redis error occurred during token version check (falling back to DB): {}", e.getMessage());
+            try {
+                Integer dbVersion = userRepository.findTokenVersionById(userId);
+                return dbVersion != null ? dbVersion : 1;
+            } catch (Exception dbEx) {
+                log.error("Fallback DB lookup failed: {}", dbEx.getMessage());
+                return 1;
+            }
+        }
+    }
+
+    public void updateTokenVersionInRedis(UUID userId, int newVersion) {
+        String key = TOKEN_VERSION_PREFIX + userId;
+        try {
+            redisTemplate.opsForValue().set(key, newVersion, 4200, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.error("Failed to update token version in Redis: {}", e.getMessage());
+        }
     }
 }

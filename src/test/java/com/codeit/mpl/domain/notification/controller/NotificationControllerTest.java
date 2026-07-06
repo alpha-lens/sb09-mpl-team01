@@ -10,14 +10,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.codeit.mpl.domain.notification.service.NotificationService;
-import com.codeit.mpl.domain.user.entity.User;
-import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.exception.GlobalExceptionHandler;
 import com.codeit.mpl.infra.sse.SseService;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +26,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.support.WebDataBinderFactory;
@@ -45,19 +42,17 @@ class NotificationControllerTest {
   private NotificationService notificationService;
 
   @Mock
-  private UserRepository userRepository;
-
-  @Mock
   private SseService sseService;
 
   @InjectMocks
   private NotificationController notificationController;
 
-  private UserDetails mockUserDetails;
+  private UserPrincipal mockUserPrincipal;
+  private final UUID testUserId = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
   @BeforeEach
   void setUp() {
-    mockUserDetails = mock(UserDetails.class);
+    mockUserPrincipal = new UserPrincipal(testUserId, "test@example.com", Collections.emptyList());
 
     HandlerMethodArgumentResolver resolver = new HandlerMethodArgumentResolver() {
       @Override
@@ -68,7 +63,7 @@ class NotificationControllerTest {
       @Override
       public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
           NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-        return mockUserDetails;
+        return mockUserPrincipal;
       }
     };
 
@@ -82,12 +77,6 @@ class NotificationControllerTest {
   @DisplayName("알림 목록 조회 성공")
   void getNotifications_success() throws Exception {
     // given
-    given(mockUserDetails.getUsername()).willReturn("test@example.com");
-    UUID userId = UUID.randomUUID();
-    User user = mock(User.class);
-    given(user.getId()).willReturn(userId);
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
-
     CursorPageResponseDto responseDto = new CursorPageResponseDto(
         Collections.emptyList(), null, null, false, 0L, "createdAt", Direction.DESCENDING
     );
@@ -102,16 +91,14 @@ class NotificationControllerTest {
         .andExpect(jsonPath("$.data").isEmpty())
         .andExpect(jsonPath("$.hasNext").value(false));
 
-    then(userRepository).should().findByEmail("test@example.com");
-    then(notificationService).should().getNotifications(userId, null, null, 10, Direction.DESCENDING);
+    then(notificationService).should().getNotifications(testUserId, null, null, 10, Direction.DESCENDING);
   }
 
   @Test
   @DisplayName("알림 목록 조회 실패 - 존재하지 않는 유저")
   void getNotifications_fail_userNotFound() throws Exception {
     // given
-    given(mockUserDetails.getUsername()).willReturn("test@example.com");
-    given(userRepository.findByEmail("test@example.com")).willReturn(Optional.empty());
+    mockUserPrincipal = new UserPrincipal(null, "test@example.com", Collections.emptyList());
 
     // when & then
     mockMvc.perform(get("/api/notifications")

@@ -1,5 +1,6 @@
 package com.codeit.mpl.infra.security;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,8 +12,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -28,6 +27,7 @@ import static org.springframework.http.HttpMethod.POST;
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final JwtUtil jwtUtil;
 
     /**
      * Provides a password encoder bean using BCrypt hashing.
@@ -53,19 +53,11 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
-            /* 기존 csrf 형태인데, 알림이 제대로 가지 않는 것 때문에 일시적으로 비활성화해둠. 나중에 되돌리는 작업이 필요할 수 있음.
-              csrf -> csrf
-                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                .ignoringRequestMatchers(
-                    "/api/auth/sign-in", "/api/auth/sign-out", "/api/auth/reset-password",
-                    "/api/auth/refresh", "/api/users"
-                )
-            * */
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/sign-in", "/api/auth/sign-out", "/api/auth/reset-password",
                     "/api/auth/refresh", "/api/auth/csrf-token").permitAll()
                 .requestMatchers(POST, "/api/users").permitAll()
@@ -75,7 +67,7 @@ public class SecurityConfig {
                 .requestMatchers("/ws/**", "/ws-chat/**").permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, jwtUtil), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

@@ -31,7 +31,7 @@ public class SseService {
                             .id(key)
                             .name("heartbeat")
                             .data("ping"));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     sseEmitterRepository.deleteById(key);
                 }
             });
@@ -132,7 +132,7 @@ public class SseService {
                     .id(eventId)
                     .name(eventName)
                     .data(data));
-        } catch (IOException exception) {
+        } catch (Exception exception) {
             sseEmitterRepository.deleteById(emitterId);
             log.error("SSE 연결 전송 중 오류 발생: {}", exception.getMessage());
         }

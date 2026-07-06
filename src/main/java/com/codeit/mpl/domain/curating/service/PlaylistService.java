@@ -34,8 +34,13 @@ import com.codeit.mpl.infra.exception.playlist.PlaylistSubscriptionNotFoundExcep
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import com.codeit.mpl.domain.review.dto.response.ReviewStats;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -103,14 +108,31 @@ public class PlaylistService {
 
     List<Playlist> pagePlaylists = hasNext ? playlists.subList(0, limit) : playlists;
 
-    User currentUser = null;
-    if (currentUserId != null) {
-      currentUser = userRepository.findById(currentUserId).orElse(null);
+    List<UUID> playlistIds = pagePlaylists.stream().map(Playlist::getId).toList();
+
+    Map<UUID, Long> subscriptionCounts = new java.util.HashMap<>();
+    Set<UUID> subscribedPlaylistIds = new HashSet<>();
+
+    if (!playlistIds.isEmpty()) {
+      List<Object[]> statsList = playlistSubscriptionRepository.findSubscriptionStats(playlistIds, currentUserId);
+      for (Object[] row : statsList) {
+        UUID playlistId = (UUID) row[0];
+        Long count = (Long) row[1];
+        Number userSubSum = (Number) row[2];
+        subscriptionCounts.put(playlistId, count != null ? count : 0L);
+        if (userSubSum != null && userSubSum.longValue() > 0) {
+          subscribedPlaylistIds.add(playlistId);
+        }
+      }
     }
 
-    final User finalCurrentUser = currentUser;
+    final Set<UUID> finalSubscribedIds = subscribedPlaylistIds;
     List<PlaylistDto> playlistDtos = pagePlaylists.stream()
-        .map(p -> toDtoSimple(p, finalCurrentUser))
+        .map(p -> {
+          long subCount = subscriptionCounts.getOrDefault(p.getId(), 0L);
+          boolean isSubscribed = finalSubscribedIds.contains(p.getId());
+          return toDtoSimple(p, subCount, isSubscribed);
+        })
         .toList();
 
     String nextCursor = null;
@@ -273,12 +295,29 @@ public class PlaylistService {
       }
     }
 
-    List<ContentSummary> contents = playlistContentRepository.findByPlaylist(playlist)
-        .stream()
+    List<PlaylistContent> playlistContents = playlistContentRepository.findByPlaylist(playlist);
+    List<UUID> contentIds = playlistContents.stream().map(pc -> pc.getContent().getId()).toList();
+
+    Map<UUID, ReviewStats> reviewStatsMap = Map.of();
+    if (!contentIds.isEmpty()) {
+      reviewStatsMap = reviewRepository.findReviewStatsByContentIds(contentIds).stream()
+          .collect(Collectors.toMap(
+              row -> (UUID) row[0],
+              row -> {
+                Double avg = (Double) row[1];
+                Long cnt = (Long) row[2];
+                return new ReviewStats(avg, cnt != null ? cnt.intValue() : 0);
+              }
+          ));
+    }
+
+    final Map<UUID, ReviewStats> finalReviewStats = reviewStatsMap;
+    List<ContentSummary> contents = playlistContents.stream()
         .map(pc -> {
           Content c = pc.getContent();
-          Double avgRating = reviewRepository.findAverageRatingByContent(c);
-          long reviewCount = reviewRepository.countByContent(c);
+          ReviewStats stats = finalReviewStats.get(c.getId());
+          double avgRating = (stats != null && stats.averageRating() != null) ? stats.averageRating() : 0.0;
+          int reviewCount = (stats != null && stats.reviewCount() != null) ? stats.reviewCount() : 0;
           return new ContentSummary(
               c.getId(),
               c.getType(),
@@ -286,8 +325,8 @@ public class PlaylistService {
               c.getDescription(),
               c.getThumbnailUrl(),
               c.getTags(),
-              avgRating != null ? avgRating : 0.0,
-              (int) reviewCount
+              avgRating,
+              reviewCount
           );
         })
         .toList();
@@ -320,6 +359,10 @@ public class PlaylistService {
   ) {
     return (root, query, cb) -> {
       List<Predicate> predicates = new java.util.ArrayList<>();
+
+      if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+        root.fetch("owner");
+      }
 
       if (keywordLike != null && !keywordLike.isBlank()) {
         predicates.add(cb.like(root.get("title"), "%" + keywordLike + "%"));
@@ -421,17 +464,12 @@ public class PlaylistService {
     throw new InvalidPlaylistSortException();
   }
 
-  private PlaylistDto toDtoSimple(Playlist playlist, User currentUser) {
+  private PlaylistDto toDtoSimple(Playlist playlist, long subscriberCount, boolean subscribedByMe) {
     UserSummary owner = new UserSummary(
         playlist.getOwner().getId(),
         playlist.getOwner().getName(),
         playlist.getOwner().getProfileImageUrl()
     );
-
-    long subscriberCount = playlistSubscriptionRepository.countByPlaylist(playlist);
-
-    boolean subscribedByMe = currentUser != null &&
-        playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, currentUser);
 
     return new PlaylistDto(
         playlist.getId(),
