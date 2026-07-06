@@ -52,7 +52,9 @@ public class ContentController {
     }
 
     @GetMapping("/{contentId}")
-    public ResponseEntity<ContentDto> getContent(@PathVariable UUID contentId) {
+    public ResponseEntity<ContentDto> getContent(
+            @PathVariable UUID contentId
+    ) {
         return ResponseEntity.ok(contentService.getContent(contentId));
     }
 
@@ -84,6 +86,7 @@ public class ContentController {
     public ResponseEntity<CursorPageResponseDto<ContentSummary>> getContents(
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) String idAfter,
+            @RequestParam(required = false) String keywordLike,
             @RequestParam(defaultValue = "20") @Min(1) int limit,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESCENDING") Direction sortDirection
@@ -91,6 +94,7 @@ public class ContentController {
         CursorPageResponseDto<ContentSummary> response = contentService.getContents(
                 cursor,
                 idAfter,
+                keywordLike,
                 limit,
                 sortBy,
                 sortDirection
