@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.user.entity.User;
 import java.util.UUID;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +23,7 @@ public interface ReviewRepository extends JpaRepository<Review, UUID>,
   Double findAverageRatingByContent(@Param("content") Content content);
 
   long countByContent(Content content);
+
+  @Query("SELECT r.content.id, AVG(r.rating), COUNT(r) FROM Review r WHERE r.content.id IN :contentIds GROUP BY r.content.id")
+  List<Object[]> findReviewStatsByContentIds(@Param("contentIds") List<UUID> contentIds);
 }
