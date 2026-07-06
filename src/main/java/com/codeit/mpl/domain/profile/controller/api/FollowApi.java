@@ -37,7 +37,7 @@ public interface FollowApi {
   })
   ResponseEntity<FollowDto> getFollowedByMe(
       @AuthenticationPrincipal UserDetails userDetails,
-      @RequestParam UUID followeeId
+      @RequestParam(value = "followeeId", required = true) UUID followeeId
   );
 
   @Operation(summary = "팔로워 수 조회")
