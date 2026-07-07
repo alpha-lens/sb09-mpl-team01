@@ -25,6 +25,7 @@ public class NotificationService {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public NotificationDto saveNotification(NotificationEvent event) {
+    log.info("[NotificationService] 알림 생성 시작 - receiverId: {}, senderId: {}, level: {}, title: {}",
     Notification notification = Notification.builder()
         .receiver(event.getReceiver())
         .sender(event.getSender())
@@ -35,6 +36,7 @@ public class NotificationService {
         .build();
 
     Notification saved = notificationRepository.save(notification);
+    log.info("[NotificationService] 알림 생성 완료 - notificationId: {}", saved.getId());
 
     return new NotificationDto(
         saved.getId(),
@@ -50,6 +52,7 @@ public class NotificationService {
   public CursorPageResponseDto<NotificationDto> getNotifications(
       UUID userId, String cursorStr, UUID idAfter, int limit, Direction sortDirection
   ) {
+    log.debug("[NotificationService] 알림 조회 시작 - userId: {}, limit: {}, sortDirection: {}", userId, limit, sortDirection);
     Instant cursor = (cursorStr != null && !cursorStr.isBlank()) ? Instant.parse(cursorStr) : null;
 
     List<Notification> list = notificationRepository.findNotificationsWithCursor(
@@ -75,10 +78,14 @@ public class NotificationService {
       nextIdAfter = last.id().toString();
     }
 
+    log.debug("[NotificationService] 알림 조회 완료 - userId: {}, 조회 건수: {}, totalCount: {}, hasNext: {}", userId, dtos.size(), totalCount, hasNext);
+
     return new CursorPageResponseDto<>(dtos, nextCursor, nextIdAfter, hasNext, totalCount, "createdAt", sortDirection);
   }
 
   public void deleteNotification(UUID notificationId) {
+    log.info("[NotificationService] 알림 삭제 시작 - notificationId: {}", notificationId);
     notificationRepository.deleteById(notificationId);
+    log.info("[NotificationService] 알림 삭제 완료 - notificationId: {}", notificationId);
   }
 }
