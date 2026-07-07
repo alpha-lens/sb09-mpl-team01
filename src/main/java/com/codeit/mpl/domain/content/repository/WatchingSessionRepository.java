@@ -2,7 +2,7 @@ package com.codeit.mpl.domain.content.repository;
 
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.entity.WatchingSession;
-import io.lettuce.core.dynamic.annotation.Param;
+import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
