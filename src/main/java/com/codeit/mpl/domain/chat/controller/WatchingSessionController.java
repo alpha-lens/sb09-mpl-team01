@@ -26,12 +26,12 @@ public class WatchingSessionController {
 
     @GetMapping("/users/{watcherId}/watching-sessions")
     public ResponseEntity<WatchingSessionDto> findWatchingSessionByWatcher(@PathVariable UUID watcherId) {
-        log.info("특정 사용자의 시청 세션 조회. watcherId={}", watcherId);
+        log.debug("특정 사용자의 시청 세션 조회. watcherId={}", watcherId);
         WatchingSessionDto dto = watchingSessionService.findWatchingSessionByWatcher(watcherId);
         if (dto == null) {
             return ResponseEntity.ok().build();
         }
-        log.info("실시간 시청 세션 응답: WatchingSessionDto={}", dto);
+        log.debug("실시간 시청 세션 응답: watcherId={}", watcherId);
         return ResponseEntity.ok(dto);
     }
 
@@ -41,10 +41,10 @@ public class WatchingSessionController {
         @RequestParam(value = "watcherNameLike", required = false) String watcherNameLike,
         @ModelAttribute CursorPageRequestDto request
     ) {
-        log.info("특정 콘텐츠의 시청 세션 목록 조회. contentId={}", contentId);
+        log.debug("특정 콘텐츠의 시청 세션 목록 조회. contentId={}", contentId);
         CursorPageResponseDto<WatchingSessionDto> response =
             watchingSessionService.findWatchingSessionsByContent(contentId, watcherNameLike, request);
-        log.info("시청 세션 목록 반환. response={}", response);
+        log.debug("시청 세션 목록 반환. contentId={}, count={}", contentId, response.data().size());
         return ResponseEntity.ok(response);
     }
 }
