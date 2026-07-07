@@ -40,6 +40,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 
+import com.codeit.mpl.domain.notification.entity.NotificationType;
+import com.codeit.mpl.domain.notification.repository.NotificationRepository;
+
 @ExtendWith(MockitoExtension.class)
 class ConversationServiceTest {
 
@@ -51,6 +54,9 @@ class ConversationServiceTest {
 
   @Mock
   private UserRepository userRepository;
+
+  @Mock
+  private NotificationRepository notificationRepository;
 
   @Mock
   private ApplicationEventPublisher eventPublisher;
@@ -245,6 +251,7 @@ class ConversationServiceTest {
 
     // then
     then(dm).should().read();
+    then(notificationRepository).should().deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
   }
 
   @Test
@@ -307,6 +314,7 @@ class ConversationServiceTest {
     // then
     assertThat(result.data()).hasSize(1);
     then(dm).should().read(); // 수신 메시지이므로 읽음 처리되어야 함
+    then(notificationRepository).should().deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
   }
 
   @Test
