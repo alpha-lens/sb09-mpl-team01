@@ -176,8 +176,10 @@ public class ConversationService {
                         && !dm.isRead()) {
                     dm.read();
                     log.info("[ConversationService] 메시지 읽음 처리 완료 - directMessageId: {}", directMessageId);
-                    // 대화 메시지 읽음 시 해당 대화방의 안 읽은 DM 알림 삭제
-                    notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
+                    // 대화 메시지 읽음 시 해당 대화방의 모든 메시지가 읽음 상태인 경우에만 안 읽은 DM 알림 삭제
+                    if (directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversationId, userId) == 0) {
+                        notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
+                    }
                 } else {
                     log.debug("[ConversationService] 메시지 읽음 처리 스킵 (자신의 메시지이거나 이미 읽음) - directMessageId: {}", directMessageId);
                 }
@@ -209,8 +211,10 @@ public class ConversationService {
             .count();
         if (readCount > 0) {
             log.info("[ConversationService] 수신 메시지 읽음 처리 완료 - conversationId: {}, userId: {}, 읽음 처리된 개수: {}", conversationId, userId, readCount);
-            // 대화방 진입으로 인한 메시지 읽음 시 해당 대화방의 안 읽은 DM 알림 삭제
-            notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
+            // 대화방 진입으로 인한 메시지 읽음 시 해당 대화방의 모든 메시지가 읽음 상태인 경우에만 안 읽은 DM 알림 삭제
+            if (directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversationId, userId) == 0) {
+                notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
+            }
         }
 
         String nextCursor = null;
