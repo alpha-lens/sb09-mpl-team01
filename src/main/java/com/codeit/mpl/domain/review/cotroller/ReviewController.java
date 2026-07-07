@@ -6,14 +6,13 @@ import com.codeit.mpl.domain.review.dto.request.ReviewSearchRequest;
 import com.codeit.mpl.domain.review.dto.request.ReviewUpdateRequest;
 import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.domain.review.service.ReviewService;
-import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -30,43 +29,38 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReviewController implements ReviewApi {
 
   private final ReviewService reviewService;
-  private final UserService userService;
 
-  // 리뷰 생성
   @PostMapping
   public ResponseEntity<ReviewDto> createReview(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @Valid @RequestBody ReviewCreateRequest request
   ) {
-    UUID authorId = userService.resolveUserId(userDetails.getUsername());
+    UUID authorId = userPrincipal.userId();
     ReviewDto response = reviewService.createReview(authorId, request);
     return ResponseEntity.ok(response);
   }
 
-  // 리뷰 수정
   @PatchMapping("/{reviewId}")
   public ResponseEntity<ReviewDto> updateReview(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID reviewId,
       @Valid @RequestBody ReviewUpdateRequest request
   ) {
-    UUID authorId = userService.resolveUserId(userDetails.getUsername());
+    UUID authorId = userPrincipal.userId();
     ReviewDto response = reviewService.updateReview(authorId, reviewId, request);
     return ResponseEntity.ok(response);
   }
 
-  // 리뷰 삭제
   @DeleteMapping("/{reviewId}")
   public ResponseEntity<Void> deleteReview(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID reviewId
   ) {
-    UUID authorId = userService.resolveUserId(userDetails.getUsername());
+    UUID authorId = userPrincipal.userId();
     reviewService.deleteReview(authorId, reviewId);
     return ResponseEntity.noContent().build();
   }
 
-  // 리뷰 목록 조회
   @GetMapping
   public ResponseEntity<CursorPageResponseDto<ReviewDto>> getReviews(
       @Valid @ModelAttribute ReviewSearchRequest request

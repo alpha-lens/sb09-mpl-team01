@@ -5,6 +5,7 @@ import com.codeit.mpl.domain.review.dto.request.ReviewSearchRequest;
 import com.codeit.mpl.domain.review.dto.request.ReviewUpdateRequest;
 import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -13,7 +14,6 @@ import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,7 +35,7 @@ public interface ReviewApi {
       @ApiResponse(responseCode = "400", description = "입력값 검증 실패")
   })
   ResponseEntity<ReviewDto> createReview(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @Valid @RequestBody ReviewCreateRequest request
   );
 
@@ -46,7 +46,7 @@ public interface ReviewApi {
       @ApiResponse(responseCode = "404", description = "리뷰 없음")
   })
   ResponseEntity<ReviewDto> updateReview(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID reviewId,
       @Valid @RequestBody ReviewUpdateRequest request
   );
@@ -58,7 +58,7 @@ public interface ReviewApi {
       @ApiResponse(responseCode = "404", description = "리뷰 없음")
   })
   ResponseEntity<Void> deleteReview(
-      @AuthenticationPrincipal UserDetails userDetails,
+      @AuthenticationPrincipal UserPrincipal userPrincipal,
       @PathVariable UUID reviewId
   );
 }

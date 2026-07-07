@@ -20,11 +20,13 @@ import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
 import com.codeit.mpl.domain.curating.service.PlaylistService;
+import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.exception.MplException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,7 +36,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -58,7 +59,7 @@ class PlaylistServiceTest {
   private UserRepository userRepository;
 
   @Mock
-  private ApplicationEventPublisher eventPublisher;
+  private ReviewRepository reviewRepository;
 
   @InjectMocks
   private PlaylistService playlistService;
@@ -307,10 +308,6 @@ class PlaylistServiceTest {
     when(userRepository.findById(subscriberId)).thenReturn(Optional.of(subscriber));
     when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
     when(playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, subscriber)).thenReturn(false);
-    when(playlist.getOwner()).thenReturn(owner);
-    when(owner.getId()).thenReturn(UUID.randomUUID());
-    when(subscriber.getName()).thenReturn("테스트유저");
-    when(playlist.getTitle()).thenReturn("테스트 플레이리스트");
 
     playlistService.subscribePlaylist(subscriberId, playlistId);
 
@@ -378,15 +375,18 @@ class PlaylistServiceTest {
   void getPlaylists_success() {
     Playlist playlist = mock(Playlist.class);
     User owner = mock(User.class);
+    UUID playlistId = UUID.randomUUID();
 
     when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of(playlist)));
     when(playlistRepository.count(any(Specification.class))).thenReturn(1L);
+    when(playlist.getId()).thenReturn(playlistId);
     when(playlist.getOwner()).thenReturn(owner);
     when(owner.getId()).thenReturn(UUID.randomUUID());
     when(owner.getName()).thenReturn("테스트유저");
-    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
 
+    List<Object[]> stats = Collections.singletonList(new Object[]{playlistId, 0L});
+    when(playlistSubscriptionRepository.findSubscriptionStats(any())).thenReturn(stats);
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 10, "createdAt", Direction.DESCENDING, null
     );
@@ -408,15 +408,18 @@ class PlaylistServiceTest {
   void getPlaylists_fallback_invalidSortBy() {
     Playlist playlist = mock(Playlist.class);
     User owner = mock(User.class);
+    UUID playlistId = UUID.randomUUID();
 
     when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of(playlist)));
     when(playlistRepository.count(any(Specification.class))).thenReturn(1L);
+    when(playlist.getId()).thenReturn(playlistId);
     when(playlist.getOwner()).thenReturn(owner);
     when(owner.getId()).thenReturn(UUID.randomUUID());
     when(owner.getName()).thenReturn("테스트유저");
-    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
 
+    List<Object[]> stats = Collections.singletonList(new Object[]{playlistId, 0L});
+    when(playlistSubscriptionRepository.findSubscriptionStats(any())).thenReturn(stats);
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 10, "invalidField", Direction.DESCENDING, null
     );
