@@ -16,6 +16,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Entity
 @Getter
 @Table(name = "notifications")
@@ -34,6 +36,13 @@ public class Notification extends BaseEntity {
   @Enumerated(EnumType.STRING)
   @Column(name = "level")
   private NotificationLevel level;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "type")
+  private NotificationType type;
+
+  @Column(name = "target_id")
+  private UUID targetId;
 
   @Column(name = "title")
   private String title;

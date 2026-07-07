@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.codeit.mpl.domain.conversation.repository.DirectMessageRepository;
+import com.codeit.mpl.domain.notification.entity.NotificationType;
 import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import org.springframework.transaction.annotation.Propagation;
 
@@ -22,15 +24,47 @@ import org.springframework.transaction.annotation.Propagation;
 @Transactional
 public class NotificationService {
   private final NotificationRepository notificationRepository;
+  private final DirectMessageRepository directMessageRepository;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public NotificationDto saveNotification(NotificationEvent event) {
     log.info("[NotificationService] 알림 생성 시작 - receiverId: {}, senderId: {}, level: {}, title: {}",
+        event.getReceiver().getId(),
+        event.getSender() != null ? event.getSender().getId() : "SYSTEM",
+        event.getLevel(),
+        event.getTitle()
+    );
+
+    String title = event.getTitle();
+    if (event.getType() == NotificationType.DM) {
+        var existingOpt = notificationRepository.findByReceiverIdAndTypeAndTargetIdAndIsReadFalse(
+            event.getReceiver().getId(),
+            NotificationType.DM,
+            event.getTargetId()
+        );
+        if (existingOpt.isPresent()) {
+            notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(
+                event.getReceiver().getId(),
+                NotificationType.DM,
+                event.getTargetId()
+            );
+            notificationRepository.flush();
+
+            long unreadCount = directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(
+                event.getTargetId(),
+                event.getReceiver().getId()
+            );
+            title = event.getSender().getName() + "가 보낸 메시지가 " + unreadCount + "건 있습니다";
+        }
+    }
+
     Notification notification = Notification.builder()
         .receiver(event.getReceiver())
         .sender(event.getSender())
         .level(event.getLevel())
-        .title(event.getTitle())
+        .type(event.getType())
+        .targetId(event.getTargetId())
+        .title(title)
         .content(event.getContent())
         .isRead(false)
         .build();
