@@ -12,6 +12,10 @@ public record UserPrincipal(
     int tokenVersion
 ) implements UserDetails {
 
+  public UserPrincipal(UUID userId, String email, Collection<? extends GrantedAuthority> authorities) {
+    this(userId, email, authorities, 1);
+  }
+
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
     return authorities;
