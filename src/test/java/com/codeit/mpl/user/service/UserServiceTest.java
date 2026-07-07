@@ -12,6 +12,7 @@ import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.mapper.UserMapper;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.domain.user.service.UserService;
+import com.codeit.mpl.infra.security.JwtTokenProvider;
 import com.codeit.mpl.infra.security.JwtUtil;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import java.util.List;
@@ -43,6 +44,9 @@ class UserServiceTest {
 
     @Mock
     private JwtUtil jwtUtil;
+
+    @Mock
+    private JwtTokenProvider jwtTokenProvider;
 
     @Mock
     private PasswordEncoder passwordEncoder;

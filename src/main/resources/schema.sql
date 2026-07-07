@@ -11,6 +11,12 @@ CREATE TABLE IF NOT EXISTS users (
                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_temporary_password BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 1;
+
 -- 2. 콘텐츠 테이블 (contents)
 CREATE TABLE IF NOT EXISTS contents (
                           id UUID PRIMARY KEY NOT NULL,

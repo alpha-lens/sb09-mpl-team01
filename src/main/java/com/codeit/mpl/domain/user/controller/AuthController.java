@@ -7,6 +7,8 @@ import com.codeit.mpl.domain.user.dto.response.SignInResult;
 import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.common.dto.JwtDto;
 import com.codeit.mpl.infra.security.JwtUtil;
+import com.codeit.mpl.infra.security.UserPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +19,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +35,7 @@ public class AuthController implements AuthApi {
 
     private final UserService userService;
     private final JwtUtil jwtUtil;
+    private final HttpServletRequest request;
 
     @PostMapping(value = "/sign-in", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     @Override
@@ -46,9 +48,14 @@ public class AuthController implements AuthApi {
 
     @PostMapping("/sign-out")
     @Override
-    public ResponseEntity<Void> signOut(@AuthenticationPrincipal UserDetails userDetails, HttpServletResponse response) {
-        if (userDetails != null) {
-            userService.signOut(userService.resolveUserId(userDetails.getUsername()));
+    public ResponseEntity<Void> signOut(@AuthenticationPrincipal UserPrincipal userPrincipal, HttpServletResponse response) {
+        if (userPrincipal != null && userPrincipal.userId() != null) {
+            String bearerToken = request.getHeader("Authorization");
+            String token = null;
+            if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+                token = bearerToken.substring(7);
+            }
+            userService.signOut(userPrincipal.userId(), token);
         }
         deleteRefreshTokenCookie(response);
         return ResponseEntity.noContent().build();
