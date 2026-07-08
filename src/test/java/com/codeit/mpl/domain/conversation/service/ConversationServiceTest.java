@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import org.mockito.ArgumentCaptor;
 
 import com.codeit.mpl.domain.conversation.dto.ConversationCreateRequest;
 import com.codeit.mpl.domain.conversation.dto.ConversationDto;
@@ -60,6 +61,9 @@ class ConversationServiceTest {
 
   @Mock
   private ApplicationEventPublisher eventPublisher;
+
+  @Mock
+  private ActiveConversationManager activeConversationManager;
 
   @InjectMocks
   private ConversationService conversationService;
@@ -389,8 +393,8 @@ class ConversationServiceTest {
   }
 
   @Test
-  @DisplayName("메시지 저장 및 알림 이벤트 발행 - 성공")
-  void saveDirectMessage_success() {
+  @DisplayName("메시지 저장 및 알림 이벤트 발행 - 성공 (수신자 비활성)")
+  void saveDirectMessage_success_whenReceiverInactive() {
     // given
     UUID conversationId = UUID.randomUUID();
     UUID senderId = UUID.randomUUID();
@@ -401,7 +405,8 @@ class ConversationServiceTest {
     given(sender.getName()).willReturn("보낸이");
 
     User receiver = mock(User.class);
-    given(receiver.getId()).willReturn(UUID.randomUUID());
+    UUID receiverId = UUID.randomUUID();
+    given(receiver.getId()).willReturn(receiverId);
 
     Conversation conversation = mock(Conversation.class);
     given(conversation.getId()).willReturn(conversationId);
@@ -410,14 +415,52 @@ class ConversationServiceTest {
 
     given(conversationRepository.findById(conversationId)).willReturn(Optional.of(conversation));
     given(userRepository.findById(senderId)).willReturn(Optional.of(sender));
+    given(activeConversationManager.isUserActiveInConversation(receiverId, conversationId)).willReturn(false);
 
     // when
     DirectMessageDto result = conversationService.saveDirectMessage(conversationId, senderId, request);
 
     // then
     assertThat(result).isNotNull();
-    then(directMessageRepository).should().save(any(DirectMessage.class));
+    ArgumentCaptor<DirectMessage> dmCaptor = ArgumentCaptor.forClass(DirectMessage.class);
+    then(directMessageRepository).should().save(dmCaptor.capture());
+    assertThat(dmCaptor.getValue().isRead()).isFalse();
     then(eventPublisher).should().publishEvent(any(NotificationEvent.class));
+  }
+
+  @Test
+  @DisplayName("메시지 저장 및 자동 읽음 처리 (알림 안 감) - 성공 (수신자 활성)")
+  void saveDirectMessage_success_whenReceiverActive() {
+    // given
+    UUID conversationId = UUID.randomUUID();
+    UUID senderId = UUID.randomUUID();
+    DirectMessageSendRequest request = new DirectMessageSendRequest("안녕");
+
+    User sender = mock(User.class);
+    given(sender.getId()).willReturn(senderId);
+
+    User receiver = mock(User.class);
+    UUID receiverId = UUID.randomUUID();
+    given(receiver.getId()).willReturn(receiverId);
+
+    Conversation conversation = mock(Conversation.class);
+    given(conversation.getId()).willReturn(conversationId);
+    given(conversation.getUser1()).willReturn(sender);
+    given(conversation.getUser2()).willReturn(receiver);
+
+    given(conversationRepository.findById(conversationId)).willReturn(Optional.of(conversation));
+    given(userRepository.findById(senderId)).willReturn(Optional.of(sender));
+    given(activeConversationManager.isUserActiveInConversation(receiverId, conversationId)).willReturn(true);
+
+    // when
+    DirectMessageDto result = conversationService.saveDirectMessage(conversationId, senderId, request);
+
+    // then
+    assertThat(result).isNotNull();
+    ArgumentCaptor<DirectMessage> dmCaptor = ArgumentCaptor.forClass(DirectMessage.class);
+    then(directMessageRepository).should().save(dmCaptor.capture());
+    assertThat(dmCaptor.getValue().isRead()).isTrue();
+    then(eventPublisher).should(never()).publishEvent(any(NotificationEvent.class));
   }
 
   @Test
