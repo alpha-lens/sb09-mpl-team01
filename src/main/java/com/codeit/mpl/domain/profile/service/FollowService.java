@@ -15,6 +15,10 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.codeit.mpl.domain.notification.entity.NotificationLevel;
+import com.codeit.mpl.domain.notification.entity.NotificationType;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +27,7 @@ public class FollowService {
 
   private final FollowRepository followRepository;
   private final UserRepository userRepository;
+  private final ApplicationEventPublisher eventPublisher;
 
   // 팔로우
   public FollowDto follow(UUID followerId, UUID followeeId) {
@@ -41,6 +46,16 @@ public class FollowService {
     }
 
     Follow follow = followRepository.save(new Follow(follower, followee));
+
+    eventPublisher.publishEvent(new NotificationEvent(
+        followee,
+        follower,
+        NotificationLevel.INFO,
+        "팔로우 알림",
+        follower.getName() + "님이 회원님을 팔로우하기 시작했습니다.",
+        NotificationType.FOLLOW,
+        follow.getId()
+    ));
 
     return new FollowDto(follow.getId(), followee.getId(), follower.getId());
   }
