@@ -67,7 +67,11 @@ public class JwtUtil {
     }
 
     public void deleteRefreshToken(UUID userId) {
-        redisTemplate.delete(REFRESH_TOKEN_PREFIX + userId);
+        try {
+            redisTemplate.delete(REFRESH_TOKEN_PREFIX + userId);
+        } catch (Exception e) {
+            log.warn("Failed to delete refresh token: {}", e.getMessage());
+        }
     }
 
     public long getRefreshExpirationMs() {
@@ -100,9 +104,14 @@ public class JwtUtil {
                 return Integer.parseInt(cached.toString());
             }
             Integer dbVersion = userRepository.findTokenVersionById(userId);
-            int version = dbVersion != null ? dbVersion : 1;
-            redisTemplate.opsForValue().set(key, version, TOKEN_VERSION_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
-            return version;
+            if (dbVersion == null) {
+                // Redis/DB 인프라 장애가 아니라 "그런 사용자가 없다"는 정상 응답이므로,
+                // 삭제된 사용자의 토큰이 fail-open 기본값을 타고 통과하지 않도록 여기서만 fail-closed로 막는다.
+                log.warn("Rejecting token version check: user not found: {}", userId);
+                return Integer.MAX_VALUE;
+            }
+            redisTemplate.opsForValue().set(key, dbVersion, TOKEN_VERSION_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+            return dbVersion;
         } catch (Exception e) {
             log.error("Fail-Open: Redis error occurred during token version check (falling back to DB): {}", e.getMessage());
             try {
@@ -120,7 +129,14 @@ public class JwtUtil {
         try {
             redisTemplate.opsForValue().set(key, newVersion, TOKEN_VERSION_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
-            log.error("Failed to update token version in Redis: {}", e.getMessage());
+            log.error("Failed to update token version in Redis, evicting stale cache instead: {}", e.getMessage());
+            try {
+                // set이 실패했다고 옛 버전 캐시를 TTL 끝까지 그대로 두면, 이미 무효화됐어야 할 토큰이
+                // 그 기간 동안 계속 통과할 수 있다. 최소한 캐시를 지워서 다음 조회가 DB(최신 값)로 폴백하게 한다.
+                redisTemplate.delete(key);
+            } catch (Exception evictEx) {
+                log.error("Failed to evict stale token version cache: {}", evictEx.getMessage());
+            }
         }
     }
 

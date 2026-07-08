@@ -32,7 +32,7 @@ public interface AuthApi {
             @ApiResponse(responseCode = "204", description = "로그아웃 성공"),
             @ApiResponse(responseCode = "401", description = "인증 필요")
     })
-    ResponseEntity<Void> signOut(UserPrincipal userPrincipal, HttpServletResponse response);
+    ResponseEntity<Void> signOut(UserPrincipal userPrincipal, String refreshToken, HttpServletResponse response);
 
     @Operation(summary = "비밀번호 초기화", description = "임시 비밀번호를 발급합니다. 유효 시간 3분.")
     @ApiResponses({

@@ -36,7 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Authentication authentication = jwtTokenProvider.getAuthentication(token);
                 Object principal = authentication.getPrincipal();
 
-                if (principal instanceof UserPrincipal userPrincipal) {
+                if (principal instanceof UserPrincipal userPrincipal && userPrincipal.userId() != null) {
                     // Step 2: Check token version (Fail-Open policy is inside jwtUtil)
                     int currentVersion = jwtUtil.getCurrentTokenVersion(userPrincipal.userId());
                     if (userPrincipal.tokenVersion() >= currentVersion) {
@@ -46,7 +46,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 userPrincipal.userId(), userPrincipal.tokenVersion(), currentVersion);
                     }
                 } else {
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    // userId 클레임이 없는 레거시/손상된 토큰이거나 예상치 못한 principal 타입이면,
+                    // 세션 무효화 검증을 우회할 수 있으므로 인증을 열어주지 않고 닫힌 방향으로 처리한다.
+                    log.warn("Rejected authentication: missing userId claim or unexpected principal type");
                 }
             } else {
                 log.info("Attempted access with blacklisted token");
