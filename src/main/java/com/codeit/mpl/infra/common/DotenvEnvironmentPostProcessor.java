@@ -35,9 +35,24 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor,
      */
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        if (isTestEnvironment()) {
+            return;
+        }
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         Map<String, Object> props = new HashMap<>();
         dotenv.entries().forEach(entry -> props.put(entry.getKey(), entry.getValue()));
         environment.getPropertySources().addFirst(new SystemEnvironmentPropertySource("dotenv", props));
+    }
+
+    private boolean isTestEnvironment() {
+        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+            String className = element.getClassName();
+            if (className.startsWith("org.junit.") ||
+                className.startsWith("org.testng.") ||
+                className.startsWith("org.gradle.api.internal.tasks.testing.")) {
+                return true;
+            }
+        }
+        return false;
     }
 }
