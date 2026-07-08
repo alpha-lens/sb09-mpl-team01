@@ -5,6 +5,7 @@ import com.codeit.mpl.domain.content.dto.WatchingSessionDto;
 import com.codeit.mpl.infra.common.dto.CursorPageRequestDto;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
@@ -24,10 +26,12 @@ public class WatchingSessionController {
 
     @GetMapping("/users/{watcherId}/watching-sessions")
     public ResponseEntity<WatchingSessionDto> findWatchingSessionByWatcher(@PathVariable UUID watcherId) {
+        log.debug("특정 사용자의 시청 세션 조회. watcherId={}", watcherId);
         WatchingSessionDto dto = watchingSessionService.findWatchingSessionByWatcher(watcherId);
         if (dto == null) {
             return ResponseEntity.ok().build();
         }
+        log.debug("실시간 시청 세션 응답: watcherId={}", watcherId);
         return ResponseEntity.ok(dto);
     }
 
@@ -37,8 +41,10 @@ public class WatchingSessionController {
         @RequestParam(value = "watcherNameLike", required = false) String watcherNameLike,
         @ModelAttribute CursorPageRequestDto request
     ) {
+        log.debug("특정 콘텐츠의 시청 세션 목록 조회. contentId={}", contentId);
         CursorPageResponseDto<WatchingSessionDto> response =
             watchingSessionService.findWatchingSessionsByContent(contentId, watcherNameLike, request);
+        log.debug("시청 세션 목록 반환. contentId={}, count={}", contentId, response.data().size());
         return ResponseEntity.ok(response);
     }
 }

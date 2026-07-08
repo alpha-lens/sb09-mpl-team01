@@ -8,6 +8,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.codeit.mpl.domain.user.dto.request.UserUpdateRequest;
+import com.codeit.mpl.domain.user.dto.request.UserRoleUpdateRequest;
+import com.codeit.mpl.domain.user.dto.response.UserDto;
+import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.mapper.UserMapper;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -15,6 +18,8 @@ import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.security.JwtTokenProvider;
 import com.codeit.mpl.infra.security.JwtUtil;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
+import org.springframework.context.ApplicationEventPublisher;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,6 +61,9 @@ class UserServiceTest {
 
     @Mock
     private BinaryContentStorage binaryContentStorage;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private UserService userService;
@@ -156,5 +164,55 @@ class UserServiceTest {
     private void simulateRollback() {
         List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
         synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+    }
+
+    @Test
+    void 권한이_변경되면_알림_이벤트가_발행된다() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("test@example.com")
+                .name("우디")
+                .role(UserRole.USER)
+                .build();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        UserRoleUpdateRequest request = new UserRoleUpdateRequest(UserRole.ADMIN);
+        
+        UserDto userDto = new UserDto(userId, Instant.now(), "test@example.com", "우디", "profile-images/old-key.png", UserRole.ADMIN, false);
+        when(userMapper.toDto(user)).thenReturn(userDto);
+
+        // when
+        UserDto result = userService.updateRole(userId, request);
+
+        // then
+        assertThat(user.getRole()).isEqualTo(UserRole.ADMIN);
+        verify(jwtUtil).deleteRefreshToken(userId);
+        verify(eventPublisher).publishEvent(any(com.codeit.mpl.domain.notification.event.NotificationEvent.class));
+        assertThat(result).isEqualTo(userDto);
+    }
+
+    @Test
+    void 권한이_변경되지_않으면_알림_이벤트가_발행되지_않는다() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("test@example.com")
+                .name("우디")
+                .role(UserRole.USER)
+                .build();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        UserRoleUpdateRequest request = new UserRoleUpdateRequest(UserRole.USER);
+        
+        UserDto userDto = new UserDto(userId, Instant.now(), "test@example.com", "우디", "profile-images/old-key.png", UserRole.USER, false);
+        when(userMapper.toDto(user)).thenReturn(userDto);
+
+        // when
+        UserDto result = userService.updateRole(userId, request);
+
+        // then
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+        verify(jwtUtil).deleteRefreshToken(userId);
+        verify(eventPublisher, never()).publishEvent(any(com.codeit.mpl.domain.notification.event.NotificationEvent.class));
+        assertThat(result).isEqualTo(userDto);
     }
 }

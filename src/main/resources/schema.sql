@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS notifications (
                                receiver_id UUID NOT NULL,
                                sender_id UUID,
                                level VARCHAR(50) NOT NULL,
+                               type VARCHAR(50),
+                               target_id UUID,
                                title VARCHAR(255) NOT NULL,
                                content TEXT NOT NULL,
                                is_read BOOLEAN NOT NULL DEFAULT FALSE,
@@ -155,3 +157,9 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_receiver_read ON notifications (receiver_id, is_read, created_at DESC);
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type VARCHAR(50);
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_id UUID;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_notifications_receiver_type_target
+    ON notifications (receiver_id, type, target_id);

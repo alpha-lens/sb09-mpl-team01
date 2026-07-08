@@ -29,10 +29,16 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import com.codeit.mpl.domain.notification.entity.NotificationLevel;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.security.SecureRandom;
 import java.util.List;
@@ -54,6 +60,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, Object> redisTemplate;
     private final BinaryContentStorage binaryContentStorage;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final String TEMP_PASSWORD_PREFIX = "temporary_password:";
     private static final long TEMP_PASSWORD_TTL_SECONDS = 180;
@@ -223,8 +230,28 @@ public class UserService {
 
     public UserDto updateRole(UUID userId, UserRoleUpdateRequest request) {
         User user = findUserById(userId);
-        user.updateRole(request.role());
-        triggerSecurityEvent(userId);
+        UserRole oldRole = user.getRole();
+        UserRole newRole = request.role();
+        
+        user.updateRole(newRole);
+        jwtUtil.deleteRefreshToken(userId);
+
+        if (oldRole != newRole) {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            User sender = user;
+            if (authentication != null && authentication.getPrincipal() instanceof UserDetails userDetails) {
+                sender = userRepository.findByEmail(userDetails.getUsername()).orElse(user);
+            }
+
+            eventPublisher.publishEvent(new NotificationEvent(
+                user,
+                sender,
+                NotificationLevel.INFO,
+                "권한 변경 알림",
+                "사용자 권한이 " + oldRole.name() + "에서 " + newRole.name() + "으로 변경되었습니다."
+            ));
+        }
+
         return userMapper.toDto(user);
     }
 

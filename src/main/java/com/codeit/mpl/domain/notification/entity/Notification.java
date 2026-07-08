@@ -10,15 +10,26 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Entity
 @Getter
-@Table(name = "notifications")
+@Table(
+    name = "notifications",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_notifications_receiver_type_target",
+            columnNames = {"receiver_id", "type", "target_id"}
+        )
+    }
+)
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -34,6 +45,13 @@ public class Notification extends BaseEntity {
   @Enumerated(EnumType.STRING)
   @Column(name = "level")
   private NotificationLevel level;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "type")
+  private NotificationType type;
+
+  @Column(name = "target_id")
+  private UUID targetId;
 
   @Column(name = "title")
   private String title;

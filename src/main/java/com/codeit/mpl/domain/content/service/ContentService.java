@@ -188,7 +188,7 @@ public class ContentService {
         validateSortBy(sortBy);
 
         // watcherCount, rate는 Content 테이블 컬럼이 아니라 계산값입니다.
-        // 따라서 DB 정렬이 아니라 메모리 정렬 경로로 처리합니다.
+        // 따라서 현재는 메모리 정렬 경로로 분기합니다.
         if ("watcherCount".equals(sortBy) || "rate".equals(sortBy)) {
             return getContentsByCalculatedSort(
                     cursor,

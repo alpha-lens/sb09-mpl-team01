@@ -59,8 +59,10 @@ public class WatchingSessionService {
     }
 
     public WatchingSessionDto findWatchingSessionByWatcher(UUID watcherId) {
+        log.debug("[WatchingSessionService] findWatchingSessionByWatcher");
         String contentIdStr = redisTemplate.opsForValue().get(USER_KEY_PREFIX + watcherId.toString());
         if (contentIdStr == null) {
+            log.debug("[WatchingSessionService] contentIdStr is null");
             return null;
         }
 
@@ -81,6 +83,7 @@ public class WatchingSessionService {
     public CursorPageResponseDto<WatchingSessionDto> findWatchingSessionsByContent(
         UUID contentId, String watcherNameLike, CursorPageRequestDto request
     ) {
+        log.debug("[WatchingSessionService] findWatchingSessionsByContent");
         int limit = request.limit() != null ? request.limit() : 20;
         UUID idAfter = request.idAfter();
         String contentKey = CONTENT_KEY_PREFIX + contentId.toString();
@@ -91,6 +94,7 @@ public class WatchingSessionService {
 
         if (watcherNameLike == null || watcherNameLike.isBlank()) {
             // [경로 A] 이름 검색 조건이 없을 때: Redis ZSET에서 직접 범위 페이징 수행
+            log.debug("[WatchingSessionService] watcherNameLike가 비어있음");
             Double score = null;
             if (idAfter != null) {
                 score = redisTemplate.opsForZSet().score(contentKey, idAfter.toString());

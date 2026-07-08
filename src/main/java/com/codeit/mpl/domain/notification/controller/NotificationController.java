@@ -65,7 +65,9 @@ public class NotificationController {
   public ResponseEntity<Void> deleteNotification(
       @PathVariable UUID notificationId
   ) {
+    log.info("[알림 삭제 요청] notificationId: {}", notificationId);
     notificationService.deleteNotification(notificationId);
+    log.info("[알림 삭제 완료] notificationId: {}", notificationId);
     return ResponseEntity.noContent().build();
   }
 

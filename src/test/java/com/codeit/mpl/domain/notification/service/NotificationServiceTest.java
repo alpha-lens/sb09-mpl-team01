@@ -25,11 +25,17 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.codeit.mpl.domain.conversation.repository.DirectMessageRepository;
+import com.codeit.mpl.domain.notification.entity.NotificationType;
+
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
   @Mock
   private NotificationRepository notificationRepository;
+
+  @Mock
+  private DirectMessageRepository directMessageRepository;
 
   @InjectMocks
   private NotificationService notificationService;
@@ -155,5 +161,47 @@ class NotificationServiceTest {
 
     // then
     then(notificationRepository).should().deleteById(notificationId);
+  }
+
+  @Test
+  @DisplayName("DM 알림 저장 시 기존 안 읽은 DM 알림이 있다면 삭제 후 누적 건수로 새 알림 저장")
+  void saveNotification_dm_compress() {
+    // given
+    User receiver = mock(User.class);
+    User sender = mock(User.class);
+    UUID receiverId = UUID.randomUUID();
+    UUID targetId = UUID.randomUUID();
+    given(receiver.getId()).willReturn(receiverId);
+    given(sender.getName()).willReturn("보낸이");
+
+    NotificationEvent event = new NotificationEvent(receiver, sender, NotificationLevel.INFO, "새 메시지", "내용", NotificationType.DM, targetId);
+
+    Notification existingNotification = mock(Notification.class);
+    given(notificationRepository.findByReceiverIdAndTypeAndTargetIdAndIsReadFalse(receiverId, NotificationType.DM, targetId))
+        .willReturn(java.util.Optional.of(existingNotification));
+
+    given(directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(targetId, receiverId))
+        .willReturn(3L);
+
+    Notification savedNotification = mock(Notification.class);
+    UUID notificationId = UUID.randomUUID();
+    Instant now = Instant.now();
+    given(savedNotification.getId()).willReturn(notificationId);
+    given(savedNotification.getCreatedAt()).willReturn(now);
+    given(savedNotification.getReceiver()).willReturn(receiver);
+    given(savedNotification.getTitle()).willReturn("보낸이가 보낸 메시지가 3건 있습니다");
+    given(savedNotification.getContent()).willReturn("내용");
+    given(savedNotification.getLevel()).willReturn(NotificationLevel.INFO);
+
+    given(notificationRepository.save(any(Notification.class))).willReturn(savedNotification);
+
+    // when
+    NotificationDto result = notificationService.saveNotification(event);
+
+    // then
+    assertThat(result).isNotNull();
+    assertThat(result.title()).isEqualTo("보낸이가 보낸 메시지가 3건 있습니다");
+    then(notificationRepository).should().deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(receiverId, NotificationType.DM, targetId);
+    then(notificationRepository).should().save(any(Notification.class));
   }
 }
