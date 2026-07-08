@@ -179,6 +179,7 @@ public class ContentService {
     public CursorPageResponseDto<ContentSummary> getContents(
             String cursor,
             String idAfter,
+            String keywordLike,
             int limit,
             String sortBy,
             Direction sortDirection
@@ -187,11 +188,12 @@ public class ContentService {
         validateSortBy(sortBy);
 
         // watcherCount, rate는 Content 테이블 컬럼이 아니라 계산값입니다.
-        // 따라서 현재는 메모리 정렬 경로로 분기합니다.
+        // 따라서 DB 정렬이 아니라 메모리 정렬 경로로 처리합니다.
         if ("watcherCount".equals(sortBy) || "rate".equals(sortBy)) {
             return getContentsByCalculatedSort(
                     cursor,
                     idAfter,
+                    keywordLike,
                     limit,
                     sortBy,
                     sortDirection
@@ -209,9 +211,11 @@ public class ContentService {
                 Sort.by(direction, "createdAt").and(Sort.by(direction, "id"))
         );
 
-        Specification<Content> specification = createCursorSpecification(
+        // 검색 조건(keywordLike) + 커서 조건(cursor, idAfter)을 함께 적용합니다.
+        Specification<Content> specification = createContentSpecification(
                 cursor,
                 idAfter,
+                keywordLike,
                 "createdAt",
                 sortDirection
         );
@@ -243,7 +247,7 @@ public class ContentService {
                 nextCursor,
                 nextIdAfter,
                 hasNext,
-                contentRepository.count(),
+                contentRepository.count(createKeywordSpecification(keywordLike)),
                 sortBy,
                 sortDirection
         );
@@ -252,18 +256,21 @@ public class ContentService {
     /**
      * watcherCount, rate 계산 정렬용 목록 조회입니다.
      *
-     * 현재는 임시로 전체 Content를 조회한 뒤 메모리에서 정렬합니다.
-     * cursor + idAfter를 함께 사용해서 이전 페이지의 마지막 항목을 찾고,
-     * 그 다음 인덱스부터 다음 페이지를 구성합니다.
+     * watcherCount, rate는 DB 컬럼이 아니라 리뷰/시청 세션 기반 계산값입니다.
+     * 그래서 먼저 keywordLike 조건에 맞는 콘텐츠만 조회한 뒤,
+     * 메모리에서 정렬하고 cursor + idAfter 기준으로 다음 페이지를 계산합니다.
      */
     private CursorPageResponseDto<ContentSummary> getContentsByCalculatedSort(
             String cursor,
             String idAfter,
+            String keywordLike,
             int limit,
             String sortBy,
             Direction sortDirection
     ) {
-        List<ContentSortView> sortedContents = contentRepository.findAll().stream()
+        Specification<Content> keywordSpecification = createKeywordSpecification(keywordLike);
+
+        List<ContentSortView> sortedContents = contentRepository.findAll(keywordSpecification).stream()
                 .map(this::toContentSortView)
                 .sorted(createContentSortComparator(sortBy, sortDirection))
                 .toList();
@@ -302,10 +309,154 @@ public class ContentService {
                 nextCursor,
                 nextIdAfter,
                 hasNext,
-                contentRepository.count(),
+                sortedContents.size(),
                 sortBy,
                 sortDirection
         );
+    }
+
+    /**
+     * 검색 조건과 커서 조건을 동시에 적용하는 Specification입니다.
+     *
+     * keywordLike:
+     * - null 또는 blank이면 검색 조건을 적용하지 않습니다.
+     * - title, description에 대해 대소문자 구분 없이 LIKE 검색합니다.
+     *
+     * cursor + idAfter:
+     * - 둘 다 없으면 첫 페이지입니다.
+     * - 둘 다 있으면 이전 페이지의 마지막 데이터 이후부터 조회합니다.
+     */
+    private Specification<Content> createContentSpecification(
+            String cursor,
+            String idAfter,
+            String keywordLike,
+            String sortBy,
+            Direction sortDirection
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            Predicate keywordPredicate = createKeywordPredicate(
+                    keywordLike,
+                    root,
+                    criteriaBuilder
+            );
+
+            if (keywordPredicate != null) {
+                predicates.add(keywordPredicate);
+            }
+
+            Predicate cursorPredicate = createCursorPredicate(
+                    cursor,
+                    idAfter,
+                    sortBy,
+                    sortDirection,
+                    root,
+                    criteriaBuilder
+            );
+
+            if (cursorPredicate != null) {
+                predicates.add(cursorPredicate);
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    /**
+     * keywordLike 검색 전용 Specification입니다.
+     *
+     * totalCount 계산과 계산 정렬 경로에서 재사용합니다.
+     */
+    private Specification<Content> createKeywordSpecification(String keywordLike) {
+        return (root, query, criteriaBuilder) -> {
+            Predicate keywordPredicate = createKeywordPredicate(
+                    keywordLike,
+                    root,
+                    criteriaBuilder
+            );
+
+            if (keywordPredicate == null) {
+                return criteriaBuilder.conjunction();
+            }
+
+            return keywordPredicate;
+        };
+    }
+
+    /**
+     * title, description 기준 검색 Predicate를 만듭니다.
+     *
+     * 현재는 Content 엔티티의 기본 문자열 컬럼만 대상으로 검색합니다.
+     * tags까지 검색하려면 Content 엔티티의 tags 매핑 구조에 맞춰 join 조건을 추가해야 합니다.
+     */
+    private Predicate createKeywordPredicate(
+            String keywordLike,
+            jakarta.persistence.criteria.Root<Content> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        if (keywordLike == null || keywordLike.isBlank()) {
+            return null;
+        }
+
+        String keyword = "%" + keywordLike.trim().toLowerCase() + "%";
+
+        Predicate titleLike = criteriaBuilder.like(
+                criteriaBuilder.lower(root.get("title")),
+                keyword
+        );
+
+        Predicate descriptionLike = criteriaBuilder.like(
+                criteriaBuilder.lower(root.get("description")),
+                keyword
+        );
+
+        return criteriaBuilder.or(titleLike, descriptionLike);
+    }
+
+    /**
+     * createdAt 정렬용 cursor Predicate를 만듭니다.
+     *
+     * 같은 createdAt 값이 있을 수 있으므로 id를 보조 기준으로 사용합니다.
+     */
+    private Predicate createCursorPredicate(
+            String cursor,
+            String idAfter,
+            String sortBy,
+            Direction sortDirection,
+            jakarta.persistence.criteria.Root<Content> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        if (cursor == null || cursor.isBlank() || idAfter == null || idAfter.isBlank()) {
+            return null;
+        }
+
+        UUID idAfterValue = parseIdAfter(idAfter);
+
+        if ("createdAt".equals(sortBy)) {
+            Instant cursorValue = parseInstantCursor(cursor);
+
+            Predicate sortPredicate;
+            Predicate sameSortValuePredicate;
+
+            if (sortDirection == Direction.ASCENDING) {
+                sortPredicate = criteriaBuilder.greaterThan(root.get("createdAt"), cursorValue);
+                sameSortValuePredicate = criteriaBuilder.and(
+                        criteriaBuilder.equal(root.get("createdAt"), cursorValue),
+                        criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
+                );
+            } else {
+                sortPredicate = criteriaBuilder.lessThan(root.get("createdAt"), cursorValue);
+                sameSortValuePredicate = criteriaBuilder.and(
+                        criteriaBuilder.equal(root.get("createdAt"), cursorValue),
+                        criteriaBuilder.lessThan(root.get("id"), idAfterValue)
+                );
+            }
+
+            return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
+        }
+
+        return null;
     }
 
     /**
@@ -364,12 +515,6 @@ public class ContentService {
 
     /**
      * 계산 정렬용 cursor 시작 위치를 계산합니다.
-     *
-     * cursor: 이전 응답의 nextCursor
-     * idAfter: 이전 응답의 nextIdAfter
-     *
-     * 둘 다 없으면 첫 페이지입니다.
-     * 둘 다 있으면 정렬값과 id가 모두 일치하는 항목을 찾고, 그 다음부터 반환합니다.
      */
     private int resolveStartIndex(
             List<ContentSortView> sortedContents,
@@ -400,7 +545,6 @@ public class ContentService {
             }
         }
 
-        // 첫 페이지로 되돌리면 중복 페이지가 발생하므로 명시적으로 잘못된 요청 처리
         throw new IllegalArgumentException("cursor와 idAfter가 현재 정렬 결과와 일치하지 않습니다.");
     }
 
@@ -696,46 +840,6 @@ public class ContentService {
         if (hasCursor != hasIdAfter) {
             throw new IllegalArgumentException("cursor와 idAfter는 함께 전달하거나 모두 생략해야 합니다.");
         }
-    }
-
-    private Specification<Content> createCursorSpecification(
-            String cursor,
-            String idAfter,
-            String sortBy,
-            Direction sortDirection
-    ) {
-        return (root, query, criteriaBuilder) -> {
-            if (cursor == null || cursor.isBlank() || idAfter == null || idAfter.isBlank()) {
-                return criteriaBuilder.conjunction();
-            }
-
-            UUID idAfterValue = parseIdAfter(idAfter);
-
-            if ("createdAt".equals(sortBy)) {
-                Instant cursorValue = parseInstantCursor(cursor);
-
-                Predicate sortPredicate;
-                Predicate sameSortValuePredicate;
-
-                if (sortDirection == Direction.ASCENDING) {
-                    sortPredicate = criteriaBuilder.greaterThan(root.get("createdAt"), cursorValue);
-                    sameSortValuePredicate = criteriaBuilder.and(
-                            criteriaBuilder.equal(root.get("createdAt"), cursorValue),
-                            criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
-                    );
-                } else {
-                    sortPredicate = criteriaBuilder.lessThan(root.get("createdAt"), cursorValue);
-                    sameSortValuePredicate = criteriaBuilder.and(
-                            criteriaBuilder.equal(root.get("createdAt"), cursorValue),
-                            criteriaBuilder.lessThan(root.get("id"), idAfterValue)
-                    );
-                }
-
-                return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
-            }
-
-            return criteriaBuilder.conjunction();
-        };
     }
 
     private UUID parseIdAfter(String idAfter) {
