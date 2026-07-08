@@ -10,6 +10,10 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
+      # 컨테이너 안에서는 호스트 포트(5433)가 아니라 db 서비스명으로 접근한다.
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/mpl
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-localdev}
       - SPRING_DATA_REDIS_HOST=${SPRING_DATA_REDIS_HOST}
       - SPRING_DATA_REDIS_PORT=${SPRING_DATA_REDIS_PORT}
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=${SPRING_KAFKA_BOOTSTRAP_SERVERS}
@@ -26,10 +30,32 @@ services:
       - AWS_S3_BUCKET=${AWS_S3_BUCKET}
       - AWS_S3_PRESIGNED_URL_EXPIRATION=${AWS_S3_PRESIGNED_URL_EXPIRATION}
     depends_on:
+      db:
+        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
         condition: service_healthy
+
+  # 로컬 개발 전용 DB. 운영 RDS와 완전히 분리된 컨테이너라 로컬에서 뭘 하든 실제 서비스에 영향 없다.
+  db:
+    image: postgres:17-alpine
+    container_name: mpl-db-local
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
+      POSTGRES_DB: mpl
+    ports:
+      # 로컬에 이미 5432를 쓰는 Postgres가 있을 수 있어 호스트 포트만 5433으로 어긋나게 잡는다.
+      - "5433:5432"
+    volumes:
+      - mpl-db-data:/var/lib/postgresql/data
+      - ./src/main/resources/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d mpl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7.2-alpine
@@ -71,3 +97,6 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
+
+volumes:
+  mpl-db-data:

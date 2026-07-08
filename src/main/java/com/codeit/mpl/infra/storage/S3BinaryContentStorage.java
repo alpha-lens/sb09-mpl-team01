@@ -3,6 +3,7 @@ package com.codeit.mpl.infra.storage;
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,6 +32,7 @@ public class S3BinaryContentStorage implements BinaryContentStorage {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
 
+    @Autowired
     public S3BinaryContentStorage(StorageProperties storageProperties) {
         this(storageProperties.s3(), buildS3Client(storageProperties.s3()), buildS3Presigner(storageProperties.s3()));
     }

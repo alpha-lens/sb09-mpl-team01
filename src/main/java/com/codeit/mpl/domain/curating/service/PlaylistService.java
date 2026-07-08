@@ -32,6 +32,7 @@ import com.codeit.mpl.infra.exception.playlist.PlaylistSubscriptionNotFoundExcep
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -317,6 +318,14 @@ public class PlaylistService {
         playlist.getOwner().getProfileImageUrl()
     );
 
+    List<ContentSummary> contentSummaries = new ArrayList<>();
+    playlistContentRepository.findByPlaylist(playlist).forEach(pc -> {
+      Content content = pc.getContent();
+      contentSummaries.add(new ContentSummary(
+          content.getId(), content.getType(), content.getTitle(), content.getDescription(), content.getThumbnailUrl(), content.getTags(), 0.0, 0
+      ));
+    });
+
     return new PlaylistDto(
         playlist.getId(),
         owner,
@@ -325,7 +334,7 @@ public class PlaylistService {
         playlist.getUpdatedAt(),
         subscriberCount,
         subscribedByMe,
-        List.of()
+        contentSummaries
     );
   }
 
@@ -344,7 +353,7 @@ public class PlaylistService {
       UUID subscriberIdEqual
   ) {
     return (root, query, cb) -> {
-      List<Predicate> predicates = new java.util.ArrayList<>();
+      List<Predicate> predicates = new ArrayList<>();
 
       if (keywordLike != null && !keywordLike.isBlank()) {
         predicates.add(cb.like(root.get("title"), "%" + keywordLike + "%"));

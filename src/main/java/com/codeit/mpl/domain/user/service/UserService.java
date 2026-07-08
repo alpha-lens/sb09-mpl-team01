@@ -18,9 +18,11 @@ import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.common.dto.JwtDto;
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.security.JwtTokenProvider;
 import com.codeit.mpl.infra.security.JwtUtil;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -45,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -53,6 +56,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final JwtUtil jwtUtil;
+    private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, Object> redisTemplate;
     private final BinaryContentStorage binaryContentStorage;
@@ -97,8 +101,16 @@ public class UserService {
         return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), refreshToken);
     }
 
-    public void signOut(UUID userId) {
+    public void signOut(UUID userId, String accessToken) {
         jwtUtil.deleteRefreshToken(userId);
+        if (accessToken != null) {
+            try {
+                long expirationTime = jwtTokenProvider.getExpirationTime(accessToken);
+                jwtUtil.blacklistAccessToken(accessToken, expirationTime);
+            } catch (Exception e) {
+                log.warn("Failed to blacklist access token on sign-out: {}", e.getMessage());
+            }
+        }
     }
 
     public SignInResult refresh(String refreshToken) {
@@ -247,7 +259,7 @@ public class UserService {
         User user = findUserById(userId);
         user.updateLock(request.locked());
         if (request.locked()) {
-            jwtUtil.deleteRefreshToken(userId);
+            triggerSecurityEvent(userId);
         }
         return userMapper.toDto(user);
     }
@@ -266,13 +278,40 @@ public class UserService {
         String tempPassword = generateTempPassword();
         user.updatePassword(passwordEncoder.encode(tempPassword));
         user.markTemporaryPassword();
-        jwtUtil.deleteRefreshToken(user.getId());
         redisTemplate.opsForValue().set(
                 TEMP_PASSWORD_PREFIX + user.getId(),
                 tempPassword,
                 TEMP_PASSWORD_TTL_SECONDS,
                 TimeUnit.SECONDS
         );
+        triggerSecurityEvent(user.getId());
+    }
+
+    // 권한 변경/계정 잠금/비밀번호 초기화처럼 기존 세션을 전부 무효화해야 하는 이벤트에서 호출한다.
+    // 커밋이 실제로 반영된 뒤에만 Redis에 새 토큰 버전을 반영해야, 롤백 시 잘못된 버전이 캐시되는 것을 막을 수 있다.
+    private void triggerSecurityEvent(UUID userId) {
+        userRepository.incrementTokenVersion(userId);
+        Integer versionObj = userRepository.findTokenVersionById(userId);
+        final int newVersion = versionObj != null ? versionObj : 1;
+
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                jwtUtil.updateTokenVersionInRedis(userId, newVersion);
+                                jwtUtil.deleteRefreshToken(userId);
+                            } catch (Exception e) {
+                                log.error("Failed to sync security event to Redis: {}", e.getMessage());
+                            }
+                        }
+                    }
+            );
+        } else {
+            jwtUtil.updateTokenVersionInRedis(userId, newVersion);
+            jwtUtil.deleteRefreshToken(userId);
+        }
     }
 
     public void deleteUser(UUID userId) {
