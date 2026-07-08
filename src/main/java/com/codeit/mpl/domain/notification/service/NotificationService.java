@@ -36,25 +36,27 @@ public class NotificationService {
     );
 
     String title = event.getTitle();
-    if (event.getType() == NotificationType.DM) {
+    if (event.getType() != null && event.getTargetId() != null) {
         var existingOpt = notificationRepository.findByReceiverIdAndTypeAndTargetIdAndIsReadFalse(
             event.getReceiver().getId(),
-            NotificationType.DM,
+            event.getType(),
             event.getTargetId()
         );
         if (existingOpt.isPresent()) {
             notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(
                 event.getReceiver().getId(),
-                NotificationType.DM,
+                event.getType(),
                 event.getTargetId()
             );
             notificationRepository.flush();
 
-            long unreadCount = directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(
-                event.getTargetId(),
-                event.getReceiver().getId()
-            );
-            title = event.getSender().getName() + "가 보낸 메시지가 " + unreadCount + "건 있습니다";
+            if (event.getType() == NotificationType.DM) {
+                long unreadCount = directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(
+                    event.getTargetId(),
+                    event.getReceiver().getId()
+                );
+                title = event.getSender().getName() + "가 보낸 메시지가 " + unreadCount + "건 있습니다";
+            }
         }
     }
 
