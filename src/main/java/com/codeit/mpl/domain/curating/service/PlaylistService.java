@@ -47,6 +47,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.codeit.mpl.domain.profile.entity.Follow;
+import com.codeit.mpl.domain.profile.repository.FollowRepository;
+import com.codeit.mpl.domain.notification.entity.NotificationLevel;
+import com.codeit.mpl.domain.notification.entity.NotificationType;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 @RequiredArgsConstructor
@@ -59,6 +65,8 @@ public class PlaylistService {
   private final ContentRepository contentRepository;
   private final UserRepository userRepository;
   private final ReviewRepository reviewRepository;
+  private final FollowRepository followRepository;
+  private final ApplicationEventPublisher eventPublisher;
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<PlaylistDto> getPlaylists(
@@ -162,6 +170,21 @@ public class PlaylistService {
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
     Playlist playlist = new Playlist(owner, request.title(), request.description());
     playlistRepository.save(playlist);
+
+    // 나를 팔로우하고 있는 사람들에게 알림 발송
+    List<Follow> followers = followRepository.findByFollowee(owner);
+    for (Follow follow : followers) {
+      eventPublisher.publishEvent(new NotificationEvent(
+          follow.getFollower(),
+          owner,
+          NotificationLevel.INFO,
+          "새 플레이리스트 알림",
+          owner.getName() + "님이 새 플레이리스트 [" + playlist.getTitle() + "]를 생성했습니다.",
+          NotificationType.PLAYLIST_ADDED,
+          playlist.getId()
+      ));
+    }
+
     return toDto(playlist, ownerId);
   }
 
@@ -213,6 +236,23 @@ public class PlaylistService {
     }
 
     playlistContentRepository.save(new PlaylistContent(playlist, content));
+
+    // 플레이리스트 구독자들에게 알림 발송
+    List<PlaylistSubscription> subscriptions = playlistSubscriptionRepository.findByPlaylist(playlist);
+    for (PlaylistSubscription sub : subscriptions) {
+      User subscriber = sub.getSubscriber();
+      if (!subscriber.getId().equals(playlist.getOwner().getId())) {
+        eventPublisher.publishEvent(new NotificationEvent(
+            subscriber,
+            playlist.getOwner(),
+            NotificationLevel.INFO,
+            "플레이리스트 컨텐츠 추가 알림",
+            "플레이리스트 [" + playlist.getTitle() + "]에 새 컨텐츠 [" + content.getTitle() + "]가 추가되었습니다.",
+            NotificationType.PLAYLIST_CONTENT_ADDED,
+            playlist.getId()
+        ));
+      }
+    }
   }
 
   public void removeContent(UUID ownerId, UUID playlistId, UUID contentId) {
@@ -231,6 +271,23 @@ public class PlaylistService {
     }
 
     playlistContentRepository.deleteByPlaylistAndContent(playlist, content);
+
+    // 플레이리스트 구독자들에게 알림 발송
+    List<PlaylistSubscription> subscriptions = playlistSubscriptionRepository.findByPlaylist(playlist);
+    for (PlaylistSubscription sub : subscriptions) {
+      User subscriber = sub.getSubscriber();
+      if (!subscriber.getId().equals(playlist.getOwner().getId())) {
+        eventPublisher.publishEvent(new NotificationEvent(
+            subscriber,
+            playlist.getOwner(),
+            NotificationLevel.INFO,
+            "플레이리스트 컨텐츠 삭제 알림",
+            "플레이리스트 [" + playlist.getTitle() + "]에서 컨텐츠 [" + content.getTitle() + "]가 삭제되었습니다.",
+            NotificationType.PLAYLIST_CONTENT_REMOVED,
+            playlist.getId()
+        ));
+      }
+    }
   }
 
   public void subscribePlaylist(UUID subscriberId, UUID playlistId) {
@@ -245,6 +302,19 @@ public class PlaylistService {
     }
 
     playlistSubscriptionRepository.save(new PlaylistSubscription(playlist, subscriber));
+
+    // 소유자에게 구독 알림 발송 (단, 소유자 자신이 구독하는 경우는 제외)
+    if (!playlist.getOwner().getId().equals(subscriber.getId())) {
+      eventPublisher.publishEvent(new NotificationEvent(
+          playlist.getOwner(),
+          subscriber,
+          NotificationLevel.INFO,
+          "플레이리스트 구독 알림",
+          subscriber.getName() + "님이 회원님의 플레이리스트 [" + playlist.getTitle() + "]를 구독하기 시작했습니다.",
+          NotificationType.PLAYLIST_SUBSCRIBED,
+          playlist.getId()
+      ));
+    }
   }
 
   public void unsubscribePlaylist(UUID subscriberId, UUID playlistId) {
