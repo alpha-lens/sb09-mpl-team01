@@ -234,7 +234,7 @@ public class UserService {
         UserRole newRole = request.role();
         
         user.updateRole(newRole);
-        jwtUtil.deleteRefreshToken(userId);
+        triggerSecurityEvent(userId);
 
         if (oldRole != newRole) {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
