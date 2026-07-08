@@ -6,6 +6,13 @@ on:
   push:
     branches: [ develop ]
 
+# ============================
+# ✅ CodeRabbit 수정 1
+# 최소 권한만 사용하도록 설정
+# ============================
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -25,14 +32,35 @@ jobs:
         ports:
           - 6379:6379
 
+        # ============================
+        # ✅ CodeRabbit 수정 2
+        # Redis Health Check 추가
+        # Redis가 준비될 때까지 기다림
+        # ============================
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
+
+      # ============================
+      # ✅ CodeRabbit 수정 3
+      # Git 인증정보를 checkout 이후
+      # 저장하지 않도록 설정
+      # ============================
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+
+          # CI는 캐시 사용 OK
           cache: gradle
 
       - name: Grant execute permission
@@ -47,4 +75,5 @@ jobs:
           ADMIN_EMAIL: system@mopl.io
           ADMIN_PASSWORD: mopl1!
           ADMIN_NAME: system
+
         run: ./gradlew clean test build --stacktrace --info

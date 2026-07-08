@@ -4,6 +4,13 @@ on:
   push:
     branches: [ main ]
 
+# ============================
+# ✅ CodeRabbit 수정 1
+# 최소 권한만 허용
+# ============================
+permissions:
+  contents: read
+
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: mpl-app
@@ -17,14 +24,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # ============================
+      # ✅ CodeRabbit 수정 2
+      # checkout 후 Git 인증정보 제거
+      # ============================
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
+
+          # ============================
+          # ✅ CodeRabbit 수정 3
+          # cache: gradle 제거
+          #
+          # 배포 Workflow에서는
+          # 캐시 오염(Cache Poisoning)
+          # 위험을 줄이기 위해 제거
+          # ============================
 
       - name: Grant execute permission
         run: chmod +x ./gradlew
