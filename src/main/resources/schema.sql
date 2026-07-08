@@ -130,14 +130,11 @@ CREATE TABLE IF NOT EXISTS direct_message (
 );
 
 -- 10. 시청 세션 테이블 (WatchingSession)
-DROP TABLE IF EXISTS watching_sessions;
-
-
 CREATE TABLE IF NOT EXISTS watching_sessions (
                                    id UUID PRIMARY KEY NOT NULL,
-                                   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                   watcher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                    content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
-                                   started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 11. 알림 시스템 (Notification Management)
