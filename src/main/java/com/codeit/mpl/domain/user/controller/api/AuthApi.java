@@ -3,6 +3,7 @@ package com.codeit.mpl.domain.user.controller.api;
 import com.codeit.mpl.domain.user.dto.request.ResetPasswordRequest;
 import com.codeit.mpl.domain.user.dto.request.SignInRequest;
 import com.codeit.mpl.infra.common.dto.JwtDto;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -10,7 +11,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.RequestBody;
 import java.util.Map;
@@ -32,7 +32,7 @@ public interface AuthApi {
             @ApiResponse(responseCode = "204", description = "로그아웃 성공"),
             @ApiResponse(responseCode = "401", description = "인증 필요")
     })
-    ResponseEntity<Void> signOut(UserDetails userDetails, HttpServletResponse response);
+    ResponseEntity<Void> signOut(UserPrincipal userPrincipal, String refreshToken, HttpServletResponse response);
 
     @Operation(summary = "비밀번호 초기화", description = "임시 비밀번호를 발급합니다. 유효 시간 3분.")
     @ApiResponses({

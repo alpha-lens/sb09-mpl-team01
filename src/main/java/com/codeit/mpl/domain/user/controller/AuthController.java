@@ -7,8 +7,11 @@ import com.codeit.mpl.domain.user.dto.response.SignInResult;
 import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.common.dto.JwtDto;
 import com.codeit.mpl.infra.security.JwtUtil;
+import com.codeit.mpl.infra.security.UserPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -17,7 +20,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +36,7 @@ public class AuthController implements AuthApi {
 
     private final UserService userService;
     private final JwtUtil jwtUtil;
+    private final HttpServletRequest request;
 
     @PostMapping(value = "/sign-in", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     @Override
@@ -46,9 +49,29 @@ public class AuthController implements AuthApi {
 
     @PostMapping("/sign-out")
     @Override
-    public ResponseEntity<Void> signOut(@AuthenticationPrincipal UserDetails userDetails, HttpServletResponse response) {
-        if (userDetails != null) {
-            userService.signOut(userService.resolveUserId(userDetails.getUsername()));
+    public ResponseEntity<Void> signOut(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken,
+            HttpServletResponse response) {
+        String bearerToken = request.getHeader("Authorization");
+        String accessToken = null;
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            accessToken = bearerToken.substring(7);
+        }
+
+        // access token이 이미 만료/누락돼 principal이 없더라도, 유효한 refresh token 쿠키가
+        // 남아있다면 서버 측 세션(Redis)은 반드시 무효화해야 한다 - 그렇지 않으면 로그아웃 API가
+        // 204를 반환하고도 실제로는 세션이 살아있는 상태가 된다.
+        UUID userId = userPrincipal != null ? userPrincipal.userId() : null;
+        if (userId == null && refreshToken != null) {
+            try {
+                userId = jwtUtil.extractUserIdFromRefreshToken(refreshToken);
+            } catch (Exception e) {
+                log.debug("Failed to resolve userId from refresh token on sign-out: {}", e.getMessage());
+            }
+        }
+        if (userId != null) {
+            userService.signOut(userId, accessToken);
         }
         deleteRefreshTokenCookie(response);
         return ResponseEntity.noContent().build();

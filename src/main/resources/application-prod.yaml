@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 5000
+      leak-detection-threshold: 2000
+
+  jpa:
+    show-sql: false
+
+  batch:
+    jdbc:
+      initialize-schema: never
+    job:
+      enabled: false
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      ssl:
+        enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:true}

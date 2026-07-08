@@ -1,6 +1,5 @@
 package com.codeit.mpl.infra.security;
 
-import com.codeit.mpl.domain.user.service.UserDetailsServiceImpl;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
@@ -11,26 +10,24 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.util.Collections;
 import java.util.Date;
-import lombok.RequiredArgsConstructor;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class JwtTokenProvider {
-
-    private final UserDetailsServiceImpl userDetailsService;
 
     @Value("${jwt.secret}")
     private String secretKey;
 
-    @Value("${jwt.expiration:86400000}") // 1 day
+    @Value("${jwt.expiration:900000}") // 15 minutes
     private long validityInMilliseconds;
 
     private Key key;
@@ -44,13 +41,15 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Creates a JWT token with the specified username and role.
+     * Creates a JWT token with the specified username, role, userId, and token version.
      *
      * @return a compact JWT string
      */
-    public String createToken(String username, String role) {
+    public String createToken(String username, String role, String userId, int tokenVersion) {
         Claims claims = Jwts.claims().setSubject(username);
         claims.put("role", role);
+        claims.put("userId", userId);
+        claims.put("version", tokenVersion);
 
         Date now = new Date();
         Date validity = new Date(now.getTime() + validityInMilliseconds);
@@ -65,7 +64,7 @@ public class JwtTokenProvider {
 
     /**
      * Constructs an Authentication object from a JWT token.
-     * Loads the user details from the database using the username extracted from the token.
+     * If the token does not contain a role claim, the default role "ROLE_USER" is assigned.
      *
      * @param token a JWT token
      * @return an Authentication object containing the user's credentials and authorities
@@ -73,8 +72,16 @@ public class JwtTokenProvider {
     public Authentication getAuthentication(String token) {
         Claims claims = parseClaims(token);
         String username = claims.getSubject();
-        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-        return new UsernamePasswordAuthenticationToken(userDetails, token, userDetails.getAuthorities());
+        String role = claims.get("role", String.class);
+        String userIdStr = claims.get("userId", String.class);
+        UUID userId = userIdStr != null ? UUID.fromString(userIdStr) : null;
+        Integer tokenVersionObj = claims.get("version", Integer.class);
+        int tokenVersion = tokenVersionObj != null ? tokenVersionObj : 1;
+
+        SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role != null ? role : "ROLE_USER");
+        UserPrincipal userPrincipal = new UserPrincipal(userId, username, Collections.singletonList(authority), tokenVersion);
+
+        return new UsernamePasswordAuthenticationToken(userPrincipal, token, userPrincipal.getAuthorities());
     }
 
     /**
@@ -107,6 +114,13 @@ public class JwtTokenProvider {
             log.error("JWT 토큰이 잘못되었습니다.");
         }
         return false;
+    }
+
+    /**
+     * Extracts the expiration time (in milliseconds) from a JWT token.
+     */
+    public long getExpirationTime(String token) {
+        return parseClaims(token).getExpiration().getTime();
     }
 
     /**
