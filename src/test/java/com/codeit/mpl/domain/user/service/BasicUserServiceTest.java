@@ -46,6 +46,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class BasicUserServiceTest {
@@ -70,6 +71,9 @@ class BasicUserServiceTest {
 
   @Mock
   private BinaryContentStorage binaryContentStorage;
+
+  @Mock
+  private ApplicationEventPublisher eventPublisher;
 
   @InjectMocks
   private UserService userService;
@@ -279,6 +283,7 @@ class BasicUserServiceTest {
   @Test
   @DisplayName("권한 변경 성공 - 실제 트랜잭션이 없으면 즉시 토큰 버전을 반영한다")
   void updateRole_success_appliesImmediatelyWithoutRealTransaction() {
+    given(user.getRole()).willReturn(UserRole.USER);
     given(userRepository.findById(userId)).willReturn(Optional.of(user));
     given(userRepository.findTokenVersionById(userId)).willReturn(2);
     given(userMapper.toDto(user)).willReturn(userDto);
@@ -294,6 +299,7 @@ class BasicUserServiceTest {
   @Test
   @DisplayName("권한 변경 성공 - 실제 트랜잭션 안에서는 커밋 후에만 Redis에 반영된다")
   void updateRole_success_deferredUntilCommit_insideRealTransaction() {
+    given(user.getRole()).willReturn(UserRole.USER);
     given(userRepository.findById(userId)).willReturn(Optional.of(user));
     given(userRepository.findTokenVersionById(userId)).willReturn(2);
     given(userMapper.toDto(user)).willReturn(userDto);

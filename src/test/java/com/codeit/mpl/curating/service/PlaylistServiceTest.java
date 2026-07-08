@@ -22,6 +22,10 @@ import com.codeit.mpl.domain.curating.repository.PlaylistSubscriptionRepository;
 import com.codeit.mpl.domain.curating.service.PlaylistService;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.profile.entity.Follow;
+import com.codeit.mpl.domain.profile.repository.FollowRepository;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
@@ -61,6 +65,12 @@ class PlaylistServiceTest {
   @Mock
   private ReviewRepository reviewRepository;
 
+  @Mock
+  private FollowRepository followRepository;
+
+  @Mock
+  private ApplicationEventPublisher eventPublisher;
+
   @InjectMocks
   private PlaylistService playlistService;
 
@@ -77,9 +87,15 @@ class PlaylistServiceTest {
     when(playlistSubscriptionRepository.countByPlaylist(any())).thenReturn(0L);
     when(playlistContentRepository.findByPlaylist(any())).thenReturn(List.of());
 
+    User follower = mock(User.class);
+    Follow follow = mock(Follow.class);
+    when(follow.getFollower()).thenReturn(follower);
+    when(followRepository.findByFollowee(owner)).thenReturn(List.of(follow));
+
     playlistService.createPlaylist(ownerId, request);
 
     verify(playlistRepository).save(any(Playlist.class));
+    verify(eventPublisher).publishEvent(any(NotificationEvent.class));
   }
 
   @Test
@@ -222,9 +238,18 @@ class PlaylistServiceTest {
     when(contentRepository.findById(contentId)).thenReturn(Optional.of(content));
     when(playlistContentRepository.existsByPlaylistAndContent(playlist, content)).thenReturn(false);
 
+    User subscriber = mock(User.class);
+    PlaylistSubscription sub = mock(PlaylistSubscription.class);
+    when(sub.getSubscriber()).thenReturn(subscriber);
+    when(subscriber.getId()).thenReturn(UUID.randomUUID());
+    when(playlist.getTitle()).thenReturn("Test Playlist");
+    when(content.getTitle()).thenReturn("Test Content");
+    when(playlistSubscriptionRepository.findByPlaylist(playlist)).thenReturn(List.of(sub));
+
     playlistService.addContent(ownerId, playlistId, contentId);
 
     verify(playlistContentRepository).save(any(PlaylistContent.class));
+    verify(eventPublisher).publishEvent(any(NotificationEvent.class));
   }
 
   @Test
@@ -267,9 +292,18 @@ class PlaylistServiceTest {
     when(contentRepository.findById(contentId)).thenReturn(Optional.of(content));
     when(playlistContentRepository.existsByPlaylistAndContent(playlist, content)).thenReturn(true);
 
+    User subscriber = mock(User.class);
+    PlaylistSubscription sub = mock(PlaylistSubscription.class);
+    when(sub.getSubscriber()).thenReturn(subscriber);
+    when(subscriber.getId()).thenReturn(UUID.randomUUID());
+    when(playlist.getTitle()).thenReturn("Test Playlist");
+    when(content.getTitle()).thenReturn("Test Content");
+    when(playlistSubscriptionRepository.findByPlaylist(playlist)).thenReturn(List.of(sub));
+
     playlistService.removeContent(ownerId, playlistId, contentId);
 
     verify(playlistContentRepository).deleteByPlaylistAndContent(playlist, content);
+    verify(eventPublisher).publishEvent(any(NotificationEvent.class));
   }
 
   @Test
@@ -304,14 +338,21 @@ class PlaylistServiceTest {
     User subscriber = mock(User.class);
     User owner = mock(User.class);
     Playlist playlist = mock(Playlist.class);
+    UUID ownerId = UUID.randomUUID();
 
     when(userRepository.findById(subscriberId)).thenReturn(Optional.of(subscriber));
     when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
     when(playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, subscriber)).thenReturn(false);
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(ownerId);
+    when(subscriber.getId()).thenReturn(subscriberId);
+    when(playlist.getTitle()).thenReturn("Test Playlist");
+    when(subscriber.getName()).thenReturn("SubscriberName");
 
     playlistService.subscribePlaylist(subscriberId, playlistId);
 
     verify(playlistSubscriptionRepository).save(any(PlaylistSubscription.class));
+    verify(eventPublisher).publishEvent(any(NotificationEvent.class));
   }
 
   @Test

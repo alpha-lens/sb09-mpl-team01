@@ -17,6 +17,8 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.exception.MplException;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +34,9 @@ class FollowServiceTest {
 
   @Mock
   private UserRepository userRepository;
+
+  @Mock
+  private ApplicationEventPublisher eventPublisher;
 
   @InjectMocks
   private FollowService followService;
@@ -57,6 +62,7 @@ class FollowServiceTest {
     FollowDto result = followService.follow(followerId, followeeId);
 
     verify(followRepository).save(any(Follow.class));
+    verify(eventPublisher).publishEvent(any(NotificationEvent.class));
     assertThat(result).isNotNull();
   }
 
