@@ -36,8 +36,9 @@ public class Conversation extends BaseEntity {
   private User user2;
 
   public static Conversation create(User user1, User user2) {
-    User orderedUser1 = (user1.getId().compareTo(user2.getId()) < 0) ? user1 : user2;
-    User orderedUser2 = (user1.getId().compareTo(user2.getId()) < 0) ? user2 : user1;
+    boolean isUser1Smaller = user1.getId().toString().compareTo(user2.getId().toString()) < 0;
+    User orderedUser1 = isUser1Smaller ? user1 : user2;
+    User orderedUser2 = isUser1Smaller ? user2 : user1;
 
     return Conversation.builder()
         .user1(orderedUser1)
