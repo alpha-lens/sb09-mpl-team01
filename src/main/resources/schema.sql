@@ -76,28 +76,40 @@ CREATE TABLE IF NOT EXISTS playlist_contents (
                                    id UUID PRIMARY KEY NOT NULL,
                                    playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
                                    content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
+                                   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                    CONSTRAINT uk_playlist_content UNIQUE (playlist_id, content_id)
 );
+
+ALTER TABLE playlist_contents
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 -- 6. 플레이리스트 구독 테이블 (PlaylistSubscription)
 CREATE TABLE IF NOT EXISTS playlist_subscriptions (
                                         id UUID PRIMARY KEY NOT NULL,
                                         playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
                                         subscriber_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                         CONSTRAINT uk_playlist_subscriber UNIQUE (playlist_id, subscriber_id)
 );
+
+ALTER TABLE playlist_subscriptions
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 -- 7. 팔로우 테이블 (Follow)
 CREATE TABLE IF NOT EXISTS follows (
                          id UUID PRIMARY KEY NOT NULL,
                          follower_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                          followee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                          CONSTRAINT uk_follower_followee UNIQUE (follower_id, followee_id),
                          CONSTRAINT chk_not_self_follow CHECK (follower_id <> followee_id)
 );
 
+ALTER TABLE follows
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
 -- 8. 대화방 테이블 (Conversation)
-CREATE TABLE IF NOT EXISTS conversations (
+CREATE TABLE IF NOT EXISTS conversation (
                                id UUID PRIMARY KEY NOT NULL,
                                user1_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                user2_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -107,9 +119,9 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 
 -- 9. 다이렉트 메시지 테이블 (DM)
-CREATE TABLE IF NOT EXISTS dms (
+CREATE TABLE IF NOT EXISTS direct_message (
                      id UUID PRIMARY KEY NOT NULL,
-                     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                     conversation_id UUID NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
                      sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                      receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                      content TEXT NOT NULL,
