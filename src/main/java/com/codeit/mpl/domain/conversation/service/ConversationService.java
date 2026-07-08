@@ -42,6 +42,7 @@ public class ConversationService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ActiveConversationManager activeConversationManager;
 
     @Transactional(readOnly = true)
     public Conversation getConversation(UUID conversationId) {
@@ -263,28 +264,34 @@ public class ConversationService {
 
         User receiver = conversation.getUser1().getId().equals(senderId) ? conversation.getUser2() : conversation.getUser1();
 
+        boolean isReceiverActive = activeConversationManager.isUserActiveInConversation(receiver.getId(), conversation.getId());
+
         DirectMessage dm = DirectMessage.builder()
             .conversation(conversation)
             .sender(sender)
             .receiver(receiver)
             .content(request.content())
-            .isRead(false)
+            .isRead(isReceiverActive)
             .build();
 
         directMessageRepository.save(dm);
         log.info("[ConversationService] 메시지 저장 완료 - directMessageId: {}", dm.getId());
 
-        // DM 수신 시 실시간 알림을 위한 이벤트 발행
-        log.debug("[ConversationService] 알림 이벤트 발행 - receiverId: {}, title: {}", receiver.getId(), sender.getName() + "님으로부터 메시지가 도착했습니다.");
-        eventPublisher.publishEvent(new NotificationEvent(
-            receiver,
-            sender,
-            NotificationLevel.INFO,
-            sender.getName() + "님으로부터 메시지가 도착했습니다.",
-            request.content(),
-            NotificationType.DM,
-            conversation.getId()
-        ));
+        // 수신자가 대화방을 보고 있지 않을 때만 알림 이벤트 발행
+        if (!isReceiverActive) {
+            log.debug("[ConversationService] 알림 이벤트 발행 - receiverId: {}, title: {}", receiver.getId(), sender.getName() + "님으로부터 메시지가 도착했습니다.");
+            eventPublisher.publishEvent(new NotificationEvent(
+                receiver,
+                sender,
+                NotificationLevel.INFO,
+                sender.getName() + "님으로부터 메시지가 도착했습니다.",
+                request.content(),
+                NotificationType.DM,
+                conversation.getId()
+            ));
+        } else {
+            log.debug("[ConversationService] 수신자가 대화방에 진입해 있으므로 알림 발행 생략 - receiverId: {}, conversationId: {}", receiver.getId(), conversationId);
+        }
 
         return toDmDto(dm);
     }
