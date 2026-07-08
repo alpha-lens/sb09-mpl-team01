@@ -175,8 +175,8 @@ class FollowServiceTest {
   }
 
   @Test
-  @DisplayName("팔로우 여부 조회 실패 - 팔로우하지 않음")
-  void getFollowedByMe_fail_notFound() {
+  @DisplayName("팔로우 여부 조회 - 팔로우하지 않음 → null 반환")
+  void getFollowedByMe_notFollowing() {
     UUID followerId = UUID.randomUUID();
     UUID followeeId = UUID.randomUUID();
 
@@ -187,8 +187,9 @@ class FollowServiceTest {
     when(userRepository.findById(followeeId)).thenReturn(Optional.of(followee));
     when(followRepository.findByFollowerAndFollowee(follower, followee)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> followService.getFollowedByMe(followerId, followeeId))
-        .isInstanceOf(MplException.class);
+    FollowDto result = followService.getFollowedByMe(followerId, followeeId);
+
+    assertThat(result).isNull();
   }
 
   @Test
@@ -214,5 +215,15 @@ class FollowServiceTest {
 
     assertThatThrownBy(() -> followService.getFollowerCount(userId))
         .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("팔로우 여부 조회 - 자기 자신 조회 → null 반환")
+  void getFollowedByMe_selfFollow() {
+    UUID userId = UUID.randomUUID();
+
+    FollowDto result = followService.getFollowedByMe(userId, userId);
+
+    assertThat(result).isNull();
   }
 }
