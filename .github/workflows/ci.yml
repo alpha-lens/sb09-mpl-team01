@@ -47,4 +47,4 @@ jobs:
           ADMIN_EMAIL: system@mopl.io
           ADMIN_PASSWORD: mopl1!
           ADMIN_NAME: system
-        run: ./gradlew clean test build
+        run: ./gradlew clean test build --stacktrace --info
