@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface WatchingSessionRepository extends JpaRepository<WatchingSession, UUID> {
 
-    long countByContent(Content content);
+    Long countByContent(Content content);
 }
