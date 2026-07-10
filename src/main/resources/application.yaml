@@ -48,6 +48,22 @@ mpl:
 
 content:
   collection:
+    tmdb:
+      # 초기 구축 시 영화와 TV 각각 수집할 최대 페이지
+      initial-max-pages: ${TMDB_INITIAL_MAX_PAGES:300}
+
+      # 매일 각 목록에서 수집할 최대 페이지
+      daily-max-pages: ${TMDB_DAILY_MAX_PAGES:20}
+
+    sports:
+      # 실제 서비스할 SportsDB 리그 ID
+      league-ids:
+        - "4328"
+        - "4331"
+        - "4332"
+        - "4334"
+        - "4335"
+
     scheduler:
       enabled: false
       cron: "0 0 3 * * *"

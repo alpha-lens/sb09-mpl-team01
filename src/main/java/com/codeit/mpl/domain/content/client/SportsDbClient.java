@@ -17,16 +17,25 @@ public class SportsDbClient {
     private final SportsDbProperties sportsDbProperties;
 
     private RestClient restClient() {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        SimpleClientHttpRequestFactory requestFactory =
+                new SimpleClientHttpRequestFactory();
+
         requestFactory.setConnectTimeout(Duration.ofSeconds(3));
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
 
         return RestClient.builder()
-                .baseUrl(sportsDbProperties.baseUrl() + "/" + sportsDbProperties.apiKey())
+                .baseUrl(
+                        sportsDbProperties.baseUrl()
+                                + "/"
+                                + sportsDbProperties.apiKey()
+                )
                 .requestFactory(requestFactory)
                 .build();
     }
 
+    /*
+     * 관리자 수동 검색용
+     */
     public SportsDbTeamResponse searchTeams(String keyword) {
         try {
             SportsDbTeamResponse response = restClient()
@@ -42,6 +51,7 @@ public class SportsDbClient {
             return response == null
                     ? new SportsDbTeamResponse(List.of())
                     : response;
+
         } catch (RestClientException e) {
             return new SportsDbTeamResponse(List.of());
         }
@@ -62,6 +72,33 @@ public class SportsDbClient {
             return response == null
                     ? new SportsDbEventResponse(List.of())
                     : response;
+
+        } catch (RestClientException e) {
+            return new SportsDbEventResponse(List.of());
+        }
+    }
+
+    /*
+     * 배치 수집용
+     */
+    public SportsDbEventResponse getNextEventsByLeague(
+            String leagueId
+    ) {
+        try {
+            SportsDbEventResponse response = restClient()
+                    .get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/eventsnextleague.php")
+                            .queryParam("id", leagueId)
+                            .build()
+                    )
+                    .retrieve()
+                    .body(SportsDbEventResponse.class);
+
+            return response == null
+                    ? new SportsDbEventResponse(List.of())
+                    : response;
+
         } catch (RestClientException e) {
             return new SportsDbEventResponse(List.of());
         }
@@ -82,6 +119,7 @@ public class SportsDbClient {
             return response == null
                     ? new SportsDbEventResponse(List.of())
                     : response;
+
         } catch (RestClientException e) {
             return new SportsDbEventResponse(List.of());
         }

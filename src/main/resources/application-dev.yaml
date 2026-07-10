@@ -54,3 +54,26 @@ tmdb:
 
 sportsdb:
   api-key: ""
+
+content:
+  collection:
+    tmdb:
+      # 로컬 초기 동작 확인용
+      initial-max-pages: ${TMDB_INITIAL_MAX_PAGES:5}
+
+      # 로컬 일일 동기화 확인용
+      daily-max-pages: ${TMDB_DAILY_MAX_PAGES:2}
+
+    sports:
+      league-ids:
+        - "4328"
+        - "4331"
+        - "4332"
+        - "4334"
+        - "4335"
+
+    scheduler:
+      # 로컬에서는 새벽 3시 자동 실행을 끈다.
+      enabled: false
+      cron: "0 0 3 * * *"
+      zone: "Asia/Seoul"
