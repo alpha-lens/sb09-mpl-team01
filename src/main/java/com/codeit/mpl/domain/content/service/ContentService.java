@@ -19,6 +19,7 @@ import com.codeit.mpl.domain.content.entity.ContentSourceType;
 import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
+import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.domain.content.repository.WatchingSessionRepository;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
@@ -26,20 +27,13 @@ import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
-import jakarta.persistence.criteria.Predicate;
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -281,7 +275,9 @@ public class ContentService {
     }
 
     /**
-     * 콘텐츠 목록을 커서 기반으로 조회합니다.
+     * 콘텐츠 목록을 QueryDSL 기반 커서 페이지네이션으로 조회합니다.
+     *
+     * createdAt, watcherCount, rate 정렬을 모두 DB에서 처리합니다.
      */
     @Transactional(readOnly = true)
     public CursorPageResponseDto<ContentSummary> getContents(
@@ -293,643 +289,108 @@ public class ContentService {
             String sortBy,
             Direction sortDirection
     ) {
-        validateCursorPair(cursor, idAfter);
-        validateSortBy(sortBy);
-
-        /*
-         * watcherCount와 rate는 contents 테이블의 실제 컬럼이 아니라
-         * WatchingSession 및 Review 데이터를 통해 계산되는 값입니다.
-         *
-         * 따라서 계산값 정렬은 별도 메모리 정렬 경로로 처리합니다.
-         */
-        if ("watcherCount".equals(sortBy)
-                || "rate".equals(sortBy)) {
-
-            return getContentsByCalculatedSort(
-                    cursor,
-                    idAfter,
-                    keywordLike,
-                    type,
-                    limit,
-                    sortBy,
-                    sortDirection
-            );
-        }
-
-        /*
-         * createdAt은 Content 엔티티의 실제 컬럼이므로
-         * DB 정렬과 커서 조건을 함께 사용합니다.
-         */
-        Sort.Direction direction =
-                sortDirection == Direction.ASCENDING
-                        ? Sort.Direction.ASC
-                        : Sort.Direction.DESC;
-
-        Pageable pageable = PageRequest.of(
-                0,
-                limit + 1,
-                Sort.by(direction, "createdAt")
-                        .and(
-                                Sort.by(
-                                        direction,
-                                        "id"
-                                )
-                        )
+        validateCursorPair(
+                cursor,
+                idAfter
         );
 
-        Specification<Content> specification =
-                createContentSpecification(
+        validateSortBy(sortBy);
+
+        UUID parsedIdAfter =
+                idAfter == null
+                        || idAfter.isBlank()
+                        ? null
+                        : parseIdAfter(idAfter);
+
+        List<ContentQueryRow> queryRows =
+                contentRepository.findContents(
                         cursor,
-                        idAfter,
+                        parsedIdAfter,
                         keywordLike,
                         type,
-                        "createdAt",
+                        limit,
+                        sortBy,
                         sortDirection
                 );
 
-        Page<Content> contentPage =
-                contentRepository.findAll(
-                        specification,
-                        pageable
-                );
-
-        List<Content> contents =
-                contentPage.getContent();
-
         boolean hasNext =
-                contents.size() > limit;
+                queryRows.size() > limit;
 
-        List<Content> pageContents =
+        List<ContentQueryRow> pageRows =
                 hasNext
-                        ? contents.subList(0, limit)
-                        : contents;
+                        ? queryRows.subList(
+                        0,
+                        limit
+                )
+                        : queryRows;
 
         List<ContentSummary> contentSummaries =
-                pageContents.stream()
-                        .map(this::toSummary)
+                pageRows.stream()
+                        .map(row ->
+                                contentMapper.toSummary(
+                                        row.content(),
+                                        row.averageRating(),
+                                        row.reviewCount()
+                                )
+                        )
                         .toList();
 
         String nextCursor = null;
         String nextIdAfter = null;
 
-        if (hasNext && !pageContents.isEmpty()) {
-            Content lastContent =
-                    pageContents.get(
-                            pageContents.size() - 1
+        if (hasNext && !pageRows.isEmpty()) {
+            ContentQueryRow lastRow =
+                    pageRows.get(
+                            pageRows.size() - 1
                     );
 
             nextCursor =
-                    getCursorValue(
-                            lastContent,
-                            "createdAt"
+                    getQueryCursorValue(
+                            lastRow,
+                            sortBy
                     );
 
             nextIdAfter =
-                    lastContent
+                    lastRow.content()
                             .getId()
                             .toString();
         }
 
-        return new CursorPageResponseDto<>(
-                contentSummaries,
-                nextCursor,
-                nextIdAfter,
-                hasNext,
-                contentRepository.count(
-                        createFilterSpecification(
-                                keywordLike,
-                                type
-                        )
-                ),
-                sortBy,
-                sortDirection
-        );
-    }
-
-    /**
-     * watcherCount, rate 계산 정렬용 목록 조회입니다.
-     *
-     * watcherCount와 rate는 DB 컬럼이 아니므로
-     * 검색 결과를 조회한 뒤 메모리에서 정렬합니다.
-     */
-    private CursorPageResponseDto<ContentSummary>
-    getContentsByCalculatedSort(
-            String cursor,
-            String idAfter,
-            String keywordLike,
-            ContentType type,
-            int limit,
-            String sortBy,
-            Direction sortDirection
-    ) {
-        Specification<Content> filterSpecification =
-                createFilterSpecification(
+        long totalCount =
+                contentRepository.countContents(
                         keywordLike,
                         type
                 );
 
-        List<ContentSortView> sortedContents =
-                contentRepository
-                        .findAll(filterSpecification)
-                        .stream()
-                        .map(this::toContentSortView)
-                        .sorted(
-                                createContentSortComparator(
-                                        sortBy,
-                                        sortDirection
-                                )
-                        )
-                        .toList();
-
-        int startIndex =
-                resolveStartIndex(
-                        sortedContents,
-                        cursor,
-                        idAfter,
-                        sortBy
-                );
-
-        int endIndex = Math.min(
-                startIndex + limit + 1,
-                sortedContents.size()
-        );
-
-        List<ContentSortView> selectedContents =
-                sortedContents.subList(
-                        startIndex,
-                        endIndex
-                );
-
-        boolean hasNext =
-                selectedContents.size() > limit;
-
-        List<ContentSortView> pageContents =
-                hasNext
-                        ? selectedContents.subList(
-                        0,
-                        limit
-                )
-                        : selectedContents;
-
-        List<ContentSummary> contentSummaries =
-                pageContents.stream()
-                        .map(ContentSortView::summary)
-                        .toList();
-
-        String nextCursor = null;
-        String nextIdAfter = null;
-
-        if (hasNext && !pageContents.isEmpty()) {
-            ContentSortView lastContent =
-                    pageContents.get(
-                            pageContents.size() - 1
-                    );
-
-            nextCursor =
-                    getCalculatedCursorValue(
-                            lastContent,
-                            sortBy
-                    );
-
-            nextIdAfter =
-                    lastContent.id().toString();
-        }
-
         return new CursorPageResponseDto<>(
                 contentSummaries,
                 nextCursor,
                 nextIdAfter,
                 hasNext,
-                sortedContents.size(),
+                totalCount,
                 sortBy,
                 sortDirection
         );
     }
 
-    /**
-     * 키워드 조건과 커서 조건을 함께 적용합니다.
-     */
-    private Specification<Content>
-    createContentSpecification(
-            String cursor,
-            String idAfter,
-            String keywordLike,
-            ContentType type,
-            String sortBy,
-            Direction sortDirection
-    ) {
-        return (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates =
-                    new ArrayList<>();
-
-            Predicate keywordPredicate =
-                    createKeywordPredicate(
-                            keywordLike,
-                            root,
-                            criteriaBuilder
-                    );
-
-            if (keywordPredicate != null) {
-                predicates.add(keywordPredicate);
-            }
-
-            if (type != null) {
-                predicates.add(
-                        criteriaBuilder.equal(
-                                root.get("type"),
-                                type
-                        )
-                );
-            }
-
-            Predicate cursorPredicate =
-                    createCursorPredicate(
-                            cursor,
-                            idAfter,
-                            sortBy,
-                            sortDirection,
-                            root,
-                            criteriaBuilder
-                    );
-
-            if (cursorPredicate != null) {
-                predicates.add(cursorPredicate);
-            }
-
-            return criteriaBuilder.and(
-                    predicates.toArray(
-                            new Predicate[0]
-                    )
-            );
-        };
-    }
-
-    /**
-     * 키워드와 콘텐츠 타입을 함께 적용하는 Specification입니다.
-     *
-     * keywordLike가 null 또는 빈 문자열이면 키워드 조건을 적용하지 않습니다.
-     * type이 null이면 전체 콘텐츠 타입을 조회합니다.
-     */
-    private Specification<Content>
-    createFilterSpecification(
-            String keywordLike,
-            ContentType type
-    ) {
-        return (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates =
-                    new ArrayList<>();
-
-            Predicate keywordPredicate =
-                    createKeywordPredicate(
-                            keywordLike,
-                            root,
-                            criteriaBuilder
-                    );
-
-            if (keywordPredicate != null) {
-                predicates.add(keywordPredicate);
-            }
-
-            if (type != null) {
-                predicates.add(
-                        criteriaBuilder.equal(
-                                root.get("type"),
-                                type
-                        )
-                );
-            }
-
-            return criteriaBuilder.and(
-                    predicates.toArray(
-                            new Predicate[0]
-                    )
-            );
-        };
-    }
-
-    /**
-     * 제목과 설명에서 키워드를 검색합니다.
-     */
-    private Predicate createKeywordPredicate(
-            String keywordLike,
-            jakarta.persistence.criteria.Root<Content> root,
-            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
-    ) {
-        if (keywordLike == null
-                || keywordLike.isBlank()) {
-            return null;
-        }
-
-        String keyword =
-                "%"
-                        + keywordLike
-                        .trim()
-                        .toLowerCase()
-                        + "%";
-
-        Predicate titleLike =
-                criteriaBuilder.like(
-                        criteriaBuilder.lower(
-                                root.get("title")
-                        ),
-                        keyword
-                );
-
-        Predicate descriptionLike =
-                criteriaBuilder.like(
-                        criteriaBuilder.lower(
-                                root.get("description")
-                        ),
-                        keyword
-                );
-
-        return criteriaBuilder.or(
-                titleLike,
-                descriptionLike
-        );
-    }
-
-    /**
-     * createdAt 정렬용 커서 조건을 만듭니다.
-     *
-     * createdAt이 같은 콘텐츠가 존재할 수 있으므로
-     * id를 보조 정렬 기준으로 사용합니다.
-     */
-    private Predicate createCursorPredicate(
-            String cursor,
-            String idAfter,
-            String sortBy,
-            Direction sortDirection,
-            jakarta.persistence.criteria.Root<Content> root,
-            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
-    ) {
-        if (cursor == null
-                || cursor.isBlank()
-                || idAfter == null
-                || idAfter.isBlank()) {
-            return null;
-        }
-
-        UUID idAfterValue =
-                parseIdAfter(idAfter);
-
-        if ("createdAt".equals(sortBy)) {
-            Instant cursorValue =
-                    parseInstantCursor(cursor);
-
-            Predicate sortPredicate;
-            Predicate sameSortValuePredicate;
-
-            if (sortDirection
-                    == Direction.ASCENDING) {
-
-                sortPredicate =
-                        criteriaBuilder.greaterThan(
-                                root.get("createdAt"),
-                                cursorValue
-                        );
-
-                sameSortValuePredicate =
-                        criteriaBuilder.and(
-                                criteriaBuilder.equal(
-                                        root.get("createdAt"),
-                                        cursorValue
-                                ),
-                                criteriaBuilder.greaterThan(
-                                        root.get("id"),
-                                        idAfterValue
-                                )
-                        );
-
-            } else {
-                sortPredicate =
-                        criteriaBuilder.lessThan(
-                                root.get("createdAt"),
-                                cursorValue
-                        );
-
-                sameSortValuePredicate =
-                        criteriaBuilder.and(
-                                criteriaBuilder.equal(
-                                        root.get("createdAt"),
-                                        cursorValue
-                                ),
-                                criteriaBuilder.lessThan(
-                                        root.get("id"),
-                                        idAfterValue
-                                )
-                        );
-            }
-
-            return criteriaBuilder.or(
-                    sortPredicate,
-                    sameSortValuePredicate
-            );
-        }
-
-        return null;
-    }
-
-    /**
-     * 계산 정렬에 필요한 값들을 조회합니다.
-     */
-    private ContentSortView toContentSortView(
-            Content content
-    ) {
-        Double averageRating =
-                reviewRepository
-                        .findAverageRatingByContent(
-                                content
-                        );
-
-        if (averageRating == null) {
-            averageRating = 0.0;
-        }
-
-        Integer reviewCount =
-                Math.toIntExact(
-                        reviewRepository
-                                .countByContent(
-                                        content
-                                )
-                );
-
-        Long watcherCount =
-                watchingSessionRepository
-                        .countByContent(content);
-
-        ContentSummary summary =
-                contentMapper.toSummary(
-                        content,
-                        averageRating,
-                        reviewCount
-                );
-
-        return new ContentSortView(
-                content.getId(),
-                content.getCreatedAt(),
-                watcherCount,
-                averageRating,
-                summary
-        );
-    }
-
-    /**
-     * watcherCount 또는 rate 정렬 Comparator입니다.
-     */
-    private Comparator<ContentSortView>
-    createContentSortComparator(
-            String sortBy,
-            Direction sortDirection
-    ) {
-        Comparator<ContentSortView> comparator =
-                switch (sortBy) {
-                    case "watcherCount" ->
-                            Comparator.comparing(
-                                    ContentSortView::watcherCount
-                            );
-
-                    case "rate" ->
-                            Comparator.comparing(
-                                    ContentSortView::averageRating
-                            );
-
-                    default ->
-                            throw new IllegalArgumentException(
-                                    "지원하지 않는 정렬 기준입니다."
-                            );
-                };
-
-        comparator = comparator
-                .thenComparing(
-                        ContentSortView::createdAt
-                )
-                .thenComparing(
-                        ContentSortView::id
-                );
-
-        if (sortDirection
-                == Direction.DESCENDING) {
-            comparator = comparator.reversed();
-        }
-
-        return comparator;
-    }
-
-    /**
-     * 계산 정렬 결과에서 다음 페이지 시작 위치를 찾습니다.
-     */
-    private int resolveStartIndex(
-            List<ContentSortView> sortedContents,
-            String cursor,
-            String idAfter,
-            String sortBy
-    ) {
-        if (cursor == null
-                || cursor.isBlank()
-                || idAfter == null
-                || idAfter.isBlank()) {
-            return 0;
-        }
-
-        UUID idAfterValue =
-                parseIdAfter(idAfter);
-
-        for (int i = 0;
-             i < sortedContents.size();
-             i++) {
-
-            ContentSortView content =
-                    sortedContents.get(i);
-
-            boolean sameCursorValue =
-                    matchesCalculatedCursorValue(
-                            content,
-                            cursor,
-                            sortBy
-                    );
-
-            boolean sameId =
-                    content.id()
-                            .equals(idAfterValue);
-
-            if (sameCursorValue && sameId) {
-                return i + 1;
-            }
-        }
-
-        throw new IllegalArgumentException(
-                "cursor와 idAfter가 현재 정렬 결과와 일치하지 않습니다."
-        );
-    }
-
-    /**
-     * 계산 정렬의 커서값을 비교합니다.
-     */
-    private boolean matchesCalculatedCursorValue(
-            ContentSortView content,
-            String cursor,
+    private String getQueryCursorValue(
+            ContentQueryRow row,
             String sortBy
     ) {
         return switch (sortBy) {
-            case "watcherCount" ->
-                    content.watcherCount()
-                            .equals(
-                                    parseLongCursor(
-                                            cursor
-                                    )
-                            );
+            case "createdAt" ->
+                    row.content()
+                            .getCreatedAt()
+                            .toString();
 
-            case "rate" ->
-                    Double.compare(
-                            content.averageRating(),
-                            parseDoubleCursor(cursor)
-                    ) == 0;
-
-            default ->
-                    throw new IllegalArgumentException(
-                            "지원하지 않는 정렬 기준입니다."
-                    );
-        };
-    }
-
-    private Long parseLongCursor(String cursor) {
-        try {
-            return Long.parseLong(cursor);
-
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    "watcherCount 정렬 시 cursor는 숫자여야 합니다."
-            );
-        }
-    }
-
-    private Double parseDoubleCursor(
-            String cursor
-    ) {
-        try {
-            return Double.parseDouble(cursor);
-
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    "rate 정렬 시 cursor는 숫자여야 합니다."
-            );
-        }
-    }
-
-    private String getCalculatedCursorValue(
-            ContentSortView content,
-            String sortBy
-    ) {
-        return switch (sortBy) {
             case "watcherCount" ->
                     String.valueOf(
-                            content.watcherCount()
+                            row.watcherCount()
                     );
 
             case "rate" ->
                     String.valueOf(
-                            content.averageRating()
+                            row.averageRating()
                     );
 
             default ->
@@ -1001,14 +462,31 @@ public class ContentService {
                 sportsDbClient.searchTeams(keyword);
 
         if (teamResponse == null
-                || teamResponse.teams() == null) {
+                || teamResponse.teams() == null
+                || teamResponse.teams().isEmpty()) {
+
             return List.of();
         }
 
-        return teamResponse.teams()
+        /*
+         * 검색된 모든 팀의 예정 경기를 조회합니다.
+         *
+         * 팀 개수와 팀별 경기 개수에는 임의 제한을 적용하지 않습니다.
+         * 같은 경기가 여러 팀 검색 결과에 포함될 수 있으므로
+         * SportsDB의 idEvent(externalId) 기준으로만 중복을 제거합니다.
+         */
+        Map<String, ExternalContentSearchResult>
+                resultsByExternalId =
+                new LinkedHashMap<>();
+
+        teamResponse.teams()
                 .stream()
-                .limit(3)
-                .flatMap(team -> {
+                .filter(team ->
+                        team != null
+                                && team.idTeam() != null
+                                && !team.idTeam().isBlank()
+                )
+                .forEach(team -> {
                     SportsDbEventResponse eventResponse =
                             sportsDbClient
                                     .getNextEventsByTeam(
@@ -1016,22 +494,35 @@ public class ContentService {
                                     );
 
                     if (eventResponse == null
-                            || eventResponse.events()
-                            == null) {
+                            || eventResponse.events() == null
+                            || eventResponse.events().isEmpty()) {
 
-                        return List
-                                .<ExternalContentSearchResult>of()
-                                .stream();
+                        return;
                     }
 
-                    return eventResponse.events()
+                    eventResponse.events()
                             .stream()
-                            .limit(3)
+                            .filter(event ->
+                                    event != null
+                                            && event.idEvent() != null
+                                            && !event.idEvent().isBlank()
+                                            && event.strEvent() != null
+                                            && !event.strEvent().isBlank()
+                            )
                             .map(
                                     this::toSportsExternalSearchResult
+                            )
+                            .forEach(result ->
+                                    resultsByExternalId.putIfAbsent(
+                                            result.externalId(),
+                                            result
+                                    )
                             );
-                })
-                .toList();
+                });
+
+        return List.copyOf(
+                resultsByExternalId.values()
+        );
     }
 
     /**
@@ -1479,33 +970,7 @@ public class ContentService {
         }
     }
 
-    private Instant parseInstantCursor(
-            String cursor
-    ) {
-        try {
-            return Instant.parse(cursor);
 
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException(
-                    "createdAt 정렬 시 cursor는 올바른 Instant 형식이어야 합니다."
-            );
-        }
-    }
-
-    private String getCursorValue(
-            Content content,
-            String sortBy
-    ) {
-        if ("createdAt".equals(sortBy)) {
-            return content
-                    .getCreatedAt()
-                    .toString();
-        }
-
-        throw new IllegalArgumentException(
-                "지원하지 않는 정렬 기준입니다."
-        );
-    }
 
     private void validateSortBy(
             String sortBy
@@ -1587,15 +1052,4 @@ public class ContentService {
         );
     }
 
-    /**
-     * 계산 정렬에 필요한 내부 전용 데이터입니다.
-     */
-    private record ContentSortView(
-            UUID id,
-            Instant createdAt,
-            Long watcherCount,
-            Double averageRating,
-            ContentSummary summary
-    ) {
-    }
 }

@@ -48,7 +48,7 @@ ALTER TABLE contents
 UPDATE contents
 SET source_type = 'TMDB_MOVIE'
 WHERE source_type = 'TMDB'
-    AND type = 'MOVID';
+    AND type = 'MOVIE';
 
 UPDATE contents
 SET source_type = 'TMDB_TV'

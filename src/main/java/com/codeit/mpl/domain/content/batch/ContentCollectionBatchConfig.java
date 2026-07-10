@@ -14,8 +14,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ContentCollectionBatchConfig {
 
-    /*
-     * 서비스 최초 구축 시 한 번 실행
+    /**
+     * 서비스 최초 구축 시 관리자가 한 번 실행하는 초기 수집 Job입니다.
      */
     @Bean
     public Job initialContentCollectionJob(
@@ -34,8 +34,8 @@ public class ContentCollectionBatchConfig {
                 .build();
     }
 
-    /*
-     * 매일 새벽 3시 실행
+    /**
+     * 매일 오전 3시에 실행하는 일일 동기화 Job입니다.
      */
     @Bean
     public Job dailyContentCollectionJob(
@@ -96,7 +96,7 @@ public class ContentCollectionBatchConfig {
                 jobRepository
         )
                 .tasklet((contribution, chunkContext) -> {
-                    service.collectUpcomingEvents();
+                    service.collectInitialSeasonEvents();
                     return RepeatStatus.FINISHED;
                 })
                 .build();
@@ -144,7 +144,7 @@ public class ContentCollectionBatchConfig {
                 jobRepository
         )
                 .tasklet((contribution, chunkContext) -> {
-                    service.collectUpcomingEvents();
+                    service.collectCurrentSeasonEvents();
                     return RepeatStatus.FINISHED;
                 })
                 .build();
