@@ -17,6 +17,9 @@ ALTER TABLE users
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 1;
 
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL' CHECK (provider IN ('LOCAL', 'GOOGLE', 'KAKAO'));
+
 -- 2. 콘텐츠 테이블 (contents)
 CREATE TABLE IF NOT EXISTS contents (
                           id UUID PRIMARY KEY NOT NULL,
