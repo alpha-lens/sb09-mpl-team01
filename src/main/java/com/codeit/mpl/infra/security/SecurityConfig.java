@@ -1,5 +1,6 @@
 package com.codeit.mpl.infra.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +31,7 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtUtil jwtUtil;
+    private final ObjectMapper objectMapper;
 
     /**
      * Provides a password encoder bean using BCrypt hashing.
@@ -78,7 +80,7 @@ public class SecurityConfig {
                 .requestMatchers("/ws/**", "/ws-chat/**").permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, jwtUtil), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, jwtUtil, objectMapper), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

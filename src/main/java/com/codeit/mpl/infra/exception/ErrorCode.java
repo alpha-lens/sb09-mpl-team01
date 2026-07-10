@@ -10,7 +10,7 @@ public enum ErrorCode {
 
     // 사용자
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "UserNotFoundException", "사용자를 찾을 수 없습니다."),
-    EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "EmailAlreadyExistsException", "이미 사용 중인 이메일입니다."),
+    EMAIL_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "EmailAlreadyExistsException", "이미 사용 중인 이메일입니다."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "InvalidCredentialsException", "이메일 또는 비밀번호가 올바르지 않습니다."),
     ACCOUNT_LOCKED(HttpStatus.FORBIDDEN, "AccountLockedException", "잠긴 계정입니다."),
 
@@ -18,7 +18,7 @@ public enum ErrorCode {
     TEMPORARY_PASSWORD_EXPIRED(HttpStatus.UNAUTHORIZED, "TemporaryPasswordExpiredException", "임시 비밀번호가 만료되었습니다."),
 
     // 토큰
-    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "InvalidTokenException", "유효하지 않은 토큰입니다."),
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "InvalidTokenException", "잘못된 혹은 만료된 refresh token 입니다"),
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "TokenExpiredException", "만료된 토큰입니다."),
 
     // 인가
