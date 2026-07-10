@@ -49,6 +49,11 @@ public class User extends BaseUpdatableEntity {
   @Builder.Default
   private int tokenVersion = 1;
 
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  @Builder.Default
+  private AuthProvider provider = AuthProvider.LOCAL;
+
   public void updateName(String name) { this.name = name; }
   public void updatePassword(String encodedPassword) { this.password = encodedPassword; }
   public void updateRole(UserRole role) { this.role = role; }

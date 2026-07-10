@@ -6,6 +6,7 @@ import com.codeit.mpl.domain.user.dto.request.SignInRequest;
 import com.codeit.mpl.domain.user.dto.response.SignInResult;
 import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.common.dto.JwtDto;
+import com.codeit.mpl.infra.security.CookieUtil;
 import com.codeit.mpl.infra.security.JwtUtil;
 import com.codeit.mpl.infra.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,8 +15,6 @@ import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import java.util.Map;
@@ -43,7 +42,7 @@ public class AuthController implements AuthApi {
     public ResponseEntity<JwtDto> signInForm(@Valid SignInRequest request, HttpServletResponse response) {
         log.info("signIn (Form)");
         SignInResult result = userService.signIn(request);
-        setRefreshTokenCookie(response, result.refreshToken());
+        CookieUtil.setRefreshTokenCookie(response, result.refreshToken(), jwtUtil.getRefreshExpirationMs() / 1000);
         return ResponseEntity.ok(result.jwtDto());
     }
 
@@ -73,7 +72,7 @@ public class AuthController implements AuthApi {
         if (userId != null) {
             userService.signOut(userId, accessToken);
         }
-        deleteRefreshTokenCookie(response);
+        CookieUtil.deleteRefreshTokenCookie(response);
         return ResponseEntity.noContent().build();
     }
 
@@ -90,7 +89,7 @@ public class AuthController implements AuthApi {
             @CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken,
             HttpServletResponse response) {
         SignInResult result = userService.refresh(refreshToken);
-        setRefreshTokenCookie(response, result.refreshToken());
+        CookieUtil.setRefreshTokenCookie(response, result.refreshToken(), jwtUtil.getRefreshExpirationMs() / 1000);
         return ResponseEntity.ok(result.jwtDto());
     }
 
@@ -102,27 +101,5 @@ public class AuthController implements AuthApi {
                 "parameterName", csrfToken.getParameterName(),
                 "token", csrfToken.getToken()
         ));
-    }
-
-    private void setRefreshTokenCookie(HttpServletResponse response, String token) {
-        ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", token)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(jwtUtil.getRefreshExpirationMs() / 1000)
-                .sameSite("Lax")
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-    }
-
-    private void deleteRefreshTokenCookie(HttpServletResponse response) {
-        ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", "")
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(0)
-                .sameSite("Lax")
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 }

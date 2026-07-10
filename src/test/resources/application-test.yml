@@ -23,6 +23,17 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-google-client-id
+            client-secret: test-google-client-secret
+          kakao:
+            client-id: test-kakao-client-id
+            client-secret: test-kakao-client-secret
+
 jwt:
   secret: testsecretkeytestsecretkeytestsecretkeytestsecretkeytestsecretkey
 admin:
@@ -38,3 +49,7 @@ tmdb:
 sportsdb:
   base-url: https://www.thesportsdb.com/api/v1/json
   api-key: testkey
+
+mpl:
+  frontend:
+    base-url: http://localhost:5173

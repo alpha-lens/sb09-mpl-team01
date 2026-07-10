@@ -9,8 +9,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -32,16 +30,9 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
-
-    /**
-     * Provides a password encoder bean using BCrypt hashing.
-     *
-     * @return a PasswordEncoder instance using the BCrypt algorithm
-     */
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
     /**
      * Configures HTTP security rules and builds the security filter chain.
@@ -78,7 +69,13 @@ public class SecurityConfig {
                 .requestMatchers("/", "/index.html", "/favicon.svg", "/static/**", "/assets/**", "/uploads/**","/profile-images/**").permitAll()
                 .requestMatchers("/api/notifications/subscribe").permitAll()
                 .requestMatchers("/ws/**", "/ws-chat/**").permitAll()
+                .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .anyRequest().authenticated()
+            )
+            .oauth2Login(oauth2 -> oauth2
+                .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
+                .successHandler(oAuth2LoginSuccessHandler)
+                .failureHandler(oAuth2LoginFailureHandler)
             )
             .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, jwtUtil, objectMapper), UsernamePasswordAuthenticationFilter.class);
 

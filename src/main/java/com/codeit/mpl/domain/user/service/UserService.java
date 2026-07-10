@@ -9,6 +9,7 @@ import com.codeit.mpl.domain.user.dto.request.UserRoleUpdateRequest;
 import com.codeit.mpl.domain.user.dto.request.UserUpdateRequest;
 import com.codeit.mpl.domain.user.dto.response.SignInResult;
 import com.codeit.mpl.domain.user.dto.response.UserDto;
+import com.codeit.mpl.domain.user.entity.AuthProvider;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.mapper.UserMapper;
@@ -115,6 +116,34 @@ public class UserService {
                 log.warn("Failed to blacklist access token on sign-out: {}", e.getMessage());
             }
         }
+    }
+
+    public UUID resolveOrCreateOAuthUser(String email, String name, AuthProvider provider) {
+        User user = userRepository.findByEmail(email)
+                .orElseGet(() -> registerOAuthUser(email, name, provider));
+        if (user.isLocked()) {
+            throw new AccountLockedException();
+        }
+        return user.getId();
+    }
+
+    // 소셜 계정은 폼 로그인이 불가능하므로, 사용하지 않을 임의 비밀번호를 인코딩해 넣어둔다.
+    private User registerOAuthUser(String email, String name, AuthProvider provider) {
+        User user = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .name(name)
+                .provider(provider)
+                .build();
+        return userRepository.save(user);
+    }
+
+    public SignInResult issueTokens(UUID userId) {
+        User user = findUserById(userId);
+        jwtUtil.deleteRefreshToken(userId);
+        String accessToken = jwtUtil.generateAccessToken(user);
+        String refreshToken = jwtUtil.generateRefreshToken(userId);
+        return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), refreshToken);
     }
 
     public SignInResult refresh(String refreshToken) {
