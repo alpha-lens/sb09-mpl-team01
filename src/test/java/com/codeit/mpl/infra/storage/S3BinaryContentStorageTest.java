@@ -7,7 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.storage.StorageUploadFailedException;
+import com.codeit.mpl.infra.exception.storage.StorageUrlGenerationFailedException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,7 +66,7 @@ class S3BinaryContentStorageTest {
     }
 
     @Test
-    void 업로드_중_SdkException이_발생하면_MplException으로_감싸서_던진다() {
+    void 업로드_중_SdkException이_발생하면_StorageUploadFailedException이_발생한다() {
         MockMultipartFile file = new MockMultipartFile(
                 "image", "profile.png", "image/png", "test-bytes".getBytes(StandardCharsets.UTF_8)
         );
@@ -73,7 +74,8 @@ class S3BinaryContentStorageTest {
                 .thenThrow(SdkClientException.create("네트워크 오류"));
 
         assertThatThrownBy(() -> storage.put("profile-images/user-1/profile.png", file))
-                .isInstanceOf(MplException.class);
+                .isInstanceOf(StorageUploadFailedException.class)
+                .hasMessage("파일 업로드에 실패했습니다.");
     }
 
     @Test
@@ -85,6 +87,16 @@ class S3BinaryContentStorageTest {
         String url = storage.getUrl("profile-images/user-1/profile.png");
 
         assertThat(url).isEqualTo("https://test-bucket.s3.amazonaws.com/key?signature=abc");
+    }
+
+    @Test
+    void getUrl_중_SdkException이_발생하면_StorageUrlGenerationFailedException이_발생한다() {
+        when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class)))
+                .thenThrow(SdkClientException.create("네트워크 오류"));
+
+        assertThatThrownBy(() -> storage.getUrl("profile-images/user-1/profile.png"))
+                .isInstanceOf(StorageUrlGenerationFailedException.class)
+                .hasMessage("파일 URL 생성에 실패했습니다.");
     }
 
     @Test

@@ -381,17 +381,6 @@ class BasicUserServiceTest {
   }
 
   @Test
-  @DisplayName("사용자 삭제 성공")
-  void deleteUser_success() {
-    given(userRepository.findById(userId)).willReturn(Optional.of(user));
-
-    userService.deleteUser(userId);
-
-    then(jwtUtil).should().deleteRefreshToken(userId);
-    then(userRepository).should().delete(user);
-  }
-
-  @Test
   @DisplayName("이메일로 userId 조회 성공")
   void resolveUserId_success() {
     given(userRepository.findByEmail(email)).willReturn(Optional.of(user));

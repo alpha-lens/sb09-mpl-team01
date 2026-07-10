@@ -2,8 +2,7 @@ package com.codeit.mpl.infra.security;
 
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
-import com.codeit.mpl.infra.exception.ErrorCode;
-import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.user.InvalidTokenException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -50,13 +49,13 @@ public class JwtUtil {
     }
 
     public UUID extractUserIdFromRefreshToken(String token) {
-        if (token == null) throw new MplException(ErrorCode.INVALID_TOKEN);
+        if (token == null) throw new InvalidTokenException();
         String[] parts = token.split(":", 2);
-        if (parts.length != 2) throw new MplException(ErrorCode.INVALID_TOKEN);
+        if (parts.length != 2) throw new InvalidTokenException();
         try {
             return UUID.fromString(parts[0]);
         } catch (IllegalArgumentException e) {
-            throw new MplException(ErrorCode.INVALID_TOKEN);
+            throw new InvalidTokenException();
         }
     }
 

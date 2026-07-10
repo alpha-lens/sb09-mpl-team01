@@ -1,7 +1,7 @@
 package com.codeit.mpl.infra.storage;
 
-import com.codeit.mpl.infra.exception.ErrorCode;
-import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.storage.StorageUploadFailedException;
+import com.codeit.mpl.infra.exception.storage.StorageUrlGenerationFailedException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -74,7 +74,7 @@ public class S3BinaryContentStorage implements BinaryContentStorage {
             s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
             return key;
         } catch (IOException | SdkException e) {
-            throw new MplException(ErrorCode.STORAGE_UPLOAD_FAILED);
+            throw new StorageUploadFailedException();
         }
     }
 
@@ -92,7 +92,7 @@ public class S3BinaryContentStorage implements BinaryContentStorage {
             PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
             return presignedRequest.url().toString();
         } catch (SdkException e) {
-            throw new MplException(ErrorCode.STORAGE_URL_GENERATION_FAILED);
+            throw new StorageUrlGenerationFailedException();
         }
     }
 
