@@ -9,6 +9,7 @@ import com.codeit.mpl.domain.user.dto.request.UserRoleUpdateRequest;
 import com.codeit.mpl.domain.user.dto.request.UserUpdateRequest;
 import com.codeit.mpl.domain.user.dto.response.SignInResult;
 import com.codeit.mpl.domain.user.dto.response.UserDto;
+import com.codeit.mpl.domain.user.entity.AuthProvider;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.mapper.UserMapper;
@@ -16,8 +17,12 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.common.dto.JwtDto;
-import com.codeit.mpl.infra.exception.ErrorCode;
-import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.user.AccountLockedException;
+import com.codeit.mpl.infra.exception.user.EmailAlreadyExistsException;
+import com.codeit.mpl.infra.exception.user.InvalidCredentialsException;
+import com.codeit.mpl.infra.exception.user.InvalidTokenException;
+import com.codeit.mpl.infra.exception.user.TemporaryPasswordExpiredException;
+import com.codeit.mpl.infra.exception.user.UserNotFoundException;
 import com.codeit.mpl.infra.security.JwtTokenProvider;
 import com.codeit.mpl.infra.security.JwtUtil;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
@@ -70,7 +75,7 @@ public class UserService {
 
     public UserDto register(UserCreateRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new MplException(ErrorCode.EMAIL_ALREADY_EXISTS);
+            throw new EmailAlreadyExistsException();
         }
         User user = User.builder()
                 .email(request.email())
@@ -82,18 +87,18 @@ public class UserService {
 
     public SignInResult signIn(SignInRequest request) {
         User user = userRepository.findByEmail(request.username())
-                .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(UserNotFoundException::new);
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new MplException(ErrorCode.INVALID_CREDENTIALS);
+            throw new InvalidCredentialsException();
         }
         if (user.isTemporaryPassword()) {
             Boolean hasTempKey = redisTemplate.hasKey(TEMP_PASSWORD_PREFIX + user.getId());
             if (hasTempKey == null || !hasTempKey) {
-                throw new MplException(ErrorCode.TEMPORARY_PASSWORD_EXPIRED);
+                throw new TemporaryPasswordExpiredException();
             }
         }
         if (user.isLocked()) {
-            throw new MplException(ErrorCode.ACCOUNT_LOCKED);
+            throw new AccountLockedException();
         }
         jwtUtil.deleteRefreshToken(user.getId());
         String accessToken = jwtUtil.generateAccessToken(user);
@@ -113,9 +118,37 @@ public class UserService {
         }
     }
 
+    public UUID resolveOrCreateOAuthUser(String email, String name, AuthProvider provider) {
+        User user = userRepository.findByEmail(email)
+                .orElseGet(() -> registerOAuthUser(email, name, provider));
+        if (user.isLocked()) {
+            throw new AccountLockedException();
+        }
+        return user.getId();
+    }
+
+    // 소셜 계정은 폼 로그인이 불가능하므로, 사용하지 않을 임의 비밀번호를 인코딩해 넣어둔다.
+    private User registerOAuthUser(String email, String name, AuthProvider provider) {
+        User user = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .name(name)
+                .provider(provider)
+                .build();
+        return userRepository.save(user);
+    }
+
+    public SignInResult issueTokens(UUID userId) {
+        User user = findUserById(userId);
+        jwtUtil.deleteRefreshToken(userId);
+        String accessToken = jwtUtil.generateAccessToken(user);
+        String refreshToken = jwtUtil.generateRefreshToken(userId);
+        return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), refreshToken);
+    }
+
     public SignInResult refresh(String refreshToken) {
         if (!jwtUtil.validateRefreshToken(refreshToken)) {
-            throw new MplException(ErrorCode.INVALID_TOKEN);
+            throw new InvalidTokenException();
         }
         UUID userId = jwtUtil.extractUserIdFromRefreshToken(refreshToken);
         User user = findUserById(userId);
@@ -274,7 +307,7 @@ public class UserService {
 
     public void resetPassword(ResetPasswordRequest request) {
         User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(UserNotFoundException::new);
         String tempPassword = generateTempPassword();
         user.updatePassword(passwordEncoder.encode(tempPassword));
         user.markTemporaryPassword();
@@ -314,22 +347,16 @@ public class UserService {
         }
     }
 
-    public void deleteUser(UUID userId) {
-        User user = findUserById(userId);
-        jwtUtil.deleteRefreshToken(userId);
-        userRepository.delete(user);
-    }
-
     @Transactional(readOnly = true)
     public UUID resolveUserId(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND))
+                .orElseThrow(UserNotFoundException::new)
                 .getId();
     }
 
     private User findUserById(UUID userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(UserNotFoundException::new);
     }
 
     private Specification<User> buildFilterSpec(String emailLike, UserRole roleEqual, Boolean isLocked) {

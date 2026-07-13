@@ -1,7 +1,13 @@
 package com.codeit.mpl.infra.storage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
+import com.codeit.mpl.infra.exception.storage.StorageInvalidKeyException;
+import com.codeit.mpl.infra.exception.storage.StorageUploadFailedException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -10,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 class LocalBinaryContentStorageTest {
 
@@ -64,5 +71,26 @@ class LocalBinaryContentStorageTest {
     @Test
     void 존재하지_않는_key를_삭제해도_예외가_발생하지_않는다() {
         storage.delete("no-such-key.png");
+    }
+
+    @Test
+    void 루트_경로를_벗어나는_key로_업로드하면_StorageInvalidKeyException이_발생한다() {
+        MockMultipartFile file = new MockMultipartFile(
+                "image", "profile.png", "image/png", "test-bytes".getBytes(StandardCharsets.UTF_8)
+        );
+
+        assertThatThrownBy(() -> storage.put("../outside.png", file))
+                .isInstanceOf(StorageInvalidKeyException.class)
+                .hasMessage("허용되지 않는 파일 경로입니다.");
+    }
+
+    @Test
+    void 업로드_중_IOException이_발생하면_StorageUploadFailedException이_발생한다() throws IOException {
+        MultipartFile file = mock(MultipartFile.class);
+        doThrow(new IOException("디스크 오류")).when(file).transferTo(any(Path.class));
+
+        assertThatThrownBy(() -> storage.put("profile-images/user-1/profile.png", file))
+                .isInstanceOf(StorageUploadFailedException.class)
+                .hasMessage("파일 업로드에 실패했습니다.");
     }
 }

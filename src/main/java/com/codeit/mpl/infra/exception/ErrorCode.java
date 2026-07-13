@@ -18,7 +18,7 @@ public enum ErrorCode {
     TEMPORARY_PASSWORD_EXPIRED(HttpStatus.UNAUTHORIZED, "TemporaryPasswordExpiredException", "임시 비밀번호가 만료되었습니다."),
 
     // 토큰
-    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "InvalidTokenException", "유효하지 않은 토큰입니다."),
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "InvalidTokenException", "잘못된 혹은 만료된 refresh token 입니다"),
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "TokenExpiredException", "만료된 토큰입니다."),
 
     // 인가

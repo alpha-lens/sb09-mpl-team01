@@ -1,7 +1,7 @@
 package com.codeit.mpl.infra.storage;
 
-import com.codeit.mpl.infra.exception.ErrorCode;
-import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.storage.StorageInvalidKeyException;
+import com.codeit.mpl.infra.exception.storage.StorageUploadFailedException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -28,13 +28,13 @@ public class LocalBinaryContentStorage implements BinaryContentStorage {
     @Override
     public String put(String key, MultipartFile file) {
         Path target = resolveWithinRoot(key)
-                .orElseThrow(() -> new MplException(ErrorCode.STORAGE_INVALID_KEY));
+                .orElseThrow(StorageInvalidKeyException::new);
         try {
             Files.createDirectories(target.getParent());
             file.transferTo(target);
             return key;
         } catch (IOException e) {
-            throw new MplException(ErrorCode.STORAGE_UPLOAD_FAILED);
+            throw new StorageUploadFailedException();
         }
     }
 
