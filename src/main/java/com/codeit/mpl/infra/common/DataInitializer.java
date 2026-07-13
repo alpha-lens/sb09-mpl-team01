@@ -1,8 +1,10 @@
 package com.codeit.mpl.infra.common;
 
 import com.codeit.mpl.domain.content.entity.Content;
+import com.codeit.mpl.domain.content.entity.ContentDocument;
 import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
+import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.curating.entity.PlaylistContent;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
@@ -34,6 +36,7 @@ public class DataInitializer implements ApplicationRunner {
     private final PlaylistContentRepository playlistContentRepository;
     private final ReviewRepository reviewRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ContentSearchRepository contentSearchRepository;
 
     @Value("${admin.email}")
     private String adminEmail;
@@ -162,6 +165,28 @@ public class DataInitializer implements ApplicationRunner {
             reviewRepository.save(new Review(admin, interstellar, "놀란 감독의 우주적 상상력과 한스 짐mer의 음악이 어우러진 최고의 SF 영화입니다.", 4));
             reviewRepository.save(new Review(admin, sonHighlight, "주말 예능 축구는 언제나 최고입니다. 손흥민 최고!", 5));
             log.info("Seeded 3 reviews.");
+        }
+
+        // 3. Sync existing database contents with Elasticsearch on startup
+        syncDatabaseWithElasticsearch();
+    }
+
+    private void syncDatabaseWithElasticsearch() {
+        log.info("Starting database contents sync with Elasticsearch...");
+        try {
+            long dbCount = contentRepository.count();
+            if (dbCount > 0) {
+                List<Content> allContents = contentRepository.findAll();
+                List<ContentDocument> documents = allContents.stream()
+                        .map(ContentDocument::from)
+                        .toList();
+                contentSearchRepository.saveAll(documents);
+                log.info("Successfully synced {} contents to Elasticsearch.", documents.size());
+            } else {
+                log.info("No content in database to sync.");
+            }
+        } catch (Exception e) {
+            log.error("Failed to sync database contents with Elasticsearch on startup", e);
         }
     }
 }
