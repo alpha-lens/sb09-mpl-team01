@@ -1,13 +1,16 @@
 spring:
   main:
     allow-bean-definition-overriding: true
-
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
     driver-class-name: org.h2.Driver
     username: sa
     password:
-
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -15,16 +18,16 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
   sql:
     init:
       mode: never
-
   data:
     redis:
       host: localhost
       port: 6379
-
+    elasticsearch:
+      repositories:
+        enabled: false
   kafka:
     bootstrap-servers: localhost:9092
 
@@ -45,7 +48,6 @@ spring:
 
 jwt:
   secret: testsecretkeytestsecretkeytestsecretkeytestsecretkeytestsecretkey
-
 admin:
   email: admin@test.com
   password: adminpassword
@@ -59,7 +61,3 @@ tmdb:
 sportsdb:
   base-url: https://www.thesportsdb.com/api/v1/json
   api-key: testkey
-
-mpl:
-  frontend:
-    base-url: http://localhost:5173
