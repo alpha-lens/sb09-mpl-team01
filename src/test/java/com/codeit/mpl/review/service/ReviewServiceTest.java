@@ -235,6 +235,22 @@ class ReviewServiceTest {
   }
 
   @Test
+  @DisplayName("리뷰 목록 조회 - 정렬 기준이 rating인 경우")
+  void getReviews_sortByRating_success() {
+    UUID contentId = UUID.randomUUID();
+    Content content = mock(Content.class);
+
+    when(contentRepository.findById(contentId)).thenReturn(Optional.of(content));
+    when(reviewRepository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(Page.empty());
+    when(reviewRepository.count(any(Specification.class))).thenReturn(0L);
+
+    reviewService.getReviews(contentId, null, null, 10, "rating", Direction.DESCENDING);
+
+    verify(reviewRepository).findAll(any(Specification.class), any(Pageable.class));
+  }
+
+  @Test
   @DisplayName("리뷰 목록 조회 실패 - 존재하지 않는 콘텐츠")
   void getReviews_fail_contentNotFound() {
     UUID contentId = UUID.randomUUID();
@@ -268,5 +284,60 @@ class ReviewServiceTest {
     assertThatThrownBy(() ->
         reviewService.getReviews(contentId, null, null, 10, "invalidField", Direction.DESCENDING)
     ).isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("리뷰 생성 실패 - DB 제약 조건 위반(DataIntegrityViolationException)")
+  void createReview_fail_dataIntegrity() {
+    UUID authorId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+    ReviewCreateRequest request = new ReviewCreateRequest(contentId, "테스트", 5);
+
+    User author = mock(User.class);
+    Content content = mock(Content.class);
+
+    when(userRepository.findById(authorId)).thenReturn(Optional.of(author));
+    when(contentRepository.findById(contentId)).thenReturn(Optional.of(content));
+    // 리포지토리가 예외를 던지도록 모킹
+    when(reviewRepository.save(any())).thenThrow(new org.springframework.dao.DataIntegrityViolationException("uk_review_author_content"));
+
+    assertThatThrownBy(() -> reviewService.createReview(authorId, request))
+        .isInstanceOf(com.codeit.mpl.infra.exception.review.ReviewAlreadyExistsException.class);
+  }
+
+  @Test
+  @DisplayName("리뷰 목록 조회 - 커서가 null이거나 비어있을 때 성공")
+  void getReviews_nullCursor_success() {
+    UUID contentId = UUID.randomUUID();
+    Content content = mock(Content.class);
+
+    when(contentRepository.findById(contentId)).thenReturn(Optional.of(content));
+    when(reviewRepository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(Page.empty());
+    when(reviewRepository.count(any(Specification.class))).thenReturn(0L);
+
+    reviewService.getReviews(contentId, null, null, 10, "createdAt", Direction.DESCENDING);
+
+    verify(reviewRepository).findAll(any(Specification.class), any(Pageable.class));
+  }
+
+  @Test
+  @DisplayName("리뷰 생성 실패 - DB 제약 조건 예외 발생 시 전파")
+  void createReview_fail_unhandledDataIntegrity() {
+    UUID authorId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+    ReviewCreateRequest request = new ReviewCreateRequest(contentId, "테스트", 5);
+
+    User author = mock(User.class);
+    Content content = mock(Content.class);
+
+    when(userRepository.findById(authorId)).thenReturn(Optional.of(author));
+    when(contentRepository.findById(contentId)).thenReturn(Optional.of(content));
+
+    // uk_review_author_content 이름이 아닌 다른 예외를 던지도록 설정하여 else 문 타기
+    when(reviewRepository.save(any())).thenThrow(new org.springframework.dao.DataIntegrityViolationException("other_exception"));
+
+    assertThatThrownBy(() -> reviewService.createReview(authorId, request))
+        .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
   }
 }

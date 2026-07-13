@@ -15,6 +15,10 @@ import com.codeit.mpl.domain.profile.service.FollowService;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.exception.follow.FollowAlreadyExistsException;
+import com.codeit.mpl.infra.exception.follow.FollowForbiddenException;
+import com.codeit.mpl.infra.exception.follow.FollowNotFoundException;
+import com.codeit.mpl.infra.exception.follow.FollowSelfException;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
@@ -72,7 +76,7 @@ class FollowServiceTest {
     UUID userId = UUID.randomUUID();
 
     assertThatThrownBy(() -> followService.follow(userId, userId))
-        .isInstanceOf(MplException.class);
+        .isInstanceOf(FollowSelfException.class);
   }
 
   @Test
@@ -89,7 +93,7 @@ class FollowServiceTest {
     when(followRepository.existsByFollowerAndFollowee(follower, followee)).thenReturn(true);
 
     assertThatThrownBy(() -> followService.follow(followerId, followeeId))
-        .isInstanceOf(MplException.class);
+        .isInstanceOf(FollowAlreadyExistsException.class);
 
     verify(followRepository, never()).save(any(Follow.class));
   }
@@ -102,6 +106,7 @@ class FollowServiceTest {
 
     when(userRepository.findById(followerId)).thenReturn(Optional.empty());
 
+    // UserNotFoundException이 따로 없고 MplException(ErrorCode)를 던지므로 여기는 MplException 유지
     assertThatThrownBy(() -> followService.follow(followerId, followeeId))
         .isInstanceOf(MplException.class);
   }
@@ -133,7 +138,7 @@ class FollowServiceTest {
     when(followRepository.findById(followId)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> followService.unfollow(followerId, followId))
-        .isInstanceOf(MplException.class);
+        .isInstanceOf(FollowNotFoundException.class);
 
     verify(followRepository, never()).delete(any(Follow.class));
   }
@@ -153,7 +158,7 @@ class FollowServiceTest {
     when(follower.getId()).thenReturn(otherUserId);
 
     assertThatThrownBy(() -> followService.unfollow(followerId, followId))
-        .isInstanceOf(MplException.class);
+        .isInstanceOf(FollowForbiddenException.class);
 
     verify(followRepository, never()).delete(any(Follow.class));
   }
