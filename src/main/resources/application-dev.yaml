@@ -65,10 +65,10 @@ mpl:
     base-url: ${FRONTEND_BASE_URL:http://localhost:8080}
 
 tmdb:
-  bearer-token: ""
+  bearer-token: ${TMDB_BEARER_TOKEN:}
 
 sportsdb:
-  api-key: ""
+  api-key: ${SPORTSDB_API_KEY:}
 
 content:
   collection:
