@@ -16,10 +16,12 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ContentSyncService {
@@ -33,12 +35,6 @@ public class ContentSyncService {
 
     /**
      * TMDB 영화 또는 TV 목록 한 페이지를 DB와 동기화합니다.
-     *
-     * 동작 방식:
-     * 1. 외부 ID가 없거나 제목이 없는 데이터는 제외합니다.
-     * 2. sourceType + externalId로 기존 데이터를 한 번에 조회합니다.
-     * 3. 기존 콘텐츠가 없으면 INSERT합니다.
-     * 4. 기존 콘텐츠가 있으면 최신 외부 데이터로 UPDATE합니다.
      */
     @Transactional
     public ContentSyncResult syncTmdbPage(
@@ -51,12 +47,9 @@ public class ContentSyncService {
             return ContentSyncResult.empty();
         }
 
-        String sourceType = getTmdbSourceType(type);
+        String sourceType =
+                getTmdbSourceType(type);
 
-        /*
-         * 같은 TMDB 페이지 안에 중복 externalId가 포함되어도
-         * 한 번만 처리되도록 Map으로 정리합니다.
-         */
         Map<String, TmdbContentItem> itemsByExternalId =
                 new LinkedHashMap<>();
 
@@ -82,11 +75,6 @@ public class ContentSyncService {
             );
         }
 
-        /*
-         * 페이지의 externalId들을 한 번에 조회합니다.
-         *
-         * 각 콘텐츠마다 SELECT하는 방식보다 DB 조회 횟수를 줄일 수 있습니다.
-         */
         Map<String, Content> existingByExternalId =
                 contentRepository
                         .findAllBySourceTypeAndExternalIdIn(
@@ -130,9 +118,6 @@ public class ContentSyncService {
                             externalId
                     );
 
-            /*
-             * DB에 없는 콘텐츠는 새로 생성합니다.
-             */
             if (existingContent == null) {
                 Content newContent =
                         Content.createFromExternalApi(
@@ -153,10 +138,6 @@ public class ContentSyncService {
                 continue;
             }
 
-            /*
-             * 이미 DB에 존재하면 제목, 설명, 썸네일 등의
-             * 외부 API 최신 데이터로 갱신합니다.
-             */
             existingContent.updateFromExternalApi(
                     data.title(),
                     data.description(),
@@ -183,8 +164,6 @@ public class ContentSyncService {
 
     /**
      * SportsDB 경기 목록을 DB와 동기화합니다.
-     *
-     * 기존 경기는 경기 일정, 장소, 썸네일 등의 최신 정보로 갱신합니다.
      */
     @Transactional
     public ContentSyncResult syncSportsEvents(
@@ -283,6 +262,12 @@ public class ContentSyncService {
                 continue;
             }
 
+            /*
+             * 기존 스포츠 콘텐츠도 최신 정보로 갱신합니다.
+             *
+             * 이전에 thumbnailUrl이 비어 있던 데이터도
+             * 새 이미지 선택 로직에 따라 업데이트됩니다.
+             */
             existingContent.updateFromExternalApi(
                     data.title(),
                     data.description(),
@@ -431,16 +416,47 @@ public class ContentSyncService {
             SportsDbEventItem event
     ) {
         String thumbnailUrl =
-                firstNonBlank(
-                        event.strThumb(),
-                        event.strPoster(),
-                        event.strBanner()
-                );
+                resolveSportsThumbnailUrl(event);
+
+        log.info(
+                "SportsDB 이미지 확인: "
+                        + "eventId={}, event={}, "
+                        + "thumb={}, poster={}, square={}, fanart={}, banner={}, "
+                        + "homeBadge={}, awayBadge={}, leagueBadge={}",
+                externalId,
+                event.strEvent(),
+                event.strThumb(),
+                event.strPoster(),
+                event.strSquare(),
+                event.strFanart(),
+                event.strBanner(),
+                event.strHomeTeamBadge(),
+                event.strAwayTeamBadge(),
+                event.strLeagueBadge()
+        );
+
+        log.info(
+                "SportsDB 최종 썸네일 선택: eventId={}, thumbnailUrl={}",
+                externalId,
+                thumbnailUrl
+        );
+
+        if (!isNotBlank(thumbnailUrl)) {
+            log.warn(
+                    "SportsDB에서 사용할 수 있는 이미지를 찾지 못했습니다: "
+                            + "eventId={}, event={}, league={}",
+                    externalId,
+                    event.strEvent(),
+                    event.strLeague()
+            );
+        }
 
         List<String> tags =
                 new ArrayList<>();
 
-        tags.add(ContentType.SPORT.name());
+        tags.add(
+                ContentType.SPORT.name()
+        );
 
         addTagIfPresent(
                 tags,
@@ -464,6 +480,33 @@ public class ContentSyncService {
                 "https://www.thesportsdb.com/event/"
                         + externalId,
                 tags
+        );
+    }
+
+    /**
+     * 스포츠 이미지 선택 우선순위입니다.
+     *
+     * 1. 경기 썸네일
+     * 2. 경기 포스터
+     * 3. 경기 정사각형 이미지
+     * 4. 경기 팬아트
+     * 5. 경기 배너
+     * 6. 홈팀 배지
+     * 7. 원정팀 배지
+     * 8. 리그 배지
+     */
+    private String resolveSportsThumbnailUrl(
+            SportsDbEventItem event
+    ) {
+        return firstNonBlank(
+                event.strThumb(),
+                event.strPoster(),
+                event.strSquare(),
+                event.strFanart(),
+                event.strBanner(),
+                event.strHomeTeamBadge(),
+                event.strAwayTeamBadge(),
+                event.strLeagueBadge()
         );
     }
 
@@ -552,9 +595,9 @@ public class ContentSyncService {
             String value
     ) {
         if (isNotBlank(value)
-                && !tags.contains(value)) {
+                && !tags.contains(value.trim())) {
 
-            tags.add(value);
+            tags.add(value.trim());
         }
     }
 
@@ -565,17 +608,24 @@ public class ContentSyncService {
     ) {
         if (isNotBlank(value)) {
             descriptions.add(
-                    label + ": " + value
+                    label + ": " + value.trim()
             );
         }
     }
 
+    /**
+     * 전달된 값 중 비어 있지 않은 첫 번째 값을 반환합니다.
+     */
     private String firstNonBlank(
             String... values
     ) {
+        if (values == null) {
+            return null;
+        }
+
         for (String value : values) {
             if (isNotBlank(value)) {
-                return value;
+                return value.trim();
             }
         }
 

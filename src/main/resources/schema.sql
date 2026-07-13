@@ -169,8 +169,29 @@ CREATE TABLE IF NOT EXISTS watching_sessions (
                                    id UUID PRIMARY KEY NOT NULL,
                                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                    content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
-                                   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                                   CONSTRAINT fk_watching_sessions_watcher
+                                       FOREIGN KEY (user_id)
+                                       REFERENCES users(id)
+                                       ON DELETE CASCADE,
+
+                                   CONSTRAINT fk_watching_sessions_content
+                                        FOREIGN KEY (content_id)
+                                        REFERENCES contents(id)
+                                        ON DELETE CASCADE
+
 );
+
+-- 기존에 생성된 watching_sessions 테이블 보정
+ALTER TABLE watching_sessions
+    ADD COLUMN IF NOT EXISTS created_at
+    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE watching_sessions
+    ADD COLUMN IF NOT EXISTS updated_at
+    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 -- 11. 알림 시스템 (Notification Management)
 CREATE TABLE IF NOT EXISTS notifications (

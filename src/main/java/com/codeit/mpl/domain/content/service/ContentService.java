@@ -8,6 +8,7 @@ import com.codeit.mpl.domain.content.dto.external.SportsDbEventResponse;
 import com.codeit.mpl.domain.content.dto.external.SportsDbTeamResponse;
 import com.codeit.mpl.domain.content.dto.external.TmdbContentItem;
 import com.codeit.mpl.domain.content.dto.external.TmdbSearchResponse;
+import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
 import com.codeit.mpl.domain.content.dto.request.ContentImportRequest;
 import com.codeit.mpl.domain.content.dto.request.ContentUpdateRequest;
@@ -19,7 +20,6 @@ import com.codeit.mpl.domain.content.entity.ContentSourceType;
 import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
-import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.domain.content.repository.WatchingSessionRepository;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
@@ -78,19 +78,21 @@ public class ContentService {
             String requesterEmail,
             ContentCreateRequest request
     ) {
-        User creator = getRequester(requesterEmail);
+        User creator =
+                getRequester(requesterEmail);
 
         validateAdmin(creator);
 
-        Content content = Content.create(
-                creator,
-                request.type(),
-                request.title(),
-                request.description(),
-                null,
-                null,
-                request.tags()
-        );
+        Content content =
+                Content.create(
+                        creator,
+                        request.type(),
+                        request.title(),
+                        request.description(),
+                        null,
+                        null,
+                        request.tags()
+                );
 
         Content savedContent =
                 contentRepository.save(content);
@@ -108,7 +110,8 @@ public class ContentService {
             String requesterEmail,
             ContentImportRequest request
     ) {
-        User requester = getRequester(requesterEmail);
+        User requester =
+                getRequester(requesterEmail);
 
         validateAdmin(requester);
 
@@ -138,59 +141,64 @@ public class ContentService {
             ContentImportRequest request,
             String sourceType
     ) {
-        Content content = switch (request.type()) {
-            case MOVIE, TVSERIES -> {
-                TmdbContentItem item =
-                        switch (request.type()) {
-                            case MOVIE ->
-                                    tmdbClient.getMovieDetail(
-                                            request.externalId()
-                                    );
+        Content content =
+                switch (request.type()) {
+                    case MOVIE, TVSERIES -> {
+                        TmdbContentItem item =
+                                switch (request.type()) {
+                                    case MOVIE ->
+                                            tmdbClient.getMovieDetail(
+                                                    request.externalId()
+                                            );
 
-                            case TVSERIES ->
-                                    tmdbClient.getTvSeriesDetail(
-                                            request.externalId()
-                                    );
+                                    case TVSERIES ->
+                                            tmdbClient.getTvSeriesDetail(
+                                                    request.externalId()
+                                            );
 
-                            case SPORT ->
-                                    throw new IllegalArgumentException(
-                                            "SPORT 타입은 TMDB import를 지원하지 않습니다."
-                                    );
-                        };
+                                    case SPORT ->
+                                            throw new IllegalArgumentException(
+                                                    "SPORT 타입은 TMDB import를 지원하지 않습니다."
+                                            );
+                                };
 
-                if (item == null || item.id() == null) {
-                    throw new IllegalArgumentException(
-                            "존재하지 않는 TMDB 콘텐츠입니다."
-                    );
-                }
+                        if (item == null
+                                || item.id() == null) {
 
-                yield createContentFromTmdb(
-                        requester,
-                        request.type(),
-                        request.externalId(),
-                        sourceType,
-                        item
-                );
-            }
+                            throw new IllegalArgumentException(
+                                    "존재하지 않는 TMDB 콘텐츠입니다."
+                            );
+                        }
 
-            case SPORT -> {
-                SportsDbEventItem item =
-                        getSportsEventItem(
-                                request.externalId()
+                        yield createContentFromTmdb(
+                                requester,
+                                request.type(),
+                                request.externalId(),
+                                sourceType,
+                                item
                         );
+                    }
 
-                yield createContentFromSportsDb(
-                        requester,
-                        request.externalId(),
-                        sourceType,
-                        item
-                );
-            }
-        };
+                    case SPORT -> {
+                        SportsDbEventItem item =
+                                getSportsEventItem(
+                                        request.externalId()
+                                );
+
+                        yield createContentFromSportsDb(
+                                requester,
+                                request.externalId(),
+                                sourceType,
+                                item
+                        );
+                    }
+                };
 
         try {
             Content savedContent =
-                    contentRepository.saveAndFlush(content);
+                    contentRepository.saveAndFlush(
+                            content
+                    );
 
             return toDto(savedContent);
 
@@ -218,7 +226,9 @@ public class ContentService {
      * 콘텐츠 단건 조회입니다.
      */
     @Transactional(readOnly = true)
-    public ContentDto getContent(UUID contentId) {
+    public ContentDto getContent(
+            UUID contentId
+    ) {
         Content content =
                 getContentEntity(contentId);
 
@@ -373,6 +383,9 @@ public class ContentService {
         );
     }
 
+    /**
+     * 현재 페이지의 마지막 콘텐츠를 기준으로 다음 cursor를 생성합니다.
+     */
     private String getQueryCursorValue(
             ContentQueryRow row,
             String sortBy
@@ -410,7 +423,9 @@ public class ContentService {
             ContentType type
     ) {
         if (type == ContentType.SPORT) {
-            return searchSportsContents(keyword);
+            return searchSportsContents(
+                    keyword
+            );
         }
 
         TmdbSearchResponse response =
@@ -433,6 +448,7 @@ public class ContentService {
 
         if (response == null
                 || response.results() == null) {
+
             return List.of();
         }
 
@@ -459,7 +475,9 @@ public class ContentService {
             String keyword
     ) {
         SportsDbTeamResponse teamResponse =
-                sportsDbClient.searchTeams(keyword);
+                sportsDbClient.searchTeams(
+                        keyword
+                );
 
         if (teamResponse == null
                 || teamResponse.teams() == null
@@ -566,10 +584,8 @@ public class ContentService {
             SportsDbEventItem event
     ) {
         String thumbnailUrl =
-                firstNonBlank(
-                        event.strThumb(),
-                        event.strPoster(),
-                        event.strBanner()
+                resolveSportsThumbnailUrl(
+                        event
                 );
 
         return new ExternalContentSearchResult(
@@ -597,7 +613,9 @@ public class ContentService {
                         ? item.title()
                         : item.name();
 
-        if (title == null || title.isBlank()) {
+        if (title == null
+                || title.isBlank()) {
+
             throw new IllegalArgumentException(
                     "TMDB 콘텐츠 제목이 존재하지 않습니다."
             );
@@ -618,7 +636,9 @@ public class ContentService {
         List<String> tags =
                 new ArrayList<>();
 
-        tags.add(type.name());
+        tags.add(
+                type.name()
+        );
 
         return Content.createFromExternalApi(
                 creator,
@@ -643,10 +663,8 @@ public class ContentService {
             SportsDbEventItem item
     ) {
         String thumbnailUrl =
-                firstNonBlank(
-                        item.strThumb(),
-                        item.strPoster(),
-                        item.strBanner()
+                resolveSportsThumbnailUrl(
+                        item
                 );
 
         String contentUrl =
@@ -656,7 +674,9 @@ public class ContentService {
         List<String> tags =
                 new ArrayList<>();
 
-        tags.add(ContentType.SPORT.name());
+        tags.add(
+                ContentType.SPORT.name()
+        );
 
         addTagIfPresent(
                 tags,
@@ -694,7 +714,9 @@ public class ContentService {
     ) {
         SportsDbEventResponse response =
                 sportsDbClient
-                        .getEventDetail(externalId);
+                        .getEventDetail(
+                                externalId
+                        );
 
         if (response == null
                 || response.events() == null
@@ -708,7 +730,8 @@ public class ContentService {
         SportsDbEventItem item =
                 response.events().get(0);
 
-        if (item.idEvent() == null
+        if (item == null
+                || item.idEvent() == null
                 || item.idEvent().isBlank()
                 || item.strEvent() == null
                 || item.strEvent().isBlank()) {
@@ -786,6 +809,27 @@ public class ContentService {
     }
 
     /**
+     * SportsDB 이미지 선택 우선순위입니다.
+     *
+     * 경기 이미지가 없을 경우 팀 배지를 사용하고,
+     * 팀 배지도 없을 경우 리그 배지를 사용합니다.
+     */
+    private String resolveSportsThumbnailUrl(
+            SportsDbEventItem item
+    ) {
+        return firstNonBlank(
+                item.strThumb(),
+                item.strPoster(),
+                item.strSquare(),
+                item.strFanart(),
+                item.strBanner(),
+                item.strHomeTeamBadge(),
+                item.strAwayTeamBadge(),
+                item.strLeagueBadge()
+        );
+    }
+
+    /**
      * 콘텐츠 타입에 따라 외부 소스 타입을 반환합니다.
      */
     private String getSourceType(
@@ -811,6 +855,7 @@ public class ContentService {
     ) {
         if (posterPath == null
                 || posterPath.isBlank()) {
+
             return null;
         }
 
@@ -818,12 +863,19 @@ public class ContentService {
                 + posterPath;
     }
 
+    /**
+     * 전달된 문자열 중 비어 있지 않은 첫 번째 값을 반환합니다.
+     */
     private String firstNonBlank(
             String... values
     ) {
+        if (values == null) {
+            return null;
+        }
+
         for (String value : values) {
             if (isNotBlank(value)) {
-                return value;
+                return value.trim();
             }
         }
 
@@ -835,8 +887,11 @@ public class ContentService {
             String value
     ) {
         if (isNotBlank(value)
-                && !tags.contains(value)) {
-            tags.add(value);
+                && !tags.contains(value.trim())) {
+
+            tags.add(
+                    value.trim()
+            );
         }
     }
 
@@ -847,7 +902,9 @@ public class ContentService {
     ) {
         if (isNotBlank(value)) {
             descriptions.add(
-                    label + ": " + value
+                    label
+                            + ": "
+                            + value.trim()
             );
         }
     }
@@ -865,7 +922,9 @@ public class ContentService {
     private User getRequester(
             String email
     ) {
-        if (email == null || email.isBlank()) {
+        if (email == null
+                || email.isBlank()) {
+
             throw new IllegalArgumentException(
                     "인증 정보가 유효하지 않습니다."
             );
@@ -913,7 +972,9 @@ public class ContentService {
                 requester.getRole()
                         == UserRole.ADMIN;
 
-        if (!isOwner && !isAdmin) {
+        if (!isOwner
+                && !isAdmin) {
+
             throw new IllegalArgumentException(
                     "콘텐츠를 수정하거나 삭제할 권한이 없습니다."
             );
@@ -957,11 +1018,16 @@ public class ContentService {
         }
     }
 
+    /**
+     * idAfter 문자열을 UUID로 변환합니다.
+     */
     private UUID parseIdAfter(
             String idAfter
     ) {
         try {
-            return UUID.fromString(idAfter);
+            return UUID.fromString(
+                    idAfter
+            );
 
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
@@ -970,8 +1036,9 @@ public class ContentService {
         }
     }
 
-
-
+    /**
+     * 지원하는 정렬 기준인지 검증합니다.
+     */
     private void validateSortBy(
             String sortBy
     ) {
@@ -1011,7 +1078,9 @@ public class ContentService {
 
         Long watcherCount =
                 watchingSessionRepository
-                        .countByContent(content);
+                        .countByContent(
+                                content
+                        );
 
         return contentMapper.toDto(
                 content,
@@ -1023,6 +1092,12 @@ public class ContentService {
 
     /**
      * Content 엔티티를 목록 요약 DTO로 변환합니다.
+     *
+     * 현재 QueryDSL 목록 조회에서는 집계값을 한 번에 조회하므로
+     * 기본 목록 API에서는 직접 호출하지 않습니다.
+     *
+     * 다른 내부 로직에서 단일 ContentSummary 변환이 필요한 경우를 위해
+     * 기존 메서드를 유지합니다.
      */
     private ContentSummary toSummary(
             Content content
@@ -1051,5 +1126,4 @@ public class ContentService {
                 reviewCount
         );
     }
-
 }
