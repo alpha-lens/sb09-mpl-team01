@@ -32,13 +32,7 @@ CREATE TABLE IF NOT EXISTS contents (
                           source_type VARCHAR(50),
                           type VARCHAR(20) NOT NULL CHECK (type IN ('MOVIE', 'TVSERIES', 'SPORT')),
                           created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-                          CONSTRAINT fk_contents_creator
-                              FOREIGN KEY (creator_id)
-                              REFERENCES users(id)
-                              ON DELETE RESTRICT
-
+                          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE contents
@@ -47,45 +41,16 @@ ALTER TABLE contents
 ALTER TABLE contents
     ADD COLUMN IF NOT EXISTS source_type VARCHAR(50);
 
-----------기존TMDB 데이터를 영화와 tv로 분리
-UPDATE contents
-SET source_type = 'TMDB_MOVIE'
-WHERE source_type = 'TMDB'
-    AND type = 'MOVIE';
-
-UPDATE contents
-SET source_type = 'TMDB_TV'
-WHERE source_type = 'TMDB'
-  AND type = 'TVSERIES';
-
--- 외부 콘텐츠 중복 저장 방지
 CREATE UNIQUE INDEX IF NOT EXISTS uk_contents_source_external
     ON contents (source_type, external_id)
     WHERE source_type IS NOT NULL
     AND external_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_contents_created_at
-    ON contents (created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_contents_type
-    ON contents (type);
-
-CREATE INDEX IF NOT EXISTS idx_contents_title
-    ON contents (title);
---  콘텐츠 태그 테이블
--- 3. 콘텐츠 태그 테이블
 CREATE TABLE IF NOT EXISTS content_tags (
-    content_id UUID NOT NULL,
-    tag VARCHAR(255) NOT NULL,
+                              content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
+                              tag VARCHAR(255) NOT NULL
+);
 
-    CONSTRAINT fk_content_tags_content
-    FOREIGN KEY (content_id)
-    REFERENCES contents(id)
-    ON DELETE CASCADE
-    );
-
-CREATE INDEX IF NOT EXISTS idx_content_tags_content_id
-    ON content_tags (content_id);
 -- 3. 리뷰 테이블 (reviews)
 CREATE TABLE IF NOT EXISTS reviews (
                          id UUID PRIMARY KEY NOT NULL,
@@ -170,31 +135,10 @@ CREATE TABLE IF NOT EXISTS direct_message (
 -- 10. 시청 세션 테이블 (WatchingSession)
 CREATE TABLE IF NOT EXISTS watching_sessions (
                                    id UUID PRIMARY KEY NOT NULL,
-                                   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                   watcher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                    content_id UUID NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
-                                   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-                                   CONSTRAINT fk_watching_sessions_watcher
-                                       FOREIGN KEY (user_id)
-                                       REFERENCES users(id)
-                                       ON DELETE CASCADE,
-
-                                   CONSTRAINT fk_watching_sessions_content
-                                        FOREIGN KEY (content_id)
-                                        REFERENCES contents(id)
-                                        ON DELETE CASCADE
-
+                                   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- 기존에 생성된 watching_sessions 테이블 보정
-ALTER TABLE watching_sessions
-    ADD COLUMN IF NOT EXISTS created_at
-    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE watching_sessions
-    ADD COLUMN IF NOT EXISTS updated_at
-    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 -- 11. 알림 시스템 (Notification Management)
 CREATE TABLE IF NOT EXISTS notifications (

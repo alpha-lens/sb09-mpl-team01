@@ -69,14 +69,3 @@ tmdb:
 
 sportsdb:
   api-key: ""
-
-content:
-  collection:
-    tmdb:
-      initial-max-pages: ${TMDB_INITIAL_MAX_PAGES:300}
-      daily-max-pages: ${TMDB_DAILY_MAX_PAGES:2}
-
-    scheduler:
-      enabled: false
-      cron: "0 0 3 * * *"
-      zone: "Asia/Seoul"

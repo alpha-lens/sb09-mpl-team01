@@ -1,7 +1,6 @@
 spring:
   main:
     allow-bean-definition-overriding: true
-
   application:
     name: mpl
 
@@ -54,8 +53,6 @@ tmdb:
   image-base-url: https://image.tmdb.org/t/p/w500
   bearer-token: ${TMDB_BEARER_TOKEN}
 
-# SportsDB 사용 여부는 이 최상위 설정으로 결정됩니다.
-# content.collection 아래에 sports 블록이 없어도 이 설정을 통해 정상 호출됩니다.
 sportsdb:
   base-url: https://www.thesportsdb.com/api/v1/json
   api-key: ${SPORTSDB_API_KEY}
@@ -65,10 +62,8 @@ mpl:
     base-url: ${FRONTEND_BASE_URL}
   storage:
     type: ${STORAGE_TYPE:local}
-
     local:
       root-path: ${STORAGE_LOCAL_ROOT_PATH:.mpl/storage}
-
     s3:
       access-key: ${AWS_S3_ACCESS_KEY:}
       secret-key: ${AWS_S3_SECRET_KEY:}
@@ -78,10 +73,6 @@ mpl:
 
 content:
   collection:
-    tmdb:
-      initial-max-pages: ${TMDB_INITIAL_MAX_PAGES:300}
-      daily-max-pages: ${TMDB_DAILY_MAX_PAGES:20}
-
     scheduler:
       enabled: false
       cron: "0 0 3 * * *"
