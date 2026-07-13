@@ -26,3 +26,15 @@ spring:
       port: ${SPRING_DATA_REDIS_PORT}
       ssl:
         enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:true}
+
+
+content:
+  collection:
+    tmdb:
+      initial-max-pages: ${TMDB_INITIAL_MAX_PAGES:300}
+      daily-max-pages: ${TMDB_DAILY_MAX_PAGES:20}
+
+    scheduler:
+      enabled: true
+      cron: ${CONTENT_COLLECTION_CRON:0 0 3 * * *}
+      zone: ${CONTENT_COLLECTION_ZONE:Asia/Seoul}

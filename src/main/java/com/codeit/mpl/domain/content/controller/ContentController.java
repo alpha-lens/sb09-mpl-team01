@@ -13,13 +13,22 @@ import com.codeit.mpl.infra.common.dto.Direction;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @Validated
 @RestController
@@ -29,87 +38,194 @@ public class ContentController {
 
     private final ContentService contentService;
 
+    /**
+     * 관리자가 콘텐츠를 직접 생성합니다.
+     */
     @PostMapping
     public ResponseEntity<ContentDto> createContent(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ContentCreateRequest request
     ) {
-        ContentDto response = contentService.createContent(userDetails.getUsername(), request);
+        ContentDto response =
+                contentService.createContent(
+                        userDetails.getUsername(),
+                        request
+                );
+
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 관리자가 외부 API 콘텐츠를 수동 Import합니다.
+     */
     @PostMapping("/external/import")
     public ResponseEntity<ContentDto> importExternalContent(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ContentImportRequest request
     ) {
-        ContentDto response = contentService.importExternalContent(
-                userDetails.getUsername(),
-                request
-        );
+        ContentDto response =
+                contentService.importExternalContent(
+                        userDetails.getUsername(),
+                        request
+                );
 
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 콘텐츠 단건 조회입니다.
+     */
     @GetMapping("/{contentId}")
     public ResponseEntity<ContentDto> getContent(
             @PathVariable UUID contentId
     ) {
-        return ResponseEntity.ok(contentService.getContent(contentId));
+        ContentDto response =
+                contentService.getContent(contentId);
+
+        return ResponseEntity.ok(response);
     }
 
+    /**
+     * 콘텐츠를 수정합니다.
+     */
     @PatchMapping("/{contentId}")
     public ResponseEntity<ContentDto> updateContent(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable UUID contentId,
             @Valid @RequestBody ContentUpdateRequest request
     ) {
-        ContentDto response = contentService.updateContent(
-                userDetails.getUsername(),
-                contentId,
-                request
-        );
+        ContentDto response =
+                contentService.updateContent(
+                        userDetails.getUsername(),
+                        contentId,
+                        request
+                );
 
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 콘텐츠를 삭제합니다.
+     */
     @DeleteMapping("/{contentId}")
     public ResponseEntity<Void> deleteContent(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable UUID contentId
     ) {
-        contentService.deleteContent(userDetails.getUsername(), contentId);
+        contentService.deleteContent(
+                userDetails.getUsername(),
+                contentId
+        );
+
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 콘텐츠 목록을 커서 기반으로 조회합니다.
+     *
+     * 프론트엔드 요청 규격:
+     *
+     * typeEqual 없음
+     * → 전체 콘텐츠 조회
+     *
+     * typeEqual=movie
+     * → 영화만 조회
+     *
+     * typeEqual=tvSeries
+     * → TV 시리즈만 조회
+     *
+     * typeEqual=sport
+     * → 스포츠만 조회
+     */
     @GetMapping
     public ResponseEntity<CursorPageResponseDto<ContentSummary>> getContents(
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) String idAfter,
             @RequestParam(required = false) String keywordLike,
+            @RequestParam(required = false) String typeEqual,
             @RequestParam(defaultValue = "20") @Min(1) int limit,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESCENDING") Direction sortDirection
     ) {
-        CursorPageResponseDto<ContentSummary> response = contentService.getContents(
-                cursor,
-                idAfter,
-                keywordLike,
-                limit,
-                sortBy,
-                sortDirection
-        );
+        ContentType type =
+                convertContentType(typeEqual);
+
+        CursorPageResponseDto<ContentSummary> response =
+                contentService.getContents(
+                        cursor,
+                        idAfter,
+                        keywordLike,
+                        type,
+                        limit,
+                        sortBy,
+                        sortDirection
+                );
 
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 관리자가 외부 API에서 콘텐츠를 검색합니다.
+     *
+     * 외부 검색 API는 기존 명세대로 ContentType enum을 직접 사용합니다.
+     */
     @GetMapping("/external/search")
-    public ResponseEntity<List<ExternalContentSearchResult>> searchExternalContents(
+    public ResponseEntity<List<ExternalContentSearchResult>>
+    searchExternalContents(
             @RequestParam String keyword,
             @RequestParam ContentType type
     ) {
-        return ResponseEntity.ok(
-                contentService.searchExternalContents(keyword, type)
-        );
+        List<ExternalContentSearchResult> response =
+                contentService.searchExternalContents(
+                        keyword,
+                        type
+                );
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 프론트엔드의 typeEqual 값을 ContentType으로 변환합니다.
+     *
+     * null 또는 빈 문자열은 전체 조회를 의미합니다.
+     */
+    private ContentType convertContentType(
+            String typeEqual
+    ) {
+        if (typeEqual == null || typeEqual.isBlank()) {
+            return null;
+        }
+
+        String normalizedType =
+                typeEqual.trim();
+
+        return switch (normalizedType) {
+            case "movie" ->
+                    ContentType.MOVIE;
+
+            case "tvSeries" ->
+                    ContentType.TVSERIES;
+
+            case "sport" ->
+                    ContentType.SPORT;
+
+            /*
+             * Swagger나 다른 클라이언트에서 enum 이름을 그대로 보내는 경우도
+             * 허용하도록 대문자 형태를 추가 지원합니다.
+             */
+            case "MOVIE" ->
+                    ContentType.MOVIE;
+
+            case "TVSERIES" ->
+                    ContentType.TVSERIES;
+
+            case "SPORT" ->
+                    ContentType.SPORT;
+
+            default ->
+                    throw new IllegalArgumentException(
+                            "typeEqual은 movie, tvSeries, sport만 사용할 수 있습니다."
+                    );
+        };
     }
 }

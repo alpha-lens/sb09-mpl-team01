@@ -19,7 +19,7 @@ public class WatchingSession extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
-            name = "watcher_id",
+            name = "user_id",
             nullable = false,
             foreignKey = @ForeignKey(name = "fk_watching_sessions_watcher")
     )

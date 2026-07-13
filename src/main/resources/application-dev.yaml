@@ -69,7 +69,18 @@ mpl:
     base-url: ${FRONTEND_BASE_URL:http://localhost:8080}
 
 tmdb:
-  bearer-token: ""
+  bearer-token: ${TMDB_BEARER_TOKEN:}
 
 sportsdb:
-  api-key: ""
+  api-key: ${SPORTSDB_API_KEY:}
+
+content:
+  collection:
+    tmdb:
+      initial-max-pages: ${TMDB_INITIAL_MAX_PAGES:300}
+      daily-max-pages: ${TMDB_DAILY_MAX_PAGES:2}
+
+    scheduler:
+      enabled: false
+      cron: "0 0 3 * * *"
+      zone: "Asia/Seoul"

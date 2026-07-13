@@ -19,16 +19,19 @@ repositories {
     mavenCentral()
 }
 
+def querydslVersion = '5.0.0'
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-elasticsearch'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'com.querydsl:querydsl-apt:5.0.0'
-    implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
-    implementation 'com.querydsl:querydsl-core:5.0.0'
-    runtimeOnly 'com.h2database:h2'
+
+    // QueryDSL: 콘텐츠 목록 조회 전용
+    implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
+
+    implementation 'com.h2database:h2'
     implementation 'org.springframework.retry:spring-retry:2.0.6'
 
     // Spring Security
@@ -68,21 +71,26 @@ dependencies {
     implementation 'software.amazon.awssdk:url-connection-client:2.31.7'
 
     compileOnly 'org.projectlombok:lombok'
+
     annotationProcessor 'org.projectlombok:lombok'
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
-    annotationProcessor "com.querydsl:querydsl-apt:${dependencyManagement.importedProperties['querydsl.version']}:jakarta"
-    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
-    annotationProcessor "jakarta.persistence:jakarta.persistence-api"
+
+    // Jakarta 엔티티에서 Q 클래스를 생성합니다.
+    annotationProcessor "com.querydsl:querydsl-apt:${querydslVersion}:jakarta"
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-elasticsearch-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+
     runtimeOnly 'org.postgresql:postgresql'
+
     testCompileOnly 'org.projectlombok:lombok'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
@@ -92,11 +100,12 @@ tasks.named('test') {
 }
 
 jacoco {
-    toolVersion = "0.8.11"
+    toolVersion = '0.8.11'
 }
 
 jacocoTestReport {
     dependsOn test
+
     reports {
         xml.required = true
         html.required = true
