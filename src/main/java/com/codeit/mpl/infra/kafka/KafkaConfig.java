@@ -31,6 +31,31 @@ public class KafkaConfig {
     @Value("${spring.kafka.consumer.group-id:mpl-group}")
     private String groupId;
 
+    @Value("${spring.kafka.properties.security.protocol:}")
+    private String securityProtocol;
+
+    @Value("${spring.kafka.properties.sasl.mechanism:}")
+    private String saslMechanism;
+
+    @Value("${spring.kafka.properties.sasl.jaas.config:}")
+    private String saslJaasConfig;
+
+    /**
+     * 순수 spring-kafka 라이브러리만 사용 중이라(spring-boot-starter-kafka 없음)
+     * spring.kafka.properties.*가 자동 바인딩되지 않는다 - 여기서 직접 주입해서 반영한다.
+     */
+    private void applySecurityProperties(Map<String, Object> configProps) {
+        if (!securityProtocol.isBlank()) {
+            configProps.put("security.protocol", securityProtocol);
+        }
+        if (!saslMechanism.isBlank()) {
+            configProps.put("sasl.mechanism", saslMechanism);
+        }
+        if (!saslJaasConfig.isBlank()) {
+            configProps.put("sasl.jaas.config", saslJaasConfig);
+        }
+    }
+
     /**
      * Configures a Kafka producer factory that serializes keys as strings and values as JSON.
      *
@@ -42,6 +67,7 @@ public class KafkaConfig {
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        applySecurityProperties(configProps);
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
@@ -68,7 +94,8 @@ public class KafkaConfig {
         configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
         configProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-        
+        applySecurityProperties(configProps);
+
         return new DefaultKafkaConsumerFactory<>(
                 configProps,
                 new StringDeserializer(),
