@@ -18,7 +18,6 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.converter.StringJsonMessageConverter;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 @Configuration
@@ -83,9 +82,12 @@ public class KafkaConfig {
     }
 
     /**
-     * Creates a Kafka consumer factory for String-keyed JSON messages.
+     * Creates a Kafka consumer factory for String-keyed, String-valued messages.
+     * JSON-to-POJO 변환은 여기서 하지 않고, 리스너 컨테이너 팩토리의
+     * StringJsonMessageConverter가 실제 리스너 파라미터 타입에 맞춰 처리한다
+     * (JsonDeserializer로 미리 역직렬화하면 LinkedHashMap이 되어 컨버터가 처리 못함).
      *
-     * @return A ConsumerFactory configured to deserialize String keys and JSON values.
+     * @return A ConsumerFactory configured to deserialize String keys and values.
      */
     @Bean
     public ConsumerFactory<String, Object> consumerFactory() {
@@ -93,15 +95,10 @@ public class KafkaConfig {
         configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        configProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         applySecurityProperties(configProps);
 
-        return new DefaultKafkaConsumerFactory<>(
-                configProps,
-                new StringDeserializer(),
-                new JsonDeserializer<>(Object.class, false)
-        );
+        return new DefaultKafkaConsumerFactory<>(configProps);
     }
 
     /**
@@ -113,8 +110,8 @@ public class KafkaConfig {
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        // JsonDeserializer가 타입 정보 없이 LinkedHashMap으로 역직렬화한 값을
-        // 리스너 메서드의 실제 파라미터 타입(예: ChatMessage)으로 다시 변환해준다.
+        // 원본 값은 String으로만 역직렬화되고, 실제 리스너 파라미터 타입(예: ChatMessage)으로의
+        // JSON 변환은 이 컨버터가 담당한다.
         factory.setRecordMessageConverter(new StringJsonMessageConverter());
         return factory;
     }
