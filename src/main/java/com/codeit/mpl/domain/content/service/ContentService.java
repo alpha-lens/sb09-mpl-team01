@@ -700,6 +700,7 @@ public class ContentService {
         Comparator<ContentSortView> comparator = switch (sortBy) {
             case "watcherCount" -> Comparator.comparing(ContentSortView::watcherCount);
             case "rate" -> Comparator.comparing(ContentSortView::averageRating);
+            case "createdAt" -> Comparator.comparing(ContentSortView::createdAt);
             default -> throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
         };
 
@@ -762,6 +763,8 @@ public class ContentService {
                     content.watcherCount().equals(parseLongCursor(cursor));
             case "rate" ->
                     Double.compare(content.averageRating(), parseDoubleCursor(cursor)) == 0;
+            case "createdAt" ->
+                    content.createdAt().equals(parseInstantCursor(cursor));
             default ->
                     throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
         };
@@ -790,6 +793,7 @@ public class ContentService {
         return switch (sortBy) {
             case "watcherCount" -> String.valueOf(content.watcherCount());
             case "rate" -> String.valueOf(content.averageRating());
+            case "createdAt" -> content.createdAt().toString();
             default -> throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
         };
     }

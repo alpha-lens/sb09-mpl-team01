@@ -15,6 +15,8 @@ import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import com.codeit.mpl.domain.notification.repository.NotificationRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -130,6 +132,7 @@ class NotificationServiceConcurrencyTest {
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(threadCount);
+        List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         // when
         for (int i = 0; i < threadCount; i++) {
@@ -138,7 +141,7 @@ class NotificationServiceConcurrencyTest {
                     latch.await();
                     notificationService.saveNotification(event);
                 } catch (Exception e) {
-                    System.out.println("Expected concurrency exception: " + e.getMessage());
+                    exceptions.add(e);
                 } finally {
                     doneLatch.countDown();
                 }
@@ -146,10 +149,17 @@ class NotificationServiceConcurrencyTest {
         }
 
         latch.countDown();
-        doneLatch.await(5, TimeUnit.SECONDS);
+        boolean allFinished = doneLatch.await(10, TimeUnit.SECONDS);
         executorService.shutdown();
+        executorService.awaitTermination(1, TimeUnit.SECONDS);
 
         // then
+        assertThat(allFinished).as("모든 스레드가 제한 시간 내에 완료되어야 합니다").isTrue();
+        
+        List<Exception> unexpectedExceptions = exceptions.stream()
+            .filter(e -> !(e instanceof org.springframework.dao.DataIntegrityViolationException))
+            .toList();
+        assertThat(unexpectedExceptions).as("스레드 실행 중 예상치 못한 예외가 발생하지 않아야 합니다").isEmpty();
         List<Notification> notifications = notificationRepository.findAll();
         long unreadDmCount = notifications.stream()
             .filter(n -> n.getType() == NotificationType.DM && !n.isRead())
