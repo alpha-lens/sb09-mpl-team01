@@ -13,6 +13,7 @@ import com.codeit.mpl.infra.exception.follow.FollowNotFoundException;
 import com.codeit.mpl.infra.exception.follow.FollowSelfException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.codeit.mpl.domain.notification.entity.NotificationLevel;
@@ -20,6 +21,7 @@ import com.codeit.mpl.domain.notification.entity.NotificationType;
 import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import org.springframework.context.ApplicationEventPublisher;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -31,7 +33,10 @@ public class FollowService {
 
   // 팔로우
   public FollowDto follow(UUID followerId, UUID followeeId) {
+    log.info("팔로우 요청 - followerId={}, followeeId={}", followerId, followeeId);
+
     if (followerId.equals(followeeId)) {
+      log.warn("자기 자신을 팔로우 시도 - userId={}", followerId);
       throw new FollowSelfException();
     }
 
@@ -42,10 +47,12 @@ public class FollowService {
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
 
     if (followRepository.existsByFollowerAndFollowee(follower, followee)) {
+      log.warn("이미 팔로우 중인 사용자 재팔로우 시도 - followerId={}, followeeId={}", followerId, followeeId);
       throw new FollowAlreadyExistsException();
     }
 
     Follow follow = followRepository.save(new Follow(follower, followee));
+    log.info("팔로우 완료 - followId={}, followerId={}, followeeId={}", follow.getId(), followerId, followeeId);
 
     eventPublisher.publishEvent(new NotificationEvent(
         followee,
@@ -62,19 +69,29 @@ public class FollowService {
 
   // 팔로우 취소 (followId로)
   public void unfollow(UUID followerId, UUID followId) {
+    log.info("언팔로우 요청 - followId={}, followerId={}", followId, followerId);
+
     Follow follow = followRepository.findById(followId)
-        .orElseThrow(FollowNotFoundException::new);
+        .orElseThrow(() -> {
+          log.warn("존재하지 않는 팔로우 관계 언팔로우 시도 - followId={}", followId);
+          return new FollowNotFoundException();
+        });
 
     if (!follow.getFollower().getId().equals(followerId)) {
+      log.warn("언팔로우 권한 없음 - followId={}, requesterId={}, actualFollowerId={}",
+          followId, followerId, follow.getFollower().getId());
       throw new FollowForbiddenException();
     }
 
     followRepository.delete(follow);
+    log.info("언팔로우 완료 - followId={}, followerId={}", followId, followerId);
   }
 
   // 팔로우 여부 조회
   @Transactional(readOnly = true)
   public FollowDto getFollowedByMe(UUID followerId, UUID followeeId) {
+    log.debug("팔로우 여부 조회 - followerId={}, followeeId={}", followerId, followeeId);
+
     if (followerId.equals(followeeId)) {
       return null;
     }
@@ -95,6 +112,8 @@ public class FollowService {
   public long getFollowerCount(UUID userId) {
     User user = userRepository.findById(userId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
-    return followRepository.countByFollowee(user);
+    long count = followRepository.countByFollowee(user);
+    log.debug("팔로워 수 조회 완료 - userId={}, count={}", userId, count);
+    return count;
   }
 }

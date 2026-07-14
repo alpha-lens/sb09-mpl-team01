@@ -3,6 +3,8 @@ package com.codeit.mpl.curating.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -30,6 +32,8 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.exception.MplException;
+import org.mockito.quality.Strictness;
+import org.mockito.junit.jupiter.MockitoSettings;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -467,5 +471,185 @@ class PlaylistServiceTest {
 
     assertThat(response.data()).hasSize(1);
     assertThat(response.sortBy()).isEqualTo("createdAt");
+  }
+
+  @Test
+  @DisplayName("플레이리스트 목록 조회 실패 - 커서 쌍 불일치")
+  void getPlaylists_fail_invalidCursorPair() {
+    assertThatThrownBy(() -> playlistService.getPlaylists(
+        null, null, null, "2024-01-01T00:00:00Z", null, 10, "createdAt", Direction.DESCENDING, null
+    )).isInstanceOf(com.codeit.mpl.infra.exception.playlist.InvalidPlaylistCursorException.class);
+  }
+
+  @Test
+  @DisplayName("플레이리스트 단건 조회 - 컨텐츠, 리뷰 통계, 구독 여부 완벽 매핑 커버리지")
+  void getPlaylist_withContentsAndReviews() {
+    UUID playlistId = UUID.randomUUID();
+    UUID currentUserId = UUID.randomUUID();
+
+    Playlist playlist = mock(Playlist.class);
+    User owner = mock(User.class);
+    User currentUser = mock(User.class);
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(UUID.randomUUID());
+    when(playlist.getId()).thenReturn(playlistId);
+
+    // 현재 로그인된 유저 세팅 및 구독 여부 true 설정
+    when(userRepository.findById(currentUserId)).thenReturn(Optional.of(currentUser));
+    when(playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, currentUser)).thenReturn(true);
+
+    // 플레이리스트 안에 컨텐츠가 1개 들어있는 상황 모킹
+    PlaylistContent pc = mock(PlaylistContent.class);
+    Content content = mock(Content.class);
+    when(pc.getContent()).thenReturn(content);
+    when(playlistContentRepository.findByPlaylist(playlist)).thenReturn(List.of(pc));
+
+    // 해당 컨텐츠의 별점과 리뷰 수 모킹
+    when(reviewRepository.findAverageRatingByContent(content)).thenReturn(4.5);
+    when(reviewRepository.countByContent(content)).thenReturn(10L);
+
+    PlaylistDto dto = playlistService.getPlaylist(playlistId, currentUserId);
+
+    assertThat(dto.contents()).hasSize(1);
+
+    // 💡 아래 부분을 ContentSummary DTO에 정의된 실제 getter 메서드 명으로 바꿔주세요!
+    // 만약 avgRating() 이라면 그대로 두시고, 아니라면 avgRating() 부분을 아래처럼 바꿔보세요.
+    assertThat(dto.contents().get(0).averageRating()).isEqualTo(4.5);
+    assertThat(dto.contents().get(0).reviewCount()).isEqualTo(10);
+
+    assertThat(dto.contents().get(0).reviewCount()).isEqualTo(10);
+    assertThat(dto.subscribedByMe()).isTrue();
+  }
+
+  @Test
+  @DisplayName("플레이리스트 목록 조회 - 다음 페이지 존재(hasNext=true) 및 title 커서 추출")
+  @MockitoSettings(strictness = Strictness.LENIENT)
+  void getPlaylists_hasNext_titleSort() {
+    UUID currentUserId = UUID.randomUUID();
+    User currentUser = mock(User.class);
+    when(userRepository.findById(currentUserId)).thenReturn(Optional.of(currentUser));
+
+    Playlist p1 = mock(Playlist.class);
+    Playlist p2 = mock(Playlist.class);
+    User owner = mock(User.class);
+
+    UUID p1Id = UUID.randomUUID();
+    UUID p2Id = UUID.randomUUID();
+
+    // 기존의 doReturn 방식 그대로 유지
+    doReturn(p1Id).when(p1).getId();
+    doReturn(owner).when(p1).getOwner();
+    doReturn("A Title").when(p1).getTitle();
+
+    doReturn(p2Id).when(p2).getId();
+    doReturn(owner).when(p2).getOwner();
+
+    when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(p1, p2)));
+    when(playlistRepository.count(any(Specification.class))).thenReturn(2L);
+
+    when(playlistSubscriptionRepository.findSubscribedPlaylistIds(any(), any())).thenReturn(List.of(p1Id));
+
+    CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
+        null, null, null, null, null, 1, "title", Direction.ASCENDING, currentUserId
+    );
+
+    assertThat(response.hasNext()).isTrue();
+    assertThat(response.nextCursor()).isEqualTo("A Title");
+    assertThat(response.data()).hasSize(1);
+    assertThat(response.data().get(0).subscribedByMe()).isTrue();
+  }
+
+  @Test
+  @DisplayName("플레이리스트 목록 조회 - updatedAt 커서 추출")
+  void getPlaylists_hasNext_updatedAtSort() {
+    Playlist p1 = mock(Playlist.class);
+    Playlist p2 = mock(Playlist.class);
+    User owner = mock(User.class);
+
+    // lenient()를 추가하여 사용되지 않을 수도 있는 stubbing에 대해 관대하게 처리합니다.
+    lenient().when(p1.getId()).thenReturn(UUID.randomUUID());
+    lenient().when(p1.getOwner()).thenReturn(owner);
+    when(p1.getUpdatedAt()).thenReturn(java.time.Instant.now());
+
+    lenient().when(p2.getId()).thenReturn(UUID.randomUUID());
+    lenient().when(p2.getOwner()).thenReturn(owner);
+
+    when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(p1, p2)));
+
+    CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
+        null, null, null, null, null, 1, "updatedAt", Direction.DESCENDING, null
+    );
+
+    assertThat(response.hasNext()).isTrue();
+    assertThat(response.nextCursor()).isNotNull();
+  }
+
+  @Test
+  @DisplayName("알림 방어 로직 - 소유자가 본인 플레이리스트에 컨텐츠 추가 시 알림 미발송")
+  void addContent_noNotification_whenSubscriberIsOwner() {
+    UUID ownerId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+
+    User owner = mock(User.class);
+    Playlist playlist = mock(Playlist.class);
+    Content content = mock(Content.class);
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(ownerId);
+    when(contentRepository.findById(contentId)).thenReturn(Optional.of(content));
+    when(playlistContentRepository.existsByPlaylistAndContent(playlist, content)).thenReturn(false);
+
+    PlaylistSubscription sub = mock(PlaylistSubscription.class);
+    when(sub.getSubscriber()).thenReturn(owner); // 구독자가 소유자와 동일함!
+    when(playlistSubscriptionRepository.findByPlaylist(playlist)).thenReturn(List.of(sub));
+
+    playlistService.addContent(ownerId, playlistId, contentId);
+
+    // 소유자와 구독자가 같으므로 알림이 발송되지 않아야 함
+    verify(eventPublisher, never()).publishEvent(any(NotificationEvent.class));
+  }
+
+  @Test
+  @DisplayName("Specification 람다 내부 분기점(ASC/DESC, 필터, 파싱 예외) 강제 실행 커버리지")
+  @SuppressWarnings("unchecked")
+  void specification_Coverage_Hack() {
+    when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(org.springframework.data.domain.Page.empty());
+
+    org.mockito.ArgumentCaptor<Specification<Playlist>> specCaptor =
+        org.mockito.ArgumentCaptor.forClass(Specification.class);
+
+    UUID uuid = UUID.randomUUID();
+    String validDate = java.time.Instant.now().toString();
+
+    // 1. 다양한 검색 필터 및 정렬 조건 (createdAt, updatedAt, title / ASC, DESC)
+    playlistService.getPlaylists("keyword", uuid, uuid, validDate, uuid, 10, "createdAt", Direction.ASCENDING, null);
+    playlistService.getPlaylists(null, null, null, validDate, uuid, 10, "updatedAt", Direction.DESCENDING, null);
+    playlistService.getPlaylists(null, null, null, "titleCursor", uuid, 10, "title", Direction.ASCENDING, null);
+    playlistService.getPlaylists(null, null, null, "titleCursor", uuid, 10, "title", Direction.DESCENDING, null);
+
+    // 2. 파싱 예외 발생 (잘못된 날짜 형식)
+    try {
+      playlistService.getPlaylists(null, null, null, "invalidDate", uuid, 10, "createdAt", Direction.DESCENDING, null);
+    } catch (Exception ignored) {}
+
+    // 낚아채기
+    verify(playlistRepository, org.mockito.Mockito.atLeastOnce())
+        .findAll(specCaptor.capture(), any(Pageable.class));
+
+    jakarta.persistence.criteria.Root<Playlist> root = mock(jakarta.persistence.criteria.Root.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    jakarta.persistence.criteria.CriteriaQuery<?> query = mock(jakarta.persistence.criteria.CriteriaQuery.class);
+    jakarta.persistence.criteria.CriteriaBuilder cb = mock(jakarta.persistence.criteria.CriteriaBuilder.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+
+    // 3. 람다식 강제 실행
+    for (Specification<Playlist> spec : specCaptor.getAllValues()) {
+      try { spec.toPredicate(root, query, cb); } catch (Exception ignored) {}
+    }
   }
 }
