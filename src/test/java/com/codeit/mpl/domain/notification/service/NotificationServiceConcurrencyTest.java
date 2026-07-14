@@ -37,7 +37,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
-    "spring.data.redis.repositories.enabled=false"
+    "spring.data.redis.repositories.enabled=false",
+    "spring.data.elasticsearch.repositories.enabled=false"
 })
 class NotificationServiceConcurrencyTest {
 
