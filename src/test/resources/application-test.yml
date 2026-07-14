@@ -61,3 +61,7 @@ tmdb:
 sportsdb:
   base-url: https://www.thesportsdb.com/api/v1/json
   api-key: testkey
+
+mpl:
+  frontend:
+    base-url: http://localhost:3000
