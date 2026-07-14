@@ -40,6 +40,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import com.codeit.mpl.domain.user.event.PasswordResetMailEvent;
 import com.codeit.mpl.domain.notification.entity.NotificationLevel;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.Authentication;
@@ -317,6 +318,7 @@ public class UserService {
                 TEMP_PASSWORD_TTL_SECONDS,
                 TimeUnit.SECONDS
         );
+        eventPublisher.publishEvent(new PasswordResetMailEvent(user.getEmail(), tempPassword));
         triggerSecurityEvent(user.getId());
     }
 

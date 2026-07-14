@@ -48,6 +48,10 @@ spring:
             client-id: ${KAKAO_CLIENT_ID:}
             client-secret: ${KAKAO_CLIENT_SECRET:}
 
+  mail:
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
 # .env 로딩(DotenvEnvironmentPostProcessor)이 실패하거나 .env 자체가 없어도
 # 로컬 실행(Run 버튼)이 최소한 기동은 되도록 안전한 로컬 전용 기본값을 둔다.
 # .env가 정상 로드되면 그 값이 이 기본값보다 우선순위가 높아서 그대로 사용된다.
