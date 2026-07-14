@@ -39,6 +39,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.codeit.mpl.infra.security.TestSecurityConfig;
+
 @WebMvcTest(
     controllers = ReviewController.class,
     excludeAutoConfiguration = {SecurityAutoConfiguration.class, OAuth2ClientAutoConfiguration.class},
@@ -47,7 +49,7 @@ import org.springframework.test.web.servlet.MockMvc;
     }
 )
 @AutoConfigureMockMvc(addFilters = false)
-@Import(ReviewControllerTest.TestConfig.class)
+@Import({ReviewControllerTest.TestConfig.class, TestSecurityConfig.class})
 class ReviewControllerTest {
 
   @MockitoBean
