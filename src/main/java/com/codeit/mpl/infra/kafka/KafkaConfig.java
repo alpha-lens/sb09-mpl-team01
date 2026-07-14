@@ -17,6 +17,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
@@ -112,6 +113,9 @@ public class KafkaConfig {
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
+        // JsonDeserializer가 타입 정보 없이 LinkedHashMap으로 역직렬화한 값을
+        // 리스너 메서드의 실제 파라미터 타입(예: ChatMessage)으로 다시 변환해준다.
+        factory.setRecordMessageConverter(new StringJsonMessageConverter());
         return factory;
     }
 }
