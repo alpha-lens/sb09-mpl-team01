@@ -23,6 +23,8 @@ def querydslVersion = '5.0.0'
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    implementation 'org.elasticsearch.client:elasticsearch-rest-client:8.12.2'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
