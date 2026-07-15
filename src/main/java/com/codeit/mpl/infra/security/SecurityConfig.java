@@ -35,7 +35,7 @@ public class SecurityConfig {
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
-    @Value("${mpl.frontend.base-url:}")
+    @Value("${mpl.frontend.base-url}")
     private String frontendBaseUrl;
 
     /**
