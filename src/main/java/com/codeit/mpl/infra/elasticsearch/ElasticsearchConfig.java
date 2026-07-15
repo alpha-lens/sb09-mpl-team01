@@ -17,6 +17,12 @@ public class ElasticsearchConfig {
     @Value("${spring.elasticsearch.uris:http://localhost:9200}")
     private String uris;
 
+    @Value("${opensearch.auth-mode:LOCAL}")
+    private String authMode;
+
+    @Value("${opensearch.region:ap-northeast-2}")
+    private String region;
+
     @Bean
     public RestClient restClient() {
         String cleanUri = uris.replace("http://", "").replace("https://", "");
@@ -26,11 +32,20 @@ public class ElasticsearchConfig {
         String scheme = uris.startsWith("https") ? "https" : "http";
 
         return RestClient.builder(new HttpHost(host, port, scheme))
-                .setHttpClientConfigCallback(httpClientBuilder -> 
+                .setHttpClientConfigCallback(httpClientBuilder -> {
+                    if ("IAM".equalsIgnoreCase(authMode)) {
+                        io.github.acm19.aws.interceptor.http.AwsRequestSigningApacheInterceptor interceptor = 
+                            new io.github.acm19.aws.interceptor.http.AwsRequestSigningApacheInterceptor(
+                                "es",
+                                software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner.create(),
+                                software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider.create(),
+                                software.amazon.awssdk.regions.Region.of(region)
+                            );
+                        httpClientBuilder.addInterceptorLast((HttpRequestInterceptor) interceptor);
+                    }
+
                     httpClientBuilder
                         .addInterceptorLast((HttpRequestInterceptor) (request, context) -> {
-                            // Spring Boot 3+/4+의 Elasticsearch Java Client가 추가하는 compatible-with 헤더를 제거하고
-                            // Elasticsearch 7.10.x(OpenSearch 1.x)가 해석 가능한 application/json으로 강제 치환합니다.
                             org.apache.http.Header[] contentTypeHeaders = request.getHeaders("Content-Type");
                             for (org.apache.http.Header header : contentTypeHeaders) {
                                 if (header.getValue().contains("compatible-with")) {
@@ -45,19 +60,18 @@ public class ElasticsearchConfig {
                             }
                         })
                         .addInterceptorLast((HttpResponseInterceptor) (response, context) -> {
-                            // Elasticsearch 7.10.x 이하 또는 OpenSearch에서는 X-Elastic-Product 헤더가 없거나 다릅니다.
-                            // 최신 Java Client의 제품 검증 로직을 통과하기 위해 응답 헤더에 이를 강제로 셋팅해 줍니다.
                             if (!response.containsHeader("X-Elastic-Product")) {
                                 response.addHeader("X-Elastic-Product", "Elasticsearch");
                             }
-                        })
-                )
+                        });
+                    return httpClientBuilder;
+                })
                 .build();
     }
 
     @Bean
-    public RestClientTransport restClientTransport(RestClient restClient) {
-        return new RestClientTransport(restClient, new JacksonJsonpMapper());
+    public RestClientTransport restClientTransport(RestClient restClient, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        return new RestClientTransport(restClient, new JacksonJsonpMapper(objectMapper));
     }
 
     @Bean
