@@ -52,6 +52,9 @@ spring:
     uris: http://localhost:9200
     connection-timeout: 3s
     socket-timeout: 3s
+  mail:
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
 
 # .env 로딩(DotenvEnvironmentPostProcessor)이 실패하거나 .env 자체가 없어도
 # 로컬 실행(Run 버튼)이 최소한 기동은 되도록 안전한 로컬 전용 기본값을 둔다.

@@ -46,6 +46,12 @@ spring:
             client-id: test-kakao-client-id
             client-secret: test-kakao-client-secret
 
+  mail:
+    host: localhost
+    port: 3025
+    username: test@example.com
+    password: test-password
+
 jwt:
   secret: testsecretkeytestsecretkeytestsecretkeytestsecretkeytestsecretkey
 admin:
