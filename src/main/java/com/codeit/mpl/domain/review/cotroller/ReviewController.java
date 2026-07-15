@@ -11,6 +11,7 @@ import com.codeit.mpl.infra.security.UserPrincipal;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/reviews")
@@ -36,6 +38,7 @@ public class ReviewController implements ReviewApi {
       @Valid @RequestBody ReviewCreateRequest request
   ) {
     UUID authorId = userPrincipal.userId();
+    log.info("[Review API] POST /api/reviews 요청 - authorId={}, contentId={}", authorId, request.contentId());
     ReviewDto response = reviewService.createReview(authorId, request);
     return ResponseEntity.ok(response);
   }
@@ -47,6 +50,7 @@ public class ReviewController implements ReviewApi {
       @Valid @RequestBody ReviewUpdateRequest request
   ) {
     UUID authorId = userPrincipal.userId();
+    log.info("[Review API] PATCH /api/reviews/{} 요청 - authorId={}", reviewId, authorId);
     ReviewDto response = reviewService.updateReview(authorId, reviewId, request);
     return ResponseEntity.ok(response);
   }
@@ -57,6 +61,7 @@ public class ReviewController implements ReviewApi {
       @PathVariable UUID reviewId
   ) {
     UUID authorId = userPrincipal.userId();
+    log.info("[Review API] DELETE /api/reviews/{} 요청 - authorId={}", reviewId, authorId);
     reviewService.deleteReview(authorId, reviewId);
     return ResponseEntity.noContent().build();
   }
@@ -65,6 +70,7 @@ public class ReviewController implements ReviewApi {
   public ResponseEntity<CursorPageResponseDto<ReviewDto>> getReviews(
       @Valid @ModelAttribute ReviewSearchRequest request
   ) {
+    log.debug("[Review API] GET /api/reviews 요청 - contentId={}", request.getContentId());
     CursorPageResponseDto<ReviewDto> response = reviewService.getReviews(
         request.getContentId(),
         request.getCursor(),
