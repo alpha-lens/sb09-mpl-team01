@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/follows")
@@ -36,6 +38,7 @@ public class FollowController implements FollowApi {
       @Valid @RequestBody FollowRequest request
   ) {
     UUID followerId = userPrincipal.userId();
+    log.info("[Follow API] POST /api/follows 요청 - followerId={}, followeeId={}", followerId, request.followeeId());
     FollowDto response = followService.follow(followerId, request.followeeId());
     return ResponseEntity.ok(response);
   }
@@ -46,12 +49,14 @@ public class FollowController implements FollowApi {
       @RequestParam(value = "followeeId", required = true) UUID followeeId
   ) {
     UUID followerId = userPrincipal.userId();
+    log.debug("[Follow API] GET /api/follows/followed-by-me 요청 - followerId={}, followeeId={}", followerId, followeeId);
     FollowDto response = followService.getFollowedByMe(followerId, followeeId);
 
     String json;
     try {
       json = response == null ? "null" : objectMapper.writeValueAsString(response);
     } catch (JsonProcessingException e) {
+      log.error("[Follow API] followed-by-me 응답 직렬화 실패 - followerId={}, followeeId={}", followerId, followeeId, e);
       throw new RuntimeException(e);
     }
 
@@ -62,6 +67,7 @@ public class FollowController implements FollowApi {
 
   @GetMapping("/count")
   public ResponseEntity<Long> getFollowerCount(@RequestParam UUID followeeId) {
+    log.debug("[Follow API] GET /api/follows/count 요청 - followeeId={}", followeeId);
     long count = followService.getFollowerCount(followeeId);
     return ResponseEntity.ok(count);
   }
@@ -72,6 +78,7 @@ public class FollowController implements FollowApi {
       @PathVariable UUID followId
   ) {
     UUID followerId = userPrincipal.userId();
+    log.info("[Follow API] DELETE /api/follows/{} 요청 - followerId={}", followId, followerId);
     followService.unfollow(followerId, followId);
     return ResponseEntity.noContent().build();
   }
