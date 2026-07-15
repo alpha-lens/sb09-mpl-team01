@@ -3,6 +3,7 @@ package com.codeit.mpl.infra.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -33,6 +34,9 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
+
+    @Value("${mpl.frontend.base-url:}")
+    private String frontendBaseUrl;
 
     /**
      * Configures HTTP security rules and builds the security filter chain.
@@ -92,8 +96,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        //// 로컬 개발용. 운영 배포 시 실제 도메인 추가 필요
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:[*]"));
+        List<String> allowedOrigins = frontendBaseUrl.isBlank()
+                ? List.of("http://localhost:[*]")
+                : List.of("http://localhost:[*]", frontendBaseUrl);
+        configuration.setAllowedOriginPatterns(allowedOrigins);
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Cache-Control", "X-XSRF-TOKEN"));
