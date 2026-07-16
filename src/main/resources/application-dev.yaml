@@ -37,9 +37,6 @@ spring:
       host: localhost
       port: 6379
 
-  session:
-    store-type: redis
-
   security:
     oauth2:
       client:
