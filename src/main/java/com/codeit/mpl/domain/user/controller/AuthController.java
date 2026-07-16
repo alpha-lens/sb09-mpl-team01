@@ -96,6 +96,9 @@ public class AuthController implements AuthApi {
     @GetMapping("/csrf-token")
     @Override
     public ResponseEntity<Map<String, String>> csrfToken(CsrfToken csrfToken) {
+        if (csrfToken == null) {
+            return ResponseEntity.noContent().build();
+        }
         return ResponseEntity.ok(Map.of(
                 "headerName", csrfToken.getHeaderName(),
                 "parameterName", csrfToken.getParameterName(),

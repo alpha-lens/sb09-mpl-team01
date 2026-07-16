@@ -148,14 +148,13 @@ public class UserService {
     }
 
     public SignInResult refresh(String refreshToken) {
-        if (!jwtUtil.validateRefreshToken(refreshToken)) {
+        UUID userId = jwtUtil.extractUserIdFromRefreshToken(refreshToken);
+        if (!jwtUtil.isValidForRotation(userId, refreshToken)) {
             throw new InvalidTokenException();
         }
-        UUID userId = jwtUtil.extractUserIdFromRefreshToken(refreshToken);
         User user = findUserById(userId);
-        jwtUtil.deleteRefreshToken(userId);
         String accessToken = jwtUtil.generateAccessToken(user);
-        String newRefreshToken = jwtUtil.generateRefreshToken(userId);
+        String newRefreshToken = jwtUtil.rotateRefreshToken(userId);
         return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), newRefreshToken);
     }
 
