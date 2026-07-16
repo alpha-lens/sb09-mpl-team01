@@ -62,6 +62,7 @@ class FollowServiceTest {
     when(follow.getId()).thenReturn(UUID.randomUUID());
     when(followee.getId()).thenReturn(followeeId);
     when(follower.getId()).thenReturn(followerId);
+    when(follower.getName()).thenReturn("테스트팔로워");
 
     FollowDto result = followService.follow(followerId, followeeId);
 

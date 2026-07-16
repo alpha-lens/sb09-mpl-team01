@@ -45,6 +45,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.codeit.mpl.infra.security.TestSecurityConfig;
+
 @WebMvcTest(
     controllers = FollowController.class,
     excludeAutoConfiguration = {
@@ -56,7 +58,7 @@ import org.springframework.test.web.servlet.MockMvc;
     }
 )
 @AutoConfigureMockMvc(addFilters = false) // 보안 필터를 비활성화하고 순수 컨트롤러 로직만 격리 테스트
-@Import(FollowControllerTest.TestConfig.class)
+@Import({FollowControllerTest.TestConfig.class, TestSecurityConfig.class})
 class FollowControllerTest {
 
   @MockitoBean
