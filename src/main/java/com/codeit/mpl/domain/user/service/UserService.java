@@ -119,9 +119,24 @@ public class UserService {
         }
     }
 
-    public UUID resolveOrCreateOAuthUser(String email, String name, AuthProvider provider) {
-        User user = userRepository.findByEmail(email)
-                .orElseGet(() -> registerOAuthUser(email, name, provider));
+    // providerId가 있는 제공자(예: 카카오)는 이메일을 자체적으로 안 줘서 닉네임 기반으로
+    // 합성한 이메일을 쓰는데, 닉네임이 바뀌면 이메일도 바뀌어 findByEmail로는 기존 계정을
+    // 못 찾고 중복 계정이 생기던 문제가 있었다. providerId(카카오 회원번호처럼 불변인 값)로
+    // 먼저 찾고, 아직 providerId가 채워지기 전(이 기능 도입 이전에 가입한 계정)인 경우에만
+    // 이메일로 한 번 더 찾아서 providerId를 채워 넣는다(자연스러운 마이그레이션).
+    public UUID resolveOrCreateOAuthUser(String email, String name, AuthProvider provider, String providerId) {
+        User user;
+        if (providerId != null) {
+            user = userRepository.findByProviderAndProviderId(provider, providerId)
+                    .or(() -> userRepository.findByEmail(email).map(existing -> {
+                        existing.updateProviderId(providerId);
+                        return existing;
+                    }))
+                    .orElseGet(() -> registerOAuthUser(email, name, provider, providerId));
+        } else {
+            user = userRepository.findByEmail(email)
+                    .orElseGet(() -> registerOAuthUser(email, name, provider, null));
+        }
         if (user.isLocked()) {
             throw new AccountLockedException();
         }
@@ -129,12 +144,13 @@ public class UserService {
     }
 
     // 소셜 계정은 폼 로그인이 불가능하므로, 사용하지 않을 임의 비밀번호를 인코딩해 넣어둔다.
-    private User registerOAuthUser(String email, String name, AuthProvider provider) {
+    private User registerOAuthUser(String email, String name, AuthProvider provider, String providerId) {
         User user = User.builder()
                 .email(email)
                 .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .name(name)
                 .provider(provider)
+                .providerId(providerId)
                 .build();
         return userRepository.save(user);
     }
