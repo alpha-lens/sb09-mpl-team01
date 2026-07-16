@@ -170,7 +170,7 @@ public class UserService {
         }
         User user = findUserById(userId);
         String accessToken = jwtUtil.generateAccessToken(user);
-        String newRefreshToken = jwtUtil.rotateRefreshToken(userId);
+        String newRefreshToken = jwtUtil.rotateRefreshToken(userId, refreshToken);
         return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), newRefreshToken);
     }
 

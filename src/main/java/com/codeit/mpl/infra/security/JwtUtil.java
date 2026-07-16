@@ -87,10 +87,18 @@ public class JwtUtil {
     /**
      * 현재 refresh token을 grace 슬롯으로 옮겨두고 새 토큰을 발급한다.
      * isValidForRotation과 짝을 이루어 /api/auth/refresh의 중복 호출 경쟁 상태를 없앤다.
+     * <p>
+     * 동시 요청이 3개 이상 겹치는 경우까지 고려해, presentedToken이 현재 슬롯과 다르면
+     * (=다른 동시 요청이 이미 로테이션을 끝냈다는 뜻) 또 새로 만들지 않고 그 결과를
+     * 그대로 반환한다. 이렇게 해야 요청마다 서로 다른 토큰을 돌려받아 grace 슬롯이
+     * 계속 밀려나는 문제(CodeRabbit 지적)가 없어진다.
      */
-    public String rotateRefreshToken(UUID userId) {
+    public String rotateRefreshToken(UUID userId, String presentedToken) {
         String key = REFRESH_TOKEN_PREFIX + userId;
         Object current = redisTemplate.opsForValue().get(key);
+        if (current != null && !current.toString().equals(presentedToken)) {
+            return current.toString();
+        }
         if (current != null) {
             redisTemplate.opsForValue().set(
                     REFRESH_TOKEN_GRACE_PREFIX + userId, current, REFRESH_TOKEN_GRACE_TTL_SECONDS, TimeUnit.SECONDS);
