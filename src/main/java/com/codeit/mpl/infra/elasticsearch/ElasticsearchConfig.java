@@ -23,15 +23,32 @@ public class ElasticsearchConfig {
     @Value("${opensearch.region:ap-northeast-2}")
     private String region;
 
+    @Value("${spring.elasticsearch.connection-timeout:3s}")
+    private java.time.Duration connectionTimeout;
+
+    @Value("${spring.elasticsearch.socket-timeout:3s}")
+    private java.time.Duration socketTimeout;
+
     @Bean
     public RestClient restClient() {
-        String cleanUri = uris.replace("http://", "").replace("https://", "");
-        String[] parts = cleanUri.split(":");
-        String host = parts[0];
-        int port = parts.length > 1 ? Integer.parseInt(parts[1]) : 9200;
-        String scheme = uris.startsWith("https") ? "https" : "http";
+        String[] uriArray = uris.split(",");
+        HttpHost[] hosts = new HttpHost[uriArray.length];
+        for (int i = 0; i < uriArray.length; i++) {
+            String uriString = uriArray[i].trim();
+            java.net.URI uri = java.net.URI.create(uriString);
+            hosts[i] = new HttpHost(uri.getHost(), uri.getPort(), uri.getScheme());
+        }
 
-        return RestClient.builder(new HttpHost(host, port, scheme))
+        org.elasticsearch.client.RestClientBuilder builder = RestClient.builder(hosts);
+
+        // Apply connection and socket timeouts
+        builder.setRequestConfigCallback(requestConfigBuilder -> 
+            requestConfigBuilder
+                .setConnectTimeout((int) connectionTimeout.toMillis())
+                .setSocketTimeout((int) socketTimeout.toMillis())
+        );
+
+        return builder
                 .setHttpClientConfigCallback(httpClientBuilder -> {
                     if ("IAM".equalsIgnoreCase(authMode)) {
                         io.github.acm19.aws.interceptor.http.AwsRequestSigningApacheInterceptor interceptor = 

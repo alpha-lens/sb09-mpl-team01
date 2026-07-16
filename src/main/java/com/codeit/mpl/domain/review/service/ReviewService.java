@@ -25,6 +25,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,6 +35,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -45,6 +47,8 @@ public class ReviewService {
   private final ReviewMapper reviewMapper;
 
   public ReviewDto createReview(UUID authorId, ReviewCreateRequest request) {
+    log.info("리뷰 생성 요청 - authorId={}, contentId={}, rating={}", authorId, request.contentId(), request.rating());
+
     User author = userRepository.findById(authorId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
 
@@ -52,6 +56,7 @@ public class ReviewService {
         .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     if (reviewRepository.existsByAuthorAndContent(author, content)) {
+      log.warn("이미 존재하는 리뷰 재작성 시도 - authorId={}, contentId={}", authorId, request.contentId());
       throw new ReviewAlreadyExistsException();
     }
 
@@ -62,35 +67,54 @@ public class ReviewService {
     } catch (DataIntegrityViolationException e) {
       String message = e.getMostSpecificCause().getMessage();
       if (message != null && message.contains("uk_review_author_content")) {
+        log.warn("DB 제약조건 위반으로 리뷰 중복 생성 차단 - authorId={}, contentId={}", authorId, request.contentId());
         throw new ReviewAlreadyExistsException();
       }
+      log.error("리뷰 저장 중 예기치 못한 DB 오류 - authorId={}, contentId={}", authorId, request.contentId(), e);
       throw e;
     }
 
+    log.info("리뷰 생성 완료 - reviewId={}, authorId={}, contentId={}", review.getId(), authorId, request.contentId());
     return reviewMapper.toDto(review);
   }
 
   public ReviewDto updateReview(UUID authorId, UUID reviewId, ReviewUpdateRequest request) {
+    log.info("리뷰 수정 요청 - reviewId={}, authorId={}", reviewId, authorId);
+
     Review review = reviewRepository.findById(reviewId)
-        .orElseThrow(ReviewNotFoundException::new);
+        .orElseThrow(() -> {
+          log.warn("존재하지 않는 리뷰 수정 시도 - reviewId={}", reviewId);
+          return new ReviewNotFoundException();
+        });
 
     if (!review.getAuthor().getId().equals(authorId)) {
+      log.warn("리뷰 수정 권한 없음 - reviewId={}, requesterId={}, authorId={}",
+          reviewId, authorId, review.getAuthor().getId());
       throw new ReviewForbiddenException();
     }
 
     review.update(request.text(), request.rating());
+    log.info("리뷰 수정 완료 - reviewId={}", reviewId);
     return reviewMapper.toDto(review);
   }
 
   public void deleteReview(UUID authorId, UUID reviewId) {
+    log.info("리뷰 삭제 요청 - reviewId={}, authorId={}", reviewId, authorId);
+
     Review review = reviewRepository.findById(reviewId)
-        .orElseThrow(ReviewNotFoundException::new);
+        .orElseThrow(() -> {
+          log.warn("존재하지 않는 리뷰 삭제 시도 - reviewId={}", reviewId);
+          return new ReviewNotFoundException();
+        });
 
     if (!review.getAuthor().getId().equals(authorId)) {
+      log.warn("리뷰 삭제 권한 없음 - reviewId={}, requesterId={}, authorId={}",
+          reviewId, authorId, review.getAuthor().getId());
       throw new ReviewForbiddenException();
     }
 
     reviewRepository.delete(review);
+    log.info("리뷰 삭제 완료 - reviewId={}, authorId={}", reviewId, authorId);
   }
 
   @Transactional(readOnly = true)
@@ -102,6 +126,9 @@ public class ReviewService {
       String sortBy,
       Direction sortDirection
   ) {
+    log.debug("리뷰 목록 조회 요청 - contentId={}, limit={}, sortBy={}, sortDirection={}",
+        contentId, limit, sortBy, sortDirection);
+
     Content content = contentRepository.findById(contentId)
         .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
@@ -143,6 +170,8 @@ public class ReviewService {
     }
 
     long totalCount = reviewRepository.count(contentSpec);
+
+    log.debug("리뷰 목록 조회 완료 - contentId={}, 결과 {}건, totalCount={}", contentId, reviewDtos.size(), totalCount);
 
     return new CursorPageResponseDto<>(
         reviewDtos,

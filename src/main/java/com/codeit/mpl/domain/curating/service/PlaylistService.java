@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -54,6 +55,7 @@ import com.codeit.mpl.domain.notification.entity.NotificationType;
 import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import org.springframework.context.ApplicationEventPublisher;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -80,12 +82,17 @@ public class PlaylistService {
       Direction sortDirection,
       UUID currentUserId
   ) {
+    log.debug("플레이리스트 목록 조회 요청 - keyword={}, ownerId={}, subscriberId={}, limit={}, sortBy={}, sortDirection={}",
+        keywordLike, ownerIdEqual, subscriberIdEqual, limit, sortBy, sortDirection);
+
     if (limit <= 0) {
+      log.warn("잘못된 limit 값으로 플레이리스트 목록 조회 시도 - limit={}", limit);
       throw new InvalidPlaylistLimitException();
     }
 
     List<String> allowedSortFields = List.of("createdAt", "updatedAt", "title");
     if (!allowedSortFields.contains(sortBy)) {
+      log.debug("허용되지 않은 sortBy={} -> createdAt으로 대체", sortBy);
       sortBy = "createdAt";
     }
 
@@ -154,6 +161,8 @@ public class PlaylistService {
 
     long totalCount = playlistRepository.count(filterSpec);
 
+    log.debug("플레이리스트 목록 조회 완료 - 결과 {}건, totalCount={}", playlistDtos.size(), totalCount);
+
     return new CursorPageResponseDto<>(
         playlistDtos,
         nextCursor,
@@ -166,13 +175,17 @@ public class PlaylistService {
   }
 
   public PlaylistDto createPlaylist(UUID ownerId, PlaylistCreateRequest request) {
+    log.info("플레이리스트 생성 요청 - ownerId={}, title={}", ownerId, request.title());
+
     User owner = userRepository.findById(ownerId)
         .orElseThrow(() -> new MplException(ErrorCode.USER_NOT_FOUND));
     Playlist playlist = new Playlist(owner, request.title(), request.description());
     playlistRepository.save(playlist);
+    log.info("플레이리스트 생성 완료 - playlistId={}, ownerId={}", playlist.getId(), ownerId);
 
     // 나를 팔로우하고 있는 사람들에게 알림 발송
     List<Follow> followers = followRepository.findByFollowee(owner);
+    log.debug("신규 플레이리스트 알림 대상 {}명 - ownerId={}", followers.size(), ownerId);
     for (Follow follow : followers) {
       eventPublisher.publishEvent(new NotificationEvent(
           follow.getFollower(),
@@ -191,19 +204,27 @@ public class PlaylistService {
   @Transactional(readOnly = true)
   public PlaylistDto getPlaylist(UUID playlistId, UUID currentUserId) {
     Playlist playlist = playlistRepository.findById(playlistId)
-        .orElseThrow(PlaylistNotFoundException::new);
+        .orElseThrow(() -> {
+          log.warn("존재하지 않는 플레이리스트 조회 시도 - playlistId={}", playlistId);
+          return new PlaylistNotFoundException();
+        });
     return toDto(playlist, currentUserId);
   }
 
   public PlaylistDto updatePlaylist(UUID ownerId, UUID playlistId, PlaylistUpdateRequest request) {
+    log.info("플레이리스트 수정 요청 - playlistId={}, ownerId={}", playlistId, ownerId);
+
     Playlist playlist = playlistRepository.findById(playlistId)
         .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlist.getOwner().getId().equals(ownerId)) {
+      log.warn("플레이리스트 수정 권한 없음 - playlistId={}, requesterId={}, ownerId={}",
+          playlistId, ownerId, playlist.getOwner().getId());
       throw new PlaylistForbiddenException();
     }
 
     playlist.update(request.title(), request.description());
+    log.info("플레이리스트 수정 완료 - playlistId={}", playlistId);
     return toDto(playlist, ownerId);
   }
 
@@ -212,12 +233,15 @@ public class PlaylistService {
         .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlist.getOwner().getId().equals(ownerId)) {
+      log.warn("플레이리스트 삭제 권한 없음 - playlistId={}, requesterId={}, ownerId={}",
+          playlistId, ownerId, playlist.getOwner().getId());
       throw new PlaylistForbiddenException();
     }
 
     playlistContentRepository.deleteByPlaylist(playlist);
     playlistSubscriptionRepository.deleteByPlaylist(playlist);
     playlistRepository.delete(playlist);
+    log.info("플레이리스트 삭제 완료 - playlistId={}, ownerId={}", playlistId, ownerId);
   }
 
   public void addContent(UUID ownerId, UUID playlistId, UUID contentId) {
@@ -225,6 +249,7 @@ public class PlaylistService {
         .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlist.getOwner().getId().equals(ownerId)) {
+      log.warn("콘텐츠 추가 권한 없음 - playlistId={}, requesterId={}", playlistId, ownerId);
       throw new PlaylistForbiddenException();
     }
 
@@ -232,13 +257,16 @@ public class PlaylistService {
         .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     if (playlistContentRepository.existsByPlaylistAndContent(playlist, content)) {
+      log.warn("이미 존재하는 콘텐츠 추가 시도 - playlistId={}, contentId={}", playlistId, contentId);
       throw new PlaylistContentAlreadyExistsException();
     }
 
     playlistContentRepository.save(new PlaylistContent(playlist, content));
+    log.info("플레이리스트에 콘텐츠 추가 완료 - playlistId={}, contentId={}", playlistId, contentId);
 
     // 플레이리스트 구독자들에게 알림 발송
     List<PlaylistSubscription> subscriptions = playlistSubscriptionRepository.findByPlaylist(playlist);
+    log.debug("콘텐츠 추가 알림 대상 {}명 - playlistId={}", subscriptions.size(), playlistId);
     for (PlaylistSubscription sub : subscriptions) {
       User subscriber = sub.getSubscriber();
       if (!subscriber.getId().equals(playlist.getOwner().getId())) {
@@ -260,6 +288,7 @@ public class PlaylistService {
         .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlist.getOwner().getId().equals(ownerId)) {
+      log.warn("콘텐츠 삭제 권한 없음 - playlistId={}, requesterId={}", playlistId, ownerId);
       throw new PlaylistForbiddenException();
     }
 
@@ -267,10 +296,12 @@ public class PlaylistService {
         .orElseThrow(() -> new MplException(ErrorCode.CONTENT_NOT_FOUND));
 
     if (!playlistContentRepository.existsByPlaylistAndContent(playlist, content)) {
+      log.warn("존재하지 않는 콘텐츠 삭제 시도 - playlistId={}, contentId={}", playlistId, contentId);
       throw new PlaylistContentNotFoundException();
     }
 
     playlistContentRepository.deleteByPlaylistAndContent(playlist, content);
+    log.info("플레이리스트에서 콘텐츠 삭제 완료 - playlistId={}, contentId={}", playlistId, contentId);
 
     // 플레이리스트 구독자들에게 알림 발송
     List<PlaylistSubscription> subscriptions = playlistSubscriptionRepository.findByPlaylist(playlist);
@@ -298,10 +329,12 @@ public class PlaylistService {
         .orElseThrow(PlaylistNotFoundException::new);
 
     if (playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, subscriber)) {
+      log.warn("이미 구독 중인 플레이리스트 재구독 시도 - playlistId={}, subscriberId={}", playlistId, subscriberId);
       throw new PlaylistSubscriptionAlreadyExistsException();
     }
 
     playlistSubscriptionRepository.save(new PlaylistSubscription(playlist, subscriber));
+    log.info("플레이리스트 구독 완료 - playlistId={}, subscriberId={}", playlistId, subscriberId);
 
     // 소유자에게 구독 알림 발송 (단, 소유자 자신이 구독하는 경우는 제외)
     if (!playlist.getOwner().getId().equals(subscriber.getId())) {
@@ -325,10 +358,12 @@ public class PlaylistService {
         .orElseThrow(PlaylistNotFoundException::new);
 
     if (!playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, subscriber)) {
+      log.warn("구독하지 않은 플레이리스트 구독취소 시도 - playlistId={}, subscriberId={}", playlistId, subscriberId);
       throw new PlaylistSubscriptionNotFoundException();
     }
 
     playlistSubscriptionRepository.deleteByPlaylistAndSubscriber(playlist, subscriber);
+    log.info("플레이리스트 구독취소 완료 - playlistId={}, subscriberId={}", playlistId, subscriberId);
   }
 
   // ===== private helper =====

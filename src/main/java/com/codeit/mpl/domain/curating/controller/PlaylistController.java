@@ -11,6 +11,7 @@ import com.codeit.mpl.infra.security.UserPrincipal;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/playlists")
@@ -36,6 +38,7 @@ public class PlaylistController implements PlaylistApi {
       @Valid @ModelAttribute PlaylistSearchRequest request
   ) {
     UUID currentUserId = userPrincipal != null ? userPrincipal.userId() : null;
+    log.debug("[Playlist API] GET /api/playlists 요청 - currentUserId={}, ownerId={}", currentUserId, request.getOwnerIdEqual());
 
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         request.getKeywordLike(),
@@ -57,6 +60,7 @@ public class PlaylistController implements PlaylistApi {
       @Valid @RequestBody PlaylistCreateRequest request
   ) {
     UUID ownerId = userPrincipal.userId();
+    log.info("[Playlist API] POST /api/playlists 요청 - ownerId={}, title={}", ownerId, request.title());
     PlaylistDto response = playlistService.createPlaylist(ownerId, request);
     return ResponseEntity.ok(response);
   }
@@ -67,6 +71,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID playlistId
   ) {
     UUID currentUserId = userPrincipal != null ? userPrincipal.userId() : null;
+    log.debug("[Playlist API] GET /api/playlists/{} 요청 - currentUserId={}", playlistId, currentUserId);
     PlaylistDto response = playlistService.getPlaylist(playlistId, currentUserId);
     return ResponseEntity.ok(response);
   }
@@ -78,6 +83,7 @@ public class PlaylistController implements PlaylistApi {
       @Valid @RequestBody PlaylistUpdateRequest request
   ) {
     UUID ownerId = userPrincipal.userId();
+    log.info("[Playlist API] PATCH /api/playlists/{} 요청 - ownerId={}", playlistId, ownerId);
     PlaylistDto response = playlistService.updatePlaylist(ownerId, playlistId, request);
     return ResponseEntity.ok(response);
   }
@@ -88,6 +94,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID playlistId
   ) {
     UUID ownerId = userPrincipal.userId();
+    log.info("[Playlist API] DELETE /api/playlists/{} 요청 - ownerId={}", playlistId, ownerId);
     playlistService.deletePlaylist(ownerId, playlistId);
     return ResponseEntity.noContent().build();
   }
@@ -99,6 +106,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID contentId
   ) {
     UUID ownerId = userPrincipal.userId();
+    log.info("[Playlist API] POST /api/playlists/{}/contents/{} 요청 - ownerId={}", playlistId, contentId, ownerId);
     playlistService.addContent(ownerId, playlistId, contentId);
     return ResponseEntity.ok().build();
   }
@@ -110,6 +118,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID contentId
   ) {
     UUID ownerId = userPrincipal.userId();
+    log.info("[Playlist API] DELETE /api/playlists/{}/contents/{} 요청 - ownerId={}", playlistId, contentId, ownerId);
     playlistService.removeContent(ownerId, playlistId, contentId);
     return ResponseEntity.noContent().build();
   }
@@ -120,6 +129,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID playlistId
   ) {
     UUID subscriberId = userPrincipal.userId();
+    log.info("[Playlist API] POST /api/playlists/{}/subscription 요청 - subscriberId={}", playlistId, subscriberId);
     playlistService.subscribePlaylist(subscriberId, playlistId);
     return ResponseEntity.ok().build();
   }
@@ -130,6 +140,7 @@ public class PlaylistController implements PlaylistApi {
       @PathVariable UUID playlistId
   ) {
     UUID subscriberId = userPrincipal.userId();
+    log.info("[Playlist API] DELETE /api/playlists/{}/subscription 요청 - subscriberId={}", playlistId, subscriberId);
     playlistService.unsubscribePlaylist(subscriberId, playlistId);
     return ResponseEntity.noContent().build();
   }

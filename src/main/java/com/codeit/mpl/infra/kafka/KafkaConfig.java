@@ -17,7 +17,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 @Configuration
@@ -31,6 +31,31 @@ public class KafkaConfig {
     @Value("${spring.kafka.consumer.group-id:mpl-group}")
     private String groupId;
 
+    @Value("${spring.kafka.properties.security.protocol:}")
+    private String securityProtocol;
+
+    @Value("${spring.kafka.properties.sasl.mechanism:}")
+    private String saslMechanism;
+
+    @Value("${spring.kafka.properties.sasl.jaas.config:}")
+    private String saslJaasConfig;
+
+    /**
+     * 순수 spring-kafka 라이브러리만 사용 중이라(spring-boot-starter-kafka 없음)
+     * spring.kafka.properties.*가 자동 바인딩되지 않는다 - 여기서 직접 주입해서 반영한다.
+     */
+    private void applySecurityProperties(Map<String, Object> configProps) {
+        if (!securityProtocol.isBlank()) {
+            configProps.put("security.protocol", securityProtocol);
+        }
+        if (!saslMechanism.isBlank()) {
+            configProps.put("sasl.mechanism", saslMechanism);
+        }
+        if (!saslJaasConfig.isBlank()) {
+            configProps.put("sasl.jaas.config", saslJaasConfig);
+        }
+    }
+
     /**
      * Configures a Kafka producer factory that serializes keys as strings and values as JSON.
      *
@@ -42,6 +67,7 @@ public class KafkaConfig {
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        applySecurityProperties(configProps);
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
@@ -56,9 +82,12 @@ public class KafkaConfig {
     }
 
     /**
-     * Creates a Kafka consumer factory for String-keyed JSON messages.
+     * Creates a Kafka consumer factory for String-keyed, String-valued messages.
+     * JSON-to-POJO 변환은 여기서 하지 않고, 리스너 컨테이너 팩토리의
+     * StringJsonMessageConverter가 실제 리스너 파라미터 타입에 맞춰 처리한다
+     * (JsonDeserializer로 미리 역직렬화하면 LinkedHashMap이 되어 컨버터가 처리 못함).
      *
-     * @return A ConsumerFactory configured to deserialize String keys and JSON values.
+     * @return A ConsumerFactory configured to deserialize String keys and values.
      */
     @Bean
     public ConsumerFactory<String, Object> consumerFactory() {
@@ -66,14 +95,10 @@ public class KafkaConfig {
         configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        configProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-        
-        return new DefaultKafkaConsumerFactory<>(
-                configProps,
-                new StringDeserializer(),
-                new JsonDeserializer<>(Object.class, false)
-        );
+        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        applySecurityProperties(configProps);
+
+        return new DefaultKafkaConsumerFactory<>(configProps);
     }
 
     /**
@@ -85,6 +110,9 @@ public class KafkaConfig {
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
+        // 원본 값은 String으로만 역직렬화되고, 실제 리스너 파라미터 타입(예: ChatMessage)으로의
+        // JSON 변환은 이 컨버터가 담당한다.
+        factory.setRecordMessageConverter(new StringJsonMessageConverter());
         return factory;
     }
 }
