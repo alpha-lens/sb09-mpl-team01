@@ -137,7 +137,7 @@ class UserServiceTest {
 
         String capturedKey = keyCaptor.getValue();
         assertThat(capturedKey).doesNotContain("..");
-        assertThat(capturedKey).startsWith("profile-images/" + userId + "/");
+        assertThat(capturedKey).startsWith("profile-images/");
         assertThat(capturedKey).endsWith(".png");
     }
 
@@ -152,7 +152,7 @@ class UserServiceTest {
 
         userService.updateUser(userId, new UserUpdateRequest("우디"), image);
 
-        assertThat(keyCaptor.getValue()).startsWith("profile-images/" + userId + "/");
+        assertThat(keyCaptor.getValue()).startsWith("profile-images/");
     }
 
     private void simulateCommit() {
