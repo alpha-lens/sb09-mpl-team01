@@ -8,6 +8,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.mockito.Mockito.mock;
@@ -39,6 +40,11 @@ class MplApplicationTests {
       @Bean
       public RedisMessageListenerContainer redisMessageListenerContainer() {
           return mock(RedisMessageListenerContainer.class);
+      }
+
+      @Bean
+      public KafkaTemplate<String, Object> kafkaTemplate() {
+          return mock(org.springframework.kafka.core.KafkaTemplate.class);
       }
   }
 

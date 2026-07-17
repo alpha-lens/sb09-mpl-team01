@@ -24,8 +24,10 @@ spring:
       connection-timeout: 5000
       leak-detection-threshold: 2000
 
-  jpa:
+  spring:
     show-sql: false
+    jpa:
+      open-in-view: false
 
   batch:
     jdbc:

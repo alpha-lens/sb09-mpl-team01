@@ -22,6 +22,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.mockito.Mockito;
 
@@ -61,6 +62,12 @@ class ContentSearchIntegrationTest {
         @Primary
         public RedisMessageListenerContainer redisMessageListenerContainer() {
             return Mockito.mock(RedisMessageListenerContainer.class);
+        }
+
+        @Bean
+        @Primary
+        public KafkaTemplate<String, Object> kafkaTemplate() {
+            return Mockito.mock(org.springframework.kafka.core.KafkaTemplate.class);
         }
     }
 

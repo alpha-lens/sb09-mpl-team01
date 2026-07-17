@@ -220,8 +220,7 @@ public class UserService {
     public UserDto updateUser(UUID userId, UserUpdateRequest request, MultipartFile image) {
         String storedKey = null;
         if (image != null && !image.isEmpty()) {
-            // DB 접근 전에 업로드를 끝내 트랜잭션이 S3/디스크 I/O를 물고 있지 않게 한다.
-            String key = "profile-images/" + userId + "/" + UUID.randomUUID()
+            String key = "profile-images/" + UUID.randomUUID()
                     + extractSafeExtension(image.getOriginalFilename());
             storedKey = binaryContentStorage.put(key, image);
             registerCleanupOnRollback(storedKey);
