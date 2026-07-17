@@ -67,6 +67,11 @@ class NotificationServiceConcurrencyTest {
         public RedisMessageListenerContainer redisMessageListenerContainer() {
             return mock(RedisMessageListenerContainer.class);
         }
+
+        @Bean
+        public org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate() {
+            return mock(org.springframework.kafka.core.KafkaTemplate.class);
+        }
     }
 
     @Autowired
