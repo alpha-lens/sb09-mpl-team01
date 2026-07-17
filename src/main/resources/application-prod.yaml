@@ -47,9 +47,6 @@ spring:
       ssl:
         enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:true}
 
-  session:
-    store-type: redis
-
 
 content:
   collection:

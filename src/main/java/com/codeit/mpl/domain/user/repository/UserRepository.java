@@ -1,5 +1,6 @@
 package com.codeit.mpl.domain.user.repository;
 
+import com.codeit.mpl.domain.user.entity.AuthProvider;
 import com.codeit.mpl.domain.user.entity.User;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +18,8 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    Optional<User> findByProviderAndProviderId(AuthProvider provider, String providerId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE User u SET u.tokenVersion = u.tokenVersion + 1 WHERE u.id = :id")

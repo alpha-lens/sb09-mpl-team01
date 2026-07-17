@@ -63,7 +63,13 @@ public class SecurityConfig {
             * */
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // 인증은 JWT로만 하고 HttpSession은 OAuth2 로그인 handshake 동안만 잠깐 쓰는
+            // 임시 저장소라, 로그인 성공 시 세션 ID를 바꾸는 고정 공격 방지가 우리에겐 의미가 없다.
+            // 오히려 로그인 콜백 응답과 그 직후 동시에 들어오는 API 요청들이 예전 세션 ID를
+            // 참조하면서 "Session was invalidated"(RedisSessionRepository)로 깨지는 원인이었다.
+            .sessionManagement(session -> session
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                    .sessionFixation().none())
             .authorizeHttpRequests(auth -> auth
                 .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/sign-in", "/api/auth/sign-out", "/api/auth/reset-password",
