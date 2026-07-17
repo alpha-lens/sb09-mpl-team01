@@ -49,6 +49,11 @@ spring:
       ssl:
         enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:true}
 
+  elasticsearch:
+    uris: ${SPRING_ELASTICSEARCH_URIS}
+    connection-timeout: 3s
+    socket-timeout: 3s
+
 
 content:
   collection:
