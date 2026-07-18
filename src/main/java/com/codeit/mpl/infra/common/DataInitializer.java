@@ -12,6 +12,7 @@ import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.content.service.ElasticsearchSyncService;
+import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import java.util.ArrayList;
