@@ -10,6 +10,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.IndexOperations;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -26,16 +29,45 @@ public class ElasticsearchSyncService {
 
     private final ContentRepository contentRepository;
     private final ContentSearchRepository contentSearchRepository;
+    private final ElasticsearchOperations elasticsearchOperations;
+
+    /**
+     * OpenSearch 인덱스가 없을 경우 인덱스를 새로 생성하고
+     * elasticsearch-settings.json(ngram_analyzer) 및 필드 매핑을 적용합니다.
+     */
+    public void ensureIndexWithMapping() {
+        IndexOperations indexOps = elasticsearchOperations.indexOps(ContentDocument.class);
+        if (!indexOps.exists()) {
+            log.info("[ES Sync] 인덱스가 존재하지 않아 새로 생성하고 매핑/설정을 적용합니다.");
+            indexOps.create();
+            indexOps.putMapping(indexOps.createMapping(ContentDocument.class));
+        }
+    }
+
+    /**
+     * 기존 OpenSearch 인덱스를 삭제 후 새로 생성하여 매핑/설정을 재적용합니다.
+     */
+    public void recreateIndexWithMapping() {
+        IndexOperations indexOps = elasticsearchOperations.indexOps(ContentDocument.class);
+        if (indexOps.exists()) {
+            log.info("[ES Sync] 기존 인덱스를 삭제합니다.");
+            indexOps.delete();
+        }
+        log.info("[ES Sync] 인덱스를 새로 생성하고 매핑/설정을 적용합니다.");
+        indexOps.create();
+        indexOps.putMapping(indexOps.createMapping(ContentDocument.class));
+    }
 
     /**
      * DB의 모든 콘텐츠를 OpenSearch에 전체 재색인합니다.
-     * 413 오류를 막기 위해 BATCH_SIZE(100건)씩 나눠서 인덱싱합니다.
+     * 인덱스를 초기화하고 413 오류를 막기 위해 BATCH_SIZE(100건)씩 나눠서 인덱싱합니다.
      *
      * @return 동기화 결과 요약
      */
     @Transactional(readOnly = true)
     public SyncResult reindexAll() {
         log.info("[ES Sync] 전체 재색인 시작");
+        recreateIndexWithMapping();
 
         List<Content> allContents = contentRepository.findAll();
         int total = allContents.size();
@@ -86,6 +118,7 @@ public class ElasticsearchSyncService {
     @Transactional(readOnly = true)
     public DiffResult validateDiff() {
         log.info("[ES Sync] DB↔OpenSearch 불일치 검증 시작");
+        ensureIndexWithMapping();
 
         // DB의 모든 UUID
         List<Content> dbContents = contentRepository.findAll();

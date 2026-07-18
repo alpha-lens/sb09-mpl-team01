@@ -11,7 +11,7 @@ import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
-import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.content.service.ElasticsearchSyncService;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import java.util.ArrayList;
@@ -39,6 +39,7 @@ public class DataInitializer implements ApplicationRunner {
     private final ReviewRepository reviewRepository;
     private final PasswordEncoder passwordEncoder;
     private final ContentSearchRepository contentSearchRepository;
+    private final ElasticsearchSyncService elasticsearchSyncService;
 
     @Value("${admin.email}")
     private String adminEmail;
@@ -176,6 +177,7 @@ public class DataInitializer implements ApplicationRunner {
     private void syncDatabaseWithElasticsearch() {
         log.info("Starting database contents sync with Elasticsearch...");
         try {
+            elasticsearchSyncService.ensureIndexWithMapping();
             long dbCount = contentRepository.count();
             if (dbCount == 0) {
                 log.info("No content in database to sync.");
