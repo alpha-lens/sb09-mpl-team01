@@ -87,8 +87,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private String resolveToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
+        if (StringUtils.hasText(bearerToken)) {
+            if (bearerToken.startsWith("Bearer ")) {
+                return bearerToken.substring(7).trim();
+            }
+            if (bearerToken.startsWith("Bearer")) {
+                return bearerToken.substring(6).trim();
+            }
         }
         
         // SSE나 WebSocket 등 특정 요청에 대해 Query Parameter로 토큰이 들어올 때의 대체 추출 지원
