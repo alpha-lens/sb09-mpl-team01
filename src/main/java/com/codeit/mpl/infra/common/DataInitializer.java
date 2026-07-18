@@ -177,18 +177,30 @@ public class DataInitializer implements ApplicationRunner {
         log.info("Starting database contents sync with Elasticsearch...");
         try {
             long dbCount = contentRepository.count();
-            if (dbCount > 0) {
-                List<Content> allContents = contentRepository.findAll();
-                List<ContentDocument> documents = allContents.stream()
-                        .map(ContentDocument::from)
-                        .toList();
-                contentSearchRepository.saveAll(documents);
-                log.info("Successfully synced {} contents to Elasticsearch.", documents.size());
-            } else {
+            if (dbCount == 0) {
                 log.info("No content in database to sync.");
+                return;
             }
+
+            List<Content> allContents = contentRepository.findAll();
+            List<ContentDocument> documents = allContents.stream()
+                    .map(ContentDocument::from)
+                    .toList();
+
+            // OpenSearch의 http.max_content_length(기본 100MB) 초과로 413 오류가 발생하는 것을 방지하기 위해
+            // 전체를 한 번에 보내지 않고 BATCH_SIZE 건씩 나눠서 인덱싱한다.
+            int batchSize = 100;
+            int totalSynced = 0;
+            for (int i = 0; i < documents.size(); i += batchSize) {
+                List<ContentDocument> batch = documents.subList(i, Math.min(i + batchSize, documents.size()));
+                contentSearchRepository.saveAll(batch);
+                totalSynced += batch.size();
+                log.info("Elasticsearch sync progress: {}/{}", totalSynced, documents.size());
+            }
+            log.info("Successfully synced {} contents to Elasticsearch.", totalSynced);
         } catch (Exception e) {
             log.error("Failed to sync database contents with Elasticsearch on startup", e);
         }
     }
 }
+
