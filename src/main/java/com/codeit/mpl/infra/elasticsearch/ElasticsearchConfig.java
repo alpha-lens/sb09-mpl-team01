@@ -50,17 +50,6 @@ public class ElasticsearchConfig {
 
         return builder
                 .setHttpClientConfigCallback(httpClientBuilder -> {
-                    if ("IAM".equalsIgnoreCase(authMode)) {
-                        io.github.acm19.aws.interceptor.http.AwsRequestSigningApacheInterceptor interceptor = 
-                            new io.github.acm19.aws.interceptor.http.AwsRequestSigningApacheInterceptor(
-                                "es",
-                                software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner.create(),
-                                software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider.create(),
-                                software.amazon.awssdk.regions.Region.of(region)
-                            );
-                        httpClientBuilder.addInterceptorLast((HttpRequestInterceptor) interceptor);
-                    }
-
                     httpClientBuilder
                         .addInterceptorLast((HttpRequestInterceptor) (request, context) -> {
                             org.apache.http.Header[] contentTypeHeaders = request.getHeaders("Content-Type");
@@ -81,6 +70,18 @@ public class ElasticsearchConfig {
                                 response.addHeader("X-Elastic-Product", "Elasticsearch");
                             }
                         });
+
+                    if ("IAM".equalsIgnoreCase(authMode)) {
+                        io.github.acm19.aws.interceptor.http.AwsRequestSigningApacheInterceptor interceptor = 
+                            new io.github.acm19.aws.interceptor.http.AwsRequestSigningApacheInterceptor(
+                                "es",
+                                software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner.create(),
+                                software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider.create(),
+                                software.amazon.awssdk.regions.Region.of(region)
+                             );
+                        httpClientBuilder.addInterceptorLast((HttpRequestInterceptor) interceptor);
+                    }
+
                     return httpClientBuilder;
                 })
                 .build();
