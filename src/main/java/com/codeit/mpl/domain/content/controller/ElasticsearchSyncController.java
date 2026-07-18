@@ -56,14 +56,16 @@ public class ElasticsearchSyncController {
 
     /**
      * DB의 모든 콘텐츠를 OpenSearch에 전체 재색인합니다.
-     * 413 오류를 막기 위해 100건씩 배치로 나눠서 인덱싱합니다.
-     * 데이터가 많을 경우 처리 시간이 길어질 수 있습니다.
+     * CloudFront 504 타임아웃을 방지하기 위해 비동기로 시작하며 202 Accepted를 즉시 반환합니다.
      */
     @PostMapping("/reindex")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SyncResult> reindexAll() {
-        log.info("[ES Sync API] 전체 재색인 요청");
-        SyncResult result = elasticsearchSyncService.reindexAll();
-        return ResponseEntity.ok(result);
+    public ResponseEntity<java.util.Map<String, String>> reindexAll() {
+        log.info("[ES Sync API] 전체 재색인 비동기 시작 요청");
+        java.util.concurrent.CompletableFuture.runAsync(elasticsearchSyncService::reindexAll);
+        return ResponseEntity.accepted().body(java.util.Map.of(
+                "status", "STARTED",
+                "message", "전체 재색인이 시작되었습니다. GET /api/admin/es-sync/diff 로 진행 상황을 확인하세요."
+        ));
     }
 }
