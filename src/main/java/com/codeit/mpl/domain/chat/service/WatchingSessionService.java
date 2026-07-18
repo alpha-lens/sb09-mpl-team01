@@ -32,6 +32,7 @@ public class WatchingSessionService {
     private final UserRepository userRepository;
     private final ContentService contentService;
     private final ContentRepository contentRepository;
+    private final com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
 
 
     // Lua 스크립트 리소스 정의 (Spring DefaultRedisScript는 내부적으로 SHA 캐싱을 처리함)
@@ -74,10 +75,14 @@ public class WatchingSessionService {
         return userRepository.findById(watcherId)
             .map(user -> {
                 ContentDto contentDto = contentService.getContent(contentId);
+                // DB에는 S3 key가 저장되므로 presigned URL로 변환해서 내려준다.
+                String resolvedImageUrl = user.getProfileImageUrl() != null
+                        ? binaryContentStorage.getUrl(user.getProfileImageUrl())
+                        : null;
                 return new WatchingSessionDto(
                     user.getId(),
                     Instant.now(),
-                    new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl()),
+                    new UserSummary(user.getId(), user.getName(), resolvedImageUrl),
                     contentDto
                 );
             })
@@ -124,10 +129,13 @@ public class WatchingSessionService {
                     Double userScore = redisTemplate.opsForZSet().score(contentKey, user.getId().toString());
                     Instant createdAt = userScore != null ? Instant.ofEpochMilli(userScore.longValue()) : Instant.now();
                     ContentDto contentDto = contentService.getContent(contentId);
+                    String resolvedImageUrl = user.getProfileImageUrl() != null
+                            ? binaryContentStorage.getUrl(user.getProfileImageUrl())
+                            : null;
                     return new WatchingSessionDto(
                         user.getId(),
                         createdAt,
-                        new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl()),
+                        new UserSummary(user.getId(), user.getName(), resolvedImageUrl),
                         contentDto
                     );
                 })
@@ -175,10 +183,13 @@ public class WatchingSessionService {
                     Double userScore = redisTemplate.opsForZSet().score(contentKey, user.getId().toString());
                     Instant createdAt = userScore != null ? Instant.ofEpochMilli(userScore.longValue()) : Instant.now();
                     ContentDto contentDto = contentService.getContent(contentId);
+                    String resolvedImageUrl = user.getProfileImageUrl() != null
+                            ? binaryContentStorage.getUrl(user.getProfileImageUrl())
+                            : null;
                     return new WatchingSessionDto(
                         user.getId(),
                         createdAt,
-                        new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl()),
+                        new UserSummary(user.getId(), user.getName(), resolvedImageUrl),
                         contentDto
                     );
                 })

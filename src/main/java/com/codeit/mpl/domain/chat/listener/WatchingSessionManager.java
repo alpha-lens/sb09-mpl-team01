@@ -36,6 +36,7 @@ public class WatchingSessionManager {
     private final SimpMessageSendingOperations messagingTemplate;
     private final WatchingSessionService watchingSessionService;
     private final ContentService contentService;
+    private final com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
 
     // key: sessionId_subscriptionId
     private final Map<String, WatchingSessionDto> sessionMap = new ConcurrentHashMap<>();
@@ -69,7 +70,11 @@ public class WatchingSessionManager {
 
                 if (email != null) {
                     userRepository.findByEmail(email).ifPresent(user -> {
-                        UserSummary userSummary = new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl());
+                        // DB에는 S3 key가 저장되므로 presigned URL로 변환해서 내려준다.
+                        String resolvedImageUrl = user.getProfileImageUrl() != null
+                                ? binaryContentStorage.getUrl(user.getProfileImageUrl())
+                                : null;
+                        UserSummary userSummary = new UserSummary(user.getId(), user.getName(), resolvedImageUrl);
                         ContentDto contentDto = contentService.getContent(contentId);
                         WatchingSessionDto watchingSession = new WatchingSessionDto(user.getId(), Instant.now(), userSummary, contentDto);
 

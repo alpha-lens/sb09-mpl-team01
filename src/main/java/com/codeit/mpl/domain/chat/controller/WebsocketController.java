@@ -32,6 +32,7 @@ public class WebsocketController {
     private final SseService sseService;
     private final SimpMessageSendingOperations messagingTemplate;
     private final WatchingSessionService watchingSessionService;
+    private final com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
 
     @MessageMapping("/contents/{contentId}/chat")
     public void handleContentChat(
@@ -43,7 +44,11 @@ public class WebsocketController {
         if (email == null) return;
 
         userRepository.findByEmail(email).ifPresent(user -> {
-            UserSummary sender = new UserSummary(user.getId(), user.getName(), user.getProfileImageUrl());
+            // DB에는 S3 key가 저장되므로 presigned URL로 변환해서 내려준다.
+            String resolvedImageUrl = user.getProfileImageUrl() != null
+                    ? binaryContentStorage.getUrl(user.getProfileImageUrl())
+                    : null;
+            UserSummary sender = new UserSummary(user.getId(), user.getName(), resolvedImageUrl);
             ContentChatDto chatDto = new ContentChatDto(
                     UUID.randomUUID(),
                     contentId,
