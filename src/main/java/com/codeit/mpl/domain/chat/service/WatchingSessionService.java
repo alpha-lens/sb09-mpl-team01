@@ -6,9 +6,11 @@ import com.codeit.mpl.domain.content.service.ContentService;
 import com.codeit.mpl.domain.user.dto.UserSummary;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
+import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageRequestDto;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -29,6 +31,8 @@ public class WatchingSessionService {
     private final StringRedisTemplate redisTemplate;
     private final UserRepository userRepository;
     private final ContentService contentService;
+    private final ContentRepository contentRepository;
+
 
     // Lua 스크립트 리소스 정의 (Spring DefaultRedisScript는 내부적으로 SHA 캐싱을 처리함)
     private final RedisScript<Long> registerScript = RedisScript.of(new ClassPathResource("scripts/register_session.lua"), Long.class);
@@ -204,13 +208,14 @@ public class WatchingSessionService {
     }
 
     @Scheduled(fixedDelay = 60000) // 1분마다 실행
+    @org.springframework.transaction.annotation.Transactional
     public void cleanExpiredSessions() {
         Instant threshold = Instant.now().minusSeconds(300); // 5분 전
         double maxScore = threshold.toEpochMilli();
 
         log.debug("[WatchingSession Scheduler] Cleaning ZSET sessions inactive since {}", threshold);
         
-        // Redis ZSET에서 5분 경과한 비활성 멤버 제거 (패턴 스캔 필요 없이 개별 Sorted Set에 대해 청소 수행)
+        // 1. Redis ZSET에서 5분 경과한 비활성 멤버 제거
         Set<String> keys = redisTemplate.keys(CONTENT_KEY_PREFIX + "*");
         if (keys != null) {
             for (String key : keys) {
@@ -220,7 +225,54 @@ public class WatchingSessionService {
                 }
             }
         }
+
+        // 2. 현재 DB에서 watcherCount > 0 인 모든 콘텐츠를 0으로 리셋 준비
+        List<com.codeit.mpl.domain.content.entity.Content> contentsWithWatchers = contentRepository.findAllByWatcherCountGreaterThan(0L);
+        Map<UUID, com.codeit.mpl.domain.content.entity.Content> dbWatchersMap = new HashMap<>();
+        for (com.codeit.mpl.domain.content.entity.Content c : contentsWithWatchers) {
+            dbWatchersMap.put(c.getId(), c);
+        }
+
+        // 3. Redis에서 활성 세션 카운트 읽어서 DB 업데이트
+        double minScore = Instant.now().minusSeconds(300).toEpochMilli();
+        Set<String> activeKeys = redisTemplate.keys(CONTENT_KEY_PREFIX + "*");
+        Set<UUID> processedIds = new HashSet<>();
+
+        if (activeKeys != null) {
+            for (String key : activeKeys) {
+                try {
+                    String contentIdStr = key.substring(CONTENT_KEY_PREFIX.length());
+                    UUID contentId = UUID.fromString(contentIdStr);
+                    Long count = redisTemplate.opsForZSet().count(key, minScore, Double.MAX_VALUE);
+                    long activeCount = count != null ? count : 0L;
+
+                    processedIds.add(contentId);
+
+                    contentRepository.findById(contentId).ifPresent(content -> {
+                        if (content.getWatcherCount() != activeCount) {
+                            content.updateWatcherCount(activeCount);
+                            contentRepository.save(content);
+                            log.info("[WatchingSession Scheduler] Updated content {} watcherCount to {}", contentId, activeCount);
+                        }
+                    });
+                } catch (Exception e) {
+                    log.error("[WatchingSession Scheduler] Failed to update watcher count for key {}", key, e);
+                }
+            }
+        }
+
+        // 4. 이전에 watcherCount > 0 이었으나 현재는 활성 세션이 없는 콘텐츠들을 0으로 업데이트
+        for (Map.Entry<UUID, com.codeit.mpl.domain.content.entity.Content> entry : dbWatchersMap.entrySet()) {
+            UUID contentId = entry.getKey();
+            if (!processedIds.contains(contentId)) {
+                com.codeit.mpl.domain.content.entity.Content content = entry.getValue();
+                content.updateWatcherCount(0L);
+                contentRepository.save(content);
+                log.info("[WatchingSession Scheduler] Reset content {} watcherCount to 0", contentId);
+            }
+        }
     }
+
 
     public void registerSession(UUID watcherId, UUID contentId) {
         String now = String.valueOf(Instant.now().toEpochMilli());

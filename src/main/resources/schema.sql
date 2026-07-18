@@ -80,6 +80,16 @@ CREATE INDEX IF NOT EXISTS idx_contents_type
 
 CREATE INDEX IF NOT EXISTS idx_contents_title
     ON contents (title);
+
+ALTER TABLE contents
+    ADD COLUMN IF NOT EXISTS watcher_count BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE contents
+    ADD COLUMN IF NOT EXISTS average_rating DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+
+ALTER TABLE contents
+    ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0;
+
 --  콘텐츠 태그 테이블
 -- 3. 콘텐츠 태그 테이블
 CREATE TABLE IF NOT EXISTS content_tags (

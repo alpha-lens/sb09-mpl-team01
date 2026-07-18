@@ -74,9 +74,12 @@ public class ReviewService {
       throw e;
     }
 
+    updateContentReviewStats(content);
+
     log.info("리뷰 생성 완료 - reviewId={}, authorId={}, contentId={}", review.getId(), authorId, request.contentId());
     return reviewMapper.toDto(review);
   }
+
 
   public ReviewDto updateReview(UUID authorId, UUID reviewId, ReviewUpdateRequest request) {
     log.info("리뷰 수정 요청 - reviewId={}, authorId={}", reviewId, authorId);
@@ -94,9 +97,11 @@ public class ReviewService {
     }
 
     review.update(request.text(), request.rating());
+    updateContentReviewStats(review.getContent());
     log.info("리뷰 수정 완료 - reviewId={}", reviewId);
     return reviewMapper.toDto(review);
   }
+
 
   public void deleteReview(UUID authorId, UUID reviewId) {
     log.info("리뷰 삭제 요청 - reviewId={}, authorId={}", reviewId, authorId);
@@ -113,9 +118,12 @@ public class ReviewService {
       throw new ReviewForbiddenException();
     }
 
+    Content content = review.getContent();
     reviewRepository.delete(review);
+    updateContentReviewStats(content);
     log.info("리뷰 삭제 완료 - reviewId={}, authorId={}", reviewId, authorId);
   }
+
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<ReviewDto> getReviews(
@@ -295,4 +303,21 @@ public class ReviewService {
     }
     throw new InvalidReviewSortException();
   }
+
+  private void updateContentReviewStats(Content content) {
+    if (content == null || content.getId() == null) {
+      return;
+    }
+    List<com.codeit.mpl.domain.review.dto.response.ReviewStats> statsList = reviewRepository.findReviewStatsByContentIds(List.of(content.getId()));
+    if (statsList != null && !statsList.isEmpty() && statsList.get(0) != null) {
+      com.codeit.mpl.domain.review.dto.response.ReviewStats stats = statsList.get(0);
+      content.updateReviewStats(stats.averageRating(), stats.reviewCount() != null ? Math.toIntExact(stats.reviewCount()) : 0);
+    } else {
+      content.updateReviewStats(0.0, 0);
+    }
+    contentRepository.save(content);
+  }
 }
+
+
+

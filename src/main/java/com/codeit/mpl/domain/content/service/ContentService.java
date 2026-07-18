@@ -209,29 +209,16 @@ public class ContentService {
             }
         }
 
-        // watcherCount, rate는 Content 테이블 컬럼이 아니라 계산값입니다.
-        // 따라서 현재는 메모리 정렬 경로로 분기합니다.
-        if ("watcherCount".equals(sortBy) || "rate".equals(sortBy)) {
-            return getContentsByCalculatedSort(
-                    cursor,
-                    idAfter,
-                    keywordLike,
-                    type,
-                    limit,
-                    sortBy,
-                    sortDirection
-            );
-        }
-
-        // createdAt은 실제 Content 컬럼이므로 DB 정렬 + Specification 커서를 사용합니다.
         Sort.Direction direction = sortDirection == Direction.ASCENDING
                 ? Sort.Direction.ASC
                 : Sort.Direction.DESC;
 
+        String dbSortBy = "rate".equals(sortBy) ? "averageRating" : sortBy;
+
         Pageable pageable = PageRequest.of(
                 0,
                 limit + 1,
-                Sort.by(direction, "createdAt").and(Sort.by(direction, "id"))
+                Sort.by(direction, dbSortBy).and(Sort.by(direction, "id"))
         );
 
         // 검색 조건(keywordLike) + 커서 조건(cursor, idAfter)을 함께 적용합니다.
@@ -240,7 +227,7 @@ public class ContentService {
                 idAfter,
                 keywordLike,
                 type,
-                "createdAt",
+                sortBy,
                 sortDirection
         );
 
@@ -262,7 +249,7 @@ public class ContentService {
 
         if (hasNext && !pageContents.isEmpty()) {
             Content lastContent = pageContents.get(pageContents.size() - 1);
-            nextCursor = getCursorValue(lastContent, "createdAt");
+            nextCursor = getCursorValue(lastContent, sortBy);
             nextIdAfter = lastContent.getId().toString();
         }
 
@@ -313,44 +300,62 @@ public class ContentService {
             );
         }
 
-        List<Content> matchingContents = contentRepository.findAllById(matchingIds);
+        // ES로 찾은 ID 목록 내에서 타입, 검색어, 커서 조건을 만족하고 정렬된 페이지를 DB 쿼리로 조회
+        Specification<Content> specification = (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(root.get("id").in(matchingIds));
+            if (type != null) {
+                predicates.add(criteriaBuilder.equal(root.get("type"), type));
+            }
+            Predicate cursorPredicate = createCursorPredicate(cursor, idAfter, sortBy, sortDirection, root, criteriaBuilder);
+            if (cursorPredicate != null) {
+                predicates.add(cursorPredicate);
+            }
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
 
+        Sort.Direction direction = sortDirection == Direction.ASCENDING
+                ? Sort.Direction.ASC
+                : Sort.Direction.DESC;
+
+        String dbSortBy = "rate".equals(sortBy) ? "averageRating" : sortBy;
+
+        Pageable dbPageable = PageRequest.of(
+                0,
+                limit + 1,
+                Sort.by(direction, dbSortBy).and(Sort.by(direction, "id"))
+        );
+
+        Page<Content> contentPage = contentRepository.findAll(specification, dbPageable);
+        List<Content> contents = contentPage.getContent();
+        boolean hasNext = contents.size() > limit;
+
+        List<Content> pageContents = hasNext
+                ? contents.subList(0, limit)
+                : contents;
+
+        List<ContentSummary> contentSummaries = pageContents.stream()
+                .map(this::toSummary)
+                .toList();
+
+        String nextCursor = null;
+        String nextIdAfter = null;
+
+        if (hasNext && !pageContents.isEmpty()) {
+            Content lastContent = pageContents.get(pageContents.size() - 1);
+            nextCursor = getCursorValue(lastContent, sortBy);
+            nextIdAfter = lastContent.getId().toString();
+        }
+
+        // 전체 카운트는 매칭된 ID 리스트 중 Type이 일치하는 항목 수
+        long totalCount = matchingIds.size();
         if (type != null) {
-            matchingContents = matchingContents.stream()
-                    .filter(c -> c.getType() == type)
-                    .toList();
-        }
-
-        List<ContentSortView> sortedContents = toContentSortViews(matchingContents).stream()
-                .sorted(createContentSortComparator(sortBy, sortDirection))
-                .toList();
-
-        int startIndex = resolveStartIndex(
-                sortedContents,
-                cursor,
-                idAfter,
-                sortBy
-        );
-
-        int endIndex = Math.min(startIndex + limit + 1, sortedContents.size());
-        List<ContentSortView> selectedContents = sortedContents.subList(startIndex, endIndex);
-        boolean hasNext = selectedContents.size() > limit;
-
-        List<ContentSortView> pageContents = hasNext
-                ? selectedContents.subList(0, limit)
-                : selectedContents;
-
-        List<ContentSummary> contentSummaries = pageContents.stream()
-                .map(ContentSortView::summary)
-                .toList();
-
-        String nextCursor = null;
-        String nextIdAfter = null;
-
-        if (hasNext && !pageContents.isEmpty()) {
-            ContentSortView lastContent = pageContents.get(pageContents.size() - 1);
-            nextCursor = getCalculatedCursorValue(lastContent, sortBy);
-            nextIdAfter = lastContent.id().toString();
+            totalCount = contentRepository.count((root, query, criteriaBuilder) ->
+                criteriaBuilder.and(
+                        root.get("id").in(matchingIds),
+                        criteriaBuilder.equal(root.get("type"), type)
+                )
+            );
         }
 
         return new CursorPageResponseDto<>(
@@ -358,73 +363,12 @@ public class ContentService {
                 nextCursor,
                 nextIdAfter,
                 hasNext,
-                sortedContents.size(),
+                totalCount,
                 sortBy,
                 sortDirection
         );
     }
 
-    /**
-     * watcherCount, rate 계산 정렬용 목록 조회입니다.
-     *
-     * watcherCount, rate는 DB 컬럼이 아니라 리뷰/시청 세션 기반 계산값입니다.
-     * 그래서 먼저 keywordLike 조건에 맞는 콘텐츠만 조회한 뒤,
-     * 메모리에서 정렬하고 cursor + idAfter 기준으로 다음 페이지를 계산합니다.
-     */
-    private CursorPageResponseDto<ContentSummary> getContentsByCalculatedSort(
-            String cursor,
-            String idAfter,
-            String keywordLike,
-            ContentType type,
-            int limit,
-            String sortBy,
-            Direction sortDirection
-    ) {
-        Specification<Content> keywordSpecification = createKeywordAndTypeSpecification(keywordLike, type);
-
-        List<ContentSortView> sortedContents = toContentSortViews(contentRepository.findAll(keywordSpecification)).stream()
-                .sorted(createContentSortComparator(sortBy, sortDirection))
-                .toList();
-
-        int startIndex = resolveStartIndex(
-                sortedContents,
-                cursor,
-                idAfter,
-                sortBy
-        );
-
-        int endIndex = Math.min(startIndex + limit + 1, sortedContents.size());
-
-        List<ContentSortView> selectedContents = sortedContents.subList(startIndex, endIndex);
-        boolean hasNext = selectedContents.size() > limit;
-
-        List<ContentSortView> pageContents = hasNext
-                ? selectedContents.subList(0, limit)
-                : selectedContents;
-
-        List<ContentSummary> contentSummaries = pageContents.stream()
-                .map(ContentSortView::summary)
-                .toList();
-
-        String nextCursor = null;
-        String nextIdAfter = null;
-
-        if (hasNext && !pageContents.isEmpty()) {
-            ContentSortView lastContent = pageContents.get(pageContents.size() - 1);
-            nextCursor = getCalculatedCursorValue(lastContent, sortBy);
-            nextIdAfter = lastContent.id().toString();
-        }
-
-        return new CursorPageResponseDto<>(
-                contentSummaries,
-                nextCursor,
-                nextIdAfter,
-                hasNext,
-                sortedContents.size(),
-                sortBy,
-                sortDirection
-        );
-    }
 
     /**
      * 검색 조건과 커서 조건을 동시에 적용하는 Specification입니다.
@@ -547,9 +491,8 @@ public class ContentService {
     }
 
     /**
-     * createdAt 정렬용 cursor Predicate를 만듭니다.
-     *
-     * 같은 createdAt 값이 있을 수 있으므로 id를 보조 기준으로 사용합니다.
+     * 정렬 기준별 cursor Predicate를 만듭니다.
+     * 같은 정렬 값이 있을 수 있으므로 id를 보조 기준으로 사용합니다.
      */
     private Predicate createCursorPredicate(
             String cursor,
@@ -588,215 +531,55 @@ public class ContentService {
             return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
         }
 
+        if ("watcherCount".equals(sortBy)) {
+            Long cursorValue = Long.parseLong(cursor);
+
+            Predicate sortPredicate;
+            Predicate sameSortValuePredicate;
+
+            if (sortDirection == Direction.ASCENDING) {
+                sortPredicate = criteriaBuilder.greaterThan(root.get("watcherCount"), cursorValue);
+                sameSortValuePredicate = criteriaBuilder.and(
+                        criteriaBuilder.equal(root.get("watcherCount"), cursorValue),
+                        criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
+                );
+            } else {
+                sortPredicate = criteriaBuilder.lessThan(root.get("watcherCount"), cursorValue);
+                sameSortValuePredicate = criteriaBuilder.and(
+                        criteriaBuilder.equal(root.get("watcherCount"), cursorValue),
+                        criteriaBuilder.lessThan(root.get("id"), idAfterValue)
+                );
+            }
+
+            return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
+        }
+
+        if ("rate".equals(sortBy)) {
+            Double cursorValue = Double.parseDouble(cursor);
+
+            Predicate sortPredicate;
+            Predicate sameSortValuePredicate;
+
+            if (sortDirection == Direction.ASCENDING) {
+                sortPredicate = criteriaBuilder.greaterThan(root.get("averageRating"), cursorValue);
+                sameSortValuePredicate = criteriaBuilder.and(
+                        criteriaBuilder.equal(root.get("averageRating"), cursorValue),
+                        criteriaBuilder.greaterThan(root.get("id"), idAfterValue)
+                );
+            } else {
+                sortPredicate = criteriaBuilder.lessThan(root.get("averageRating"), cursorValue);
+                sameSortValuePredicate = criteriaBuilder.and(
+                        criteriaBuilder.equal(root.get("averageRating"), cursorValue),
+                        criteriaBuilder.lessThan(root.get("id"), idAfterValue)
+                );
+            }
+
+            return criteriaBuilder.or(sortPredicate, sameSortValuePredicate);
+        }
+
         return null;
     }
 
-    /**
-     * 계산 정렬에 필요한 값을 한 번에 담는 View 객체들을 Bulk Fetch 쿼리를 사용하여 만듭니다.
-     */
-    private List<ContentSortView> toContentSortViews(List<Content> contents) {
-        if (contents.isEmpty()) {
-            return List.of();
-        }
-
-        List<UUID> contentIds = contents.stream()
-                .map(Content::getId)
-                .toList();
-
-        // 1. Review 통계 Bulk Fetch
-        List<ReviewStats> reviewStatsList = reviewRepository.findReviewStatsByContentIds(contentIds);
-        Map<UUID, ReviewStats> reviewStatsMap = reviewStatsList.stream()
-                .filter(stats -> stats != null && stats.contentId() != null)
-                .collect(java.util.stream.Collectors.toMap(
-                        ReviewStats::contentId,
-                        stats -> stats,
-                        (existing, replacement) -> existing
-                ));
-
-        // 2. Watcher Count 통계 Bulk Fetch
-        List<Object[]> watcherCountsList = watchingSessionRepository.findWatcherCountsByContentIds(contentIds);
-        Map<UUID, Long> watcherCountMap = watcherCountsList.stream()
-                .filter(row -> row != null && row.length >= 2 && row[0] != null)
-                .collect(java.util.stream.Collectors.toMap(
-                        row -> {
-                            if (row[0] instanceof UUID) {
-                                return (UUID) row[0];
-                            }
-                            return UUID.fromString(row[0].toString());
-                        },
-                        row -> {
-                            if (row[1] instanceof Number) {
-                                return ((Number) row[1]).longValue();
-                            }
-                            return 0L;
-                        },
-                        (existing, replacement) -> existing
-                ));
-
-        // 3. 매핑하여 ContentSortView 리스트 생성
-        return contents.stream().map(content -> {
-            UUID contentId = content.getId();
-            ReviewStats stats = reviewStatsMap.get(contentId);
-            Double averageRating = (stats != null) ? stats.averageRating() : 0.0;
-            if (averageRating == null) {
-                averageRating = 0.0;
-            }
-            Integer reviewCount = (stats != null) ? Math.toIntExact(stats.reviewCount()) : 0;
-            Long watcherCount = watcherCountMap.getOrDefault(contentId, 0L);
-
-            ContentSummary summary = contentMapper.toSummary(
-                    content,
-                    averageRating,
-                    reviewCount
-            );
-
-            return new ContentSortView(
-                    contentId,
-                    content.getCreatedAt(),
-                    watcherCount,
-                    averageRating,
-                    summary
-            );
-        }).toList();
-    }
-
-    /**
-     * 계산 정렬에 필요한 값을 한 번에 담는 View 객체를 만듭니다.
-     */
-    private ContentSortView toContentSortView(Content content) {
-        Double averageRating = reviewRepository.findAverageRatingByContent(content);
-
-        if (averageRating == null) {
-            averageRating = 0.0;
-        }
-
-        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
-        Long watcherCount = watchingSessionRepository.countByContent(content);
-
-        ContentSummary summary = contentMapper.toSummary(
-                content,
-                averageRating,
-                reviewCount
-        );
-
-        return new ContentSortView(
-                content.getId(),
-                content.getCreatedAt(),
-                watcherCount,
-                averageRating,
-                summary
-        );
-    }
-
-    /**
-     * watcherCount 또는 rate 기준 Comparator를 만듭니다.
-     *
-     * 같은 정렬값이 나올 수 있으므로 createdAt, id를 보조 정렬 기준으로 사용합니다.
-     */
-    private Comparator<ContentSortView> createContentSortComparator(
-            String sortBy,
-            Direction sortDirection
-    ) {
-        Comparator<ContentSortView> comparator = switch (sortBy) {
-            case "watcherCount" -> Comparator.comparing(ContentSortView::watcherCount);
-            case "rate" -> Comparator.comparing(ContentSortView::averageRating);
-            case "createdAt" -> Comparator.comparing(ContentSortView::createdAt);
-            default -> throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
-        };
-
-        comparator = comparator
-                .thenComparing(ContentSortView::createdAt)
-                .thenComparing(ContentSortView::id);
-
-        if (sortDirection == Direction.DESCENDING) {
-            comparator = comparator.reversed();
-        }
-
-        return comparator;
-    }
-
-    /**
-     * 계산 정렬용 cursor 시작 위치를 계산합니다.
-     */
-    private int resolveStartIndex(
-            List<ContentSortView> sortedContents,
-            String cursor,
-            String idAfter,
-            String sortBy
-    ) {
-        if (cursor == null || cursor.isBlank()
-                || idAfter == null || idAfter.isBlank()) {
-            return 0;
-        }
-
-        UUID idAfterValue = parseIdAfter(idAfter);
-
-        for (int i = 0; i < sortedContents.size(); i++) {
-            ContentSortView content = sortedContents.get(i);
-
-            boolean sameCursorValue = matchesCalculatedCursorValue(
-                    content,
-                    cursor,
-                    sortBy
-            );
-
-            boolean sameId = content.id().equals(idAfterValue);
-
-            if (sameCursorValue && sameId) {
-                return i + 1;
-            }
-        }
-
-        throw new IllegalArgumentException("cursor와 idAfter가 현재 정렬 결과와 일치하지 않습니다.");
-    }
-
-    /**
-     * cursor 문자열을 실제 계산 정렬값과 비교합니다.
-     */
-    private boolean matchesCalculatedCursorValue(
-            ContentSortView content,
-            String cursor,
-            String sortBy
-    ) {
-        return switch (sortBy) {
-            case "watcherCount" ->
-                    content.watcherCount().equals(parseLongCursor(cursor));
-            case "rate" ->
-                    Double.compare(content.averageRating(), parseDoubleCursor(cursor)) == 0;
-            case "createdAt" ->
-                    content.createdAt().equals(parseInstantCursor(cursor));
-            default ->
-                    throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
-        };
-    }
-
-    private Long parseLongCursor(String cursor) {
-        try {
-            return Long.parseLong(cursor);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("watcherCount 정렬 시 cursor는 숫자여야 합니다.");
-        }
-    }
-
-    private Double parseDoubleCursor(String cursor) {
-        try {
-            return Double.parseDouble(cursor);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("rate 정렬 시 cursor는 숫자여야 합니다.");
-        }
-    }
-
-    private String getCalculatedCursorValue(
-            ContentSortView content,
-            String sortBy
-    ) {
-        return switch (sortBy) {
-            case "watcherCount" -> String.valueOf(content.watcherCount());
-            case "rate" -> String.valueOf(content.averageRating());
-            case "createdAt" -> content.createdAt().toString();
-            default -> throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
-        };
-    }
 
     @Transactional(readOnly = true)
     public List<ExternalContentSearchResult> searchExternalContents(
@@ -1067,6 +850,12 @@ public class ContentService {
         if ("createdAt".equals(sortBy)) {
             return content.getCreatedAt().toString();
         }
+        if ("watcherCount".equals(sortBy)) {
+            return String.valueOf(content.getWatcherCount());
+        }
+        if ("rate".equals(sortBy)) {
+            return String.valueOf(content.getAverageRating());
+        }
 
         throw new IllegalArgumentException("지원하지 않는 정렬 기준입니다.");
     }
@@ -1080,48 +869,19 @@ public class ContentService {
     }
 
     private ContentDto toDto(Content content) {
-        Double averageRating = reviewRepository.findAverageRatingByContent(content);
-
-        if (averageRating == null) {
-            averageRating = 0.0;
-        }
-
-        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
-        Long watcherCount = watchingSessionRepository.countByContent(content);
-
         return contentMapper.toDto(
                 content,
-                averageRating,
-                reviewCount,
-                watcherCount
+                content.getAverageRating(),
+                content.getReviewCount(),
+                content.getWatcherCount()
         );
     }
 
     private ContentSummary toSummary(Content content) {
-        Double averageRating = reviewRepository.findAverageRatingByContent(content);
-
-        if (averageRating == null) {
-            averageRating = 0.0;
-        }
-
-        Integer reviewCount = Math.toIntExact(reviewRepository.countByContent(content));
-
         return contentMapper.toSummary(
                 content,
-                averageRating,
-                reviewCount
+                content.getAverageRating(),
+                content.getReviewCount()
         );
     }
-
-    /**
-     * 계산 정렬에 필요한 내부 전용 데이터입니다.
-     */
-    private record ContentSortView(
-            UUID id,
-            Instant createdAt,
-            Long watcherCount,
-            Double averageRating,
-            ContentSummary summary
-    ) {
-    }
-}
+}

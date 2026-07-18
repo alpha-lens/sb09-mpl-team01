@@ -66,12 +66,11 @@ class ContentServiceTest {
         Content mockContent = mock(Content.class);
         lenient().when(mockContent.getId()).thenReturn(contentId);
         lenient().when(mockContent.getCreatedAt()).thenReturn(Instant.now());
+        lenient().when(mockContent.getAverageRating()).thenReturn(4.5);
+        lenient().when(mockContent.getReviewCount()).thenReturn(10);
 
         PageImpl<Content> contentPage = new PageImpl<>(List.of(mockContent));
         when(contentRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(contentPage);
-
-        when(reviewRepository.findAverageRatingByContent(mockContent)).thenReturn(4.5);
-        when(reviewRepository.countByContent(mockContent)).thenReturn(10L);
 
         ContentSummary mockSummary = new ContentSummary(contentId, ContentType.MOVIE, "Title", "Desc", "thumb", List.of("tag"), 4.5, 10);
         when(contentMapper.toSummary(mockContent, 4.5, 10)).thenReturn(mockSummary);
@@ -85,26 +84,24 @@ class ContentServiceTest {
         assertThat(result.data()).hasSize(1);
         assertThat(result.data().get(0).averageRating()).isEqualTo(4.5);
         assertThat(result.data().get(0).reviewCount()).isEqualTo(10);
-        verify(reviewRepository, times(1)).findAverageRatingByContent(mockContent);
-        verify(reviewRepository, times(1)).countByContent(mockContent);
+        verify(mockContent, times(1)).getAverageRating();
+        verify(mockContent, times(1)).getReviewCount();
     }
 
     @Test
-    @DisplayName("getContentsByCalculatedSort queries stats and watcher counts")
+    @DisplayName("getContentsByWatcherCountSort queries stats and watcher counts")
     void testGetContentsByCalculatedSortQueries() {
         // Arrange
         UUID contentId = UUID.randomUUID();
         Content mockContent = mock(Content.class);
         lenient().when(mockContent.getId()).thenReturn(contentId);
         lenient().when(mockContent.getCreatedAt()).thenReturn(Instant.now());
+        lenient().when(mockContent.getAverageRating()).thenReturn(4.0);
+        lenient().when(mockContent.getReviewCount()).thenReturn(5);
+        lenient().when(mockContent.getWatcherCount()).thenReturn(15L);
 
-        when(contentRepository.findAll(any(Specification.class))).thenReturn(List.of(mockContent));
-
-        com.codeit.mpl.domain.review.dto.response.ReviewStats mockStats = new com.codeit.mpl.domain.review.dto.response.ReviewStats(contentId, 4.0, 5L);
-        when(reviewRepository.findReviewStatsByContentIds(anyList())).thenReturn(List.of(mockStats));
-        
-        Object[] watcherCountRow = new Object[]{contentId, 15L};
-        when(watchingSessionRepository.findWatcherCountsByContentIds(anyList())).thenReturn(java.util.Collections.singletonList(watcherCountRow));
+        PageImpl<Content> contentPage = new PageImpl<>(List.of(mockContent));
+        when(contentRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(contentPage);
 
         ContentSummary mockSummary = new ContentSummary(contentId, ContentType.MOVIE, "Title", "Desc", "thumb", List.of("tag"), 4.0, 5);
         when(contentMapper.toSummary(mockContent, 4.0, 5)).thenReturn(mockSummary);
@@ -116,7 +113,9 @@ class ContentServiceTest {
 
         // Assert
         assertThat(result.data()).hasSize(1);
-        verify(reviewRepository, times(1)).findReviewStatsByContentIds(anyList());
-        verify(watchingSessionRepository, times(1)).findWatcherCountsByContentIds(anyList());
+        verify(mockContent, times(1)).getAverageRating();
+        verify(mockContent, times(1)).getReviewCount();
     }
 }
+
+
