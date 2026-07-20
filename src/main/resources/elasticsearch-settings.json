@@ -3,16 +3,11 @@
     "max_ngram_diff": 10
   },
   "analysis": {
-    "analyzer": {
-      "ngram_analyzer": {
-        "type": "custom",
-        "tokenizer": "ngram_tokenizer",
-        "filter": [
-          "lowercase"
-        ]
-      }
-    },
     "tokenizer": {
+      "nori_user_dict": {
+        "type": "nori_tokenizer",
+        "decompound_mode": "mixed"
+      },
       "ngram_tokenizer": {
         "type": "ngram",
         "min_gram": 1,
@@ -20,6 +15,52 @@
         "token_chars": [
           "letter",
           "digit"
+        ]
+      }
+    },
+    "filter": {
+      "nori_posfilter": {
+        "type": "nori_part_of_speech",
+        "stoptags": [
+          "E",
+          "J",
+          "SC",
+          "SE",
+          "SF",
+          "VCP",
+          "VCN"
+        ]
+      },
+      "edge_ngram_filter": {
+        "type": "edge_ngram",
+        "min_gram": 1,
+        "max_gram": 10
+      }
+    },
+    "analyzer": {
+      "nori_analyzer": {
+        "type": "custom",
+        "tokenizer": "nori_user_dict",
+        "filter": [
+          "nori_posfilter",
+          "lowercase"
+
+        ]
+      },
+      "nori_edge_ngram_analyzer": {
+        "type": "custom",
+        "tokenizer": "nori_user_dict",
+        "filter": [
+          "nori_posfilter",
+          "lowercase",
+          "edge_ngram_filter"
+        ]
+      },
+      "ngram_analyzer": {
+        "type": "custom",
+        "tokenizer": "ngram_tokenizer",
+        "filter": [
+          "lowercase"
         ]
       }
     }

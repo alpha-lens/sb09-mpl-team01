@@ -13,6 +13,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.codeit.mpl.domain.content.client.SportsDbClient;
 import com.codeit.mpl.domain.content.client.TmdbClient;
 import com.codeit.mpl.domain.content.dto.external.SportsDbEventItem;
@@ -90,6 +91,8 @@ class ContentServiceTest {
 
     @Mock
     private ContentSearchRepository contentSearchRepository;
+    @Mock
+    private ElasticsearchClient elasticsearchClient;
 
     @Mock
     private User admin;
@@ -120,7 +123,8 @@ class ContentServiceTest {
                 tmdbClient,
                 sportsDbClient,
                 eventPublisher,
-                contentSearchRepository
+                contentSearchRepository,
+                elasticsearchClient
         );
 
         when(admin.getRole()).thenReturn(UserRole.ADMIN);
