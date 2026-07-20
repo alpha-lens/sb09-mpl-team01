@@ -13,6 +13,7 @@ import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/users")
@@ -39,6 +41,7 @@ public class UserController implements UserApi {
     @PostMapping
     @Override
     public ResponseEntity<UserDto> createUser(@Valid @RequestBody UserCreateRequest request) {
+        log.info("[User API] POST /api/users 요청 - email={}", request.email());
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.register(request));
     }
 
@@ -53,6 +56,7 @@ public class UserController implements UserApi {
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESCENDING") Direction sortDirection) {
+        log.debug("[User API] GET /api/users 요청 - emailLike={}, roleEqual={}, isLocked={}", emailLike, roleEqual, isLocked);
         return ResponseEntity.ok(
                 userService.findUsers(emailLike, roleEqual, isLocked, cursor, idAfter, limit, sortBy, sortDirection));
     }
@@ -60,6 +64,7 @@ public class UserController implements UserApi {
     @GetMapping("/{userId}")
     @Override
     public ResponseEntity<UserDto> findUser(@PathVariable UUID userId) {
+        log.debug("[User API] GET /api/users/{} 요청", userId);
         return ResponseEntity.ok(userService.getUser(userId));
     }
 
@@ -70,6 +75,7 @@ public class UserController implements UserApi {
             @RequestPart("request") @Valid UserUpdateRequest request,
             @RequestPart(value = "image", required = false) MultipartFile image
     ) {
+        log.info("[User API] PATCH /api/users/{} 요청", userId);
         return ResponseEntity.ok(userService.updateUser(userId, request, image));
     }
 
@@ -79,6 +85,7 @@ public class UserController implements UserApi {
             @PathVariable UUID userId,
             @Valid @RequestBody UserRoleUpdateRequest request
     ) {
+        log.info("[User API] PATCH /api/users/{}/role 요청 - role={}", userId, request.role());
         userService.updateRole(userId, request);
         return ResponseEntity.noContent().build();
     }
@@ -89,6 +96,7 @@ public class UserController implements UserApi {
             @PathVariable UUID userId,
             @Valid @RequestBody UserLockUpdateRequest request
     ) {
+        log.info("[User API] PATCH /api/users/{}/locked 요청 - locked={}", userId, request.locked());
         userService.updateLock(userId, request);
         return ResponseEntity.noContent().build();
     }
@@ -99,6 +107,7 @@ public class UserController implements UserApi {
             @PathVariable UUID userId,
             @Valid @RequestBody ChangePasswordRequest request
     ) {
+        log.info("[User API] PATCH /api/users/{}/password 요청", userId);
         userService.changePassword(userId, request);
         return ResponseEntity.noContent().build();
     }
