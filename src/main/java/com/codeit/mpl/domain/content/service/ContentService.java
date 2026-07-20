@@ -1,5 +1,10 @@
 package com.codeit.mpl.domain.content.service;
 
+import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
+import co.elastic.clients.elasticsearch._types.query_dsl.Query;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.indices.AnalyzeResponse;
+import co.elastic.clients.elasticsearch.indices.analyze.AnalyzeToken;
 import com.codeit.mpl.domain.content.client.SportsDbClient;
 import com.codeit.mpl.domain.content.client.TmdbClient;
 import com.codeit.mpl.domain.content.dto.external.SportsDbEventItem;
@@ -64,6 +69,7 @@ public class ContentService {
     private final SportsDbClient sportsDbClient;
     private final ApplicationEventPublisher eventPublisher;
     private final ContentSearchRepository contentSearchRepository;
+    private final co.elastic.clients.elasticsearch.ElasticsearchClient elasticsearchClient;
 
     public ContentDto createContent(String requesterEmail, ContentCreateRequest request) {
         User creator = getRequester(requesterEmail);
@@ -281,7 +287,17 @@ public class ContentService {
             String chosungKeyword = keywordLike.trim().replaceAll("\\s+", "");
             docs = contentSearchRepository.searchByChosung(chosungKeyword, pageable).getContent();
         } else {
-            docs = contentSearchRepository.searchByKeyword(keywordLike.trim(), pageable).getContent();
+            String trimmedKeyword = keywordLike.trim();
+            if (trimmedKeyword.contains(" ")) {
+                List<String> tokens = analyzeKeywordWithNori(trimmedKeyword);
+                if (tokens.size() > 1) {
+                    docs = searchByMultiToken(tokens, pageable);
+                } else {
+                    docs = contentSearchRepository.searchByKeyword(trimmedKeyword, pageable).getContent();
+                }
+            } else {
+                docs = contentSearchRepository.searchByKeyword(trimmedKeyword, pageable).getContent();
+            }
         }
 
         List<UUID> matchingIds = docs.stream()
@@ -884,4 +900,59 @@ public class ContentService {
                 content.getReviewCount()
         );
     }
-}
+
+    private List<String> analyzeKeywordWithNori(String keyword) {
+        if (elasticsearchClient == null) {
+            return List.of(keyword);
+        }
+        try {
+            AnalyzeResponse response = elasticsearchClient.indices().analyze(a -> a
+                    .index("contents")
+                    .analyzer("nori_analyzer")
+                    .text(keyword)
+            );
+            List<String> tokens = response.tokens().stream()
+                    .map(AnalyzeToken::token)
+                    .filter(Objects::nonNull)
+                    .filter(t -> !t.isBlank())
+                    .toList();
+            return tokens.isEmpty() ? List.of(keyword) : tokens;
+        } catch (Exception e) {
+            log.warn("Nori tokenization failed for keyword: {}, falling back to raw keyword. Reason: {}", keyword, e.getMessage());
+            return List.of(keyword);
+        }
+    }
+
+    private List<ContentDocument> searchByMultiToken(List<String> tokens, Pageable pageable) {
+        try {
+            BoolQuery.Builder boolBuilder = new co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery.Builder();
+
+            for (String token : tokens) {
+                Query titleMatch = Query.of(q -> q.match(m -> m.field("title").query(token).fuzziness("AUTO").boost(3.0f)));
+                Query titleAutoMatch = Query.of(q -> q.match(m -> m.field("title.autocomplete").query(token).boost(2.5f)));
+                Query tagsMatch = Query.of(q -> q.match(m -> m.field("tags").query(token).fuzziness("AUTO").boost(2.0f)));
+                Query tagsAutoMatch = Query.of(q -> q.match(m -> m.field("tags.autocomplete").query(token).boost(1.5f)));
+                Query descMatch = Query.of(q -> q.match(m -> m.field("description").query(token).fuzziness("AUTO")));
+
+                Query tokenQuery = co.elastic.clients.elasticsearch._types.query_dsl.Query.of(q -> q.bool(b -> b.should(titleMatch, titleAutoMatch, tagsMatch, tagsAutoMatch, descMatch)));
+                boolBuilder.must(tokenQuery);
+            }
+
+            var searchResponse = elasticsearchClient.search(s -> s
+                            .index("contents")
+                            .query(q -> q.bool(boolBuilder.build()))
+                            .size(pageable.getPageSize()),
+                    ContentDocument.class
+            );
+
+            return searchResponse.hits().hits().stream()
+                    .map(Hit::source)
+                    .filter(Objects::nonNull)
+                    .toList();
+        } catch (Exception e) {
+            log.error("Multi-token search failed, fallback to repository searchByKeyword", e);
+            String joined = String.join(" ", tokens);
+            return contentSearchRepository.searchByKeyword(joined, pageable).getContent();
+        }
+    }
+}
