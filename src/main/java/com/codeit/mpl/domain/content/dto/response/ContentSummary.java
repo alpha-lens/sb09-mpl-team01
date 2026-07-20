@@ -12,6 +12,7 @@ public record ContentSummary(
         String thumbnailUrl,
         List<String> tags,
         Double averageRating,
-        Integer reviewCount
+        Integer reviewCount,
+        Long watcherCount
 ) {
 }
