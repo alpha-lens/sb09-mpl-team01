@@ -1,4 +1,4 @@
-package com.codeit.mpl.review.service;
+package com.codeit.mpl.domain.review.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

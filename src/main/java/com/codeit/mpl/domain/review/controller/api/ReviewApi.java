@@ -1,4 +1,4 @@
-package com.codeit.mpl.domain.review.cotroller.api;
+package com.codeit.mpl.domain.review.controller.api;
 
 import com.codeit.mpl.domain.review.dto.request.ReviewCreateRequest;
 import com.codeit.mpl.domain.review.dto.request.ReviewSearchRequest;

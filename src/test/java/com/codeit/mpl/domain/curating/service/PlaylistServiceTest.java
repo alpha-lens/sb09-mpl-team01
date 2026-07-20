@@ -1,4 +1,4 @@
-package com.codeit.mpl.curating.service;
+package com.codeit.mpl.domain.curating.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

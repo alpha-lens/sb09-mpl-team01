@@ -1,4 +1,4 @@
-package com.codeit.mpl.profile.service;
+package com.codeit.mpl.domain.profile.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
