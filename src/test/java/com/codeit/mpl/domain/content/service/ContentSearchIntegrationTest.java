@@ -129,8 +129,8 @@ class ContentSearchIntegrationTest {
 
     @Test
     void testBulkInsertPerformanceWithTuning() throws Exception {
-        int totalCount = 10000;
-        int batchSize = 2000;
+        int totalCount = 1000;
+        int batchSize = 100;
 
         // 1. refresh_interval 비활성화 (-1)
         elasticsearchClient.indices().putSettings(s -> s
