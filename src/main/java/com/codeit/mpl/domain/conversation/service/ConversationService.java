@@ -19,6 +19,7 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageRequestDto;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -43,6 +44,7 @@ public class ConversationService {
     private final NotificationRepository notificationRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ActiveConversationManager activeConversationManager;
+    private final BinaryContentStorage binaryContentStorage;
 
     @Transactional(readOnly = true)
     public Conversation getConversation(UUID conversationId) {
@@ -298,7 +300,7 @@ public class ConversationService {
 
     private ConversationDto toDto(Conversation conversation, UUID currentUserId) {
         User otherUser = conversation.getUser1().getId().equals(currentUserId) ? conversation.getUser2() : conversation.getUser1();
-        UserSummary withSummary = new UserSummary(otherUser.getId(), otherUser.getName(), otherUser.getProfileImageUrl());
+        UserSummary withSummary = new UserSummary(otherUser.getId(), otherUser.getName(), resolveProfileImageUrl(otherUser));
 
         DirectMessage lastDm = directMessageRepository.findFirstByConversationIdOrderByCreatedAtDesc(conversation.getId());
         DirectMessageDto lastMessageDto = lastDm != null ? toDmDto(lastDm) : new DirectMessageDto(
@@ -321,9 +323,16 @@ public class ConversationService {
         );
     }
 
+    // User.profileImageUrl 컬럼엔 S3 key가 저장되므로, 응답 시점마다 presigned URL로 변환해서 내려준다.
+    private String resolveProfileImageUrl(User user) {
+        return user.getProfileImageUrl() != null
+            ? binaryContentStorage.getUrl(user.getProfileImageUrl())
+            : null;
+    }
+
     private DirectMessageDto toDmDto(DirectMessage dm) {
-        UserSummary sender = new UserSummary(dm.getSender().getId(), dm.getSender().getName(), dm.getSender().getProfileImageUrl());
-        UserSummary receiver = new UserSummary(dm.getReceiver().getId(), dm.getReceiver().getName(), dm.getReceiver().getProfileImageUrl());
+        UserSummary sender = new UserSummary(dm.getSender().getId(), dm.getSender().getName(), resolveProfileImageUrl(dm.getSender()));
+        UserSummary receiver = new UserSummary(dm.getReceiver().getId(), dm.getReceiver().getName(), resolveProfileImageUrl(dm.getReceiver()));
         return new DirectMessageDto(
             dm.getId(),
             dm.getConversation().getId(),

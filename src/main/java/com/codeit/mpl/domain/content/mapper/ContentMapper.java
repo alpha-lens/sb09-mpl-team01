@@ -12,12 +12,27 @@ public interface ContentMapper {
     @Mapping(target = "id", source = "content.id")
     @Mapping(target = "type", source = "content.type")
     @Mapping(target = "title", source = "content.title")
-    @Mapping(target = "description", source = "content.description")
-    @Mapping(target = "thumbnailUrl", source = "content.thumbnailUrl")
+    @Mapping(
+            target = "description",
+            source = "content.description"
+    )
+    @Mapping(
+            target = "thumbnailUrl",
+            source = "content.thumbnailUrl"
+    )
     @Mapping(target = "tags", source = "content.tags")
-    @Mapping(target = "averageRating", source = "averageRating")
-    @Mapping(target = "reviewCount", source = "reviewCount")
-    @Mapping(target = "watcherCount", source = "watcherCount")
+    @Mapping(
+            target = "averageRating",
+            source = "averageRating"
+    )
+    @Mapping(
+            target = "reviewCount",
+            source = "reviewCount"
+    )
+    @Mapping(
+            target = "watcherCount",
+            source = "watcherCount"
+    )
     ContentDto toDto(
             Content content,
             Double averageRating,
@@ -28,14 +43,31 @@ public interface ContentMapper {
     @Mapping(target = "id", source = "content.id")
     @Mapping(target = "type", source = "content.type")
     @Mapping(target = "title", source = "content.title")
-    @Mapping(target = "description", source = "content.description")
-    @Mapping(target = "thumbnailUrl", source = "content.thumbnailUrl")
+    @Mapping(
+            target = "description",
+            source = "content.description"
+    )
+    @Mapping(
+            target = "thumbnailUrl",
+            source = "content.thumbnailUrl"
+    )
     @Mapping(target = "tags", source = "content.tags")
-    @Mapping(target = "averageRating", source = "averageRating")
-    @Mapping(target = "reviewCount", source = "reviewCount")
+    @Mapping(
+            target = "averageRating",
+            source = "averageRating"
+    )
+    @Mapping(
+            target = "reviewCount",
+            source = "reviewCount"
+    )
+    @Mapping(
+            target = "watcherCount",
+            source = "watcherCount"
+    )
     ContentSummary toSummary(
             Content content,
             Double averageRating,
-            Integer reviewCount
+            Integer reviewCount,
+            Long watcherCount
     );
 }
