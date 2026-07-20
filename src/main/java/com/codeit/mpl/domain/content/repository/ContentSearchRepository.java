@@ -9,9 +9,16 @@ import org.springframework.data.elasticsearch.repository.ElasticsearchRepository
 public interface ContentSearchRepository extends ElasticsearchRepository<ContentDocument, String> {
 
     @Query("{\"bool\": {\"should\": [" +
-           "  {\"match\": {\"title\": {\"query\": \"?0\", \"boost\": 3.0}}}," +
-           "  {\"match\": {\"tags\": {\"query\": \"?0\", \"boost\": 2.0}}}," +
-           "  {\"match\": {\"description\": {\"query\": \"?0\"}}}" +
+           "  {\"multi_match\": {" +
+           "    \"query\": \"?0\"," +
+           "    \"fields\": [\"title^3.0\", \"title.autocomplete^2.5\", \"tags^2.0\", \"tags.autocomplete^1.5\", \"description\"]," +
+           "    \"operator\": \"AND\"" +
+           "  }}," +
+           "  {\"multi_match\": {" +
+           "    \"query\": \"?0\"," +
+           "    \"fields\": [\"title.standard^3.0\", \"tags.standard^2.0\", \"description\"]," +
+           "    \"fuzziness\": \"AUTO\"" +
+           "  }}" +
            "]}}")
     Page<ContentDocument> searchByKeyword(String keyword, Pageable pageable);
 
