@@ -22,7 +22,7 @@
 ## 🛠️ 백엔드 기술 아키텍처
 
 - **Language & Framework**: Java 17 / Spring Boot 4.1.0 (Spring Security, Spring Batch, Data JPA)
-- **Database & Search**: PostgreSQL (주 DB), H2 (테스트용 DB), Elasticsearch v8.11.0 (Nori 형태소 분석기 기반 풀텍스트 검색 및 동기화)
+- **Database & Search**: PostgreSQL (주 DB), H2 (테스트용 DB), Elasticsearch v7.10.2 (Nori 형태소 분석기 기반 풀텍스트 검색 및 동기화)
 - **Cache & Message Broker**: Redis (세션/캐시 저장소), Apache Kafka (분산 메시징 및 이벤트 핸들링)
 - **Communication**: WebSocket/STOMP (실시간 채팅 & 하트비트 세션), Server-Sent Events (SSE 알림 발송)
 - **Infrastructure**: AWS ECS (다중 서버 스케일아웃), AWS OpenSearch, AWS ElastiCache, Confluent Cloud, Nginx
