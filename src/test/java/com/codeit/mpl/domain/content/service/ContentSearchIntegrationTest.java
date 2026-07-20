@@ -38,6 +38,9 @@ class ContentSearchIntegrationTest {
     @Autowired
     private ContentSearchRepository contentSearchRepository;
 
+    @Autowired
+    private org.springframework.data.elasticsearch.core.ElasticsearchOperations elasticsearchOperations;
+
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -73,6 +76,11 @@ class ContentSearchIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        var indexOps = elasticsearchOperations.indexOps(ContentDocument.class);
+        if (!indexOps.exists()) {
+            indexOps.create();
+            indexOps.putMapping(indexOps.createMapping(ContentDocument.class));
+        }
         contentSearchRepository.deleteAll();
     }
 
