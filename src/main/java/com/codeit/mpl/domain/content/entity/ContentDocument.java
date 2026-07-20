@@ -75,15 +75,27 @@ public class ContentDocument {
     private Instant createdAt;
 
     public static ContentDocument from(Content content) {
+        String titleChosungRaw = HangulUtils.extractChosung(content.getTitle());
+        String titleChosungNoSpace = titleChosungRaw.replaceAll("\\s+", "");
+        String titleChosung = titleChosungRaw.equals(titleChosungNoSpace)
+                ? titleChosungRaw
+                : titleChosungRaw + " " + titleChosungNoSpace;
+
         List<String> tags = content.getTags();
         List<String> tagsChosung = tags != null
-                ? tags.stream().map(HangulUtils::extractChosung).toList()
+                ? tags.stream()
+                        .map(tag -> {
+                            String c = HangulUtils.extractChosung(tag);
+                            String cns = c.replaceAll("\\s+", "");
+                            return c.equals(cns) ? c : c + " " + cns;
+                        })
+                        .toList()
                 : List.of();
 
         return ContentDocument.builder()
                 .id(content.getId().toString())
                 .title(content.getTitle())
-                .titleChosung(HangulUtils.extractChosung(content.getTitle()))
+                .titleChosung(titleChosung)
                 .description(content.getDescription())
                 .type(content.getType().name())
                 .sourceType(content.getSourceType())

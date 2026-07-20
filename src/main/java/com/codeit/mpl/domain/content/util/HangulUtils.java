@@ -18,7 +18,7 @@ public class HangulUtils {
             if (c >= HANGUL_BEGIN && c <= HANGUL_END) {
                 int chosungIndex = (c - HANGUL_BEGIN) / (21 * 28);
                 sb.append(CHOSUNG[chosungIndex]);
-            } else if (!Character.isWhitespace(c)) {
+            } else {
                 sb.append(c);
             }
         }
