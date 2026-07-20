@@ -4,18 +4,25 @@ import com.codeit.mpl.domain.curating.dto.response.PlaylistDto;
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import com.codeit.mpl.domain.content.dto.response.ContentSummary;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import java.util.List;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Mapper(componentModel = "spring")
-public interface PlaylistMapper {
+public abstract class PlaylistMapper {
 
-  default PlaylistDto toDto(Playlist playlist) {
+  @Autowired
+  protected BinaryContentStorage binaryContentStorage;
+
+  public PlaylistDto toDto(Playlist playlist) {
+    String ownerImageUrl = playlist.getOwner().getProfileImageUrl() != null
+        ? binaryContentStorage.getUrl(playlist.getOwner().getProfileImageUrl())
+        : null;
     UserSummary owner = new UserSummary(
         playlist.getOwner().getId(),
         playlist.getOwner().getName(),
-        playlist.getOwner().getProfileImageUrl()
+        ownerImageUrl
     );
 
     return new PlaylistDto(
