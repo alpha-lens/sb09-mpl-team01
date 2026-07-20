@@ -1,12 +1,11 @@
 package com.codeit.mpl.domain.content.repository;
 
 import static com.codeit.mpl.domain.content.entity.QContent.content;
-import static com.codeit.mpl.domain.content.entity.QWatchingSession.watchingSession;
 import static com.codeit.mpl.domain.review.entity.QReview.review;
 
+import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.entity.ContentType;
-import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
@@ -48,10 +47,16 @@ public class ContentQueryRepositoryImpl
                         .coalesce(0.0);
 
         NumberExpression<Long> reviewCount =
-                review.id.countDistinct();
+                review.id
+                        .countDistinct();
 
+        /*
+         * 현재 활성 시청 세션 개수가 아니라
+         * Content에 저장된 누적 시청 횟수를 사용합니다.
+         */
         NumberExpression<Long> watcherCount =
-                watchingSession.id.countDistinct();
+                content.watcherCount
+                        .coalesce(0L);
 
         BooleanBuilder where =
                 createFilterCondition(
@@ -59,7 +64,8 @@ public class ContentQueryRepositoryImpl
                         type
                 );
 
-        BooleanExpression havingCursorCondition = null;
+        BooleanExpression havingCursorCondition =
+                null;
 
         if (cursor != null
                 && !cursor.isBlank()
@@ -106,22 +112,21 @@ public class ContentQueryRepositoryImpl
                         .from(content)
                         .leftJoin(review)
                         .on(
-                                review.content.eq(content)
-                        )
-                        .leftJoin(watchingSession)
-                        .on(
-                                watchingSession.content.eq(
+                                review.content.eq(
                                         content
                                 )
                         )
                         .where(where)
                         .groupBy(
                                 content.id,
-                                content.createdAt
+                                content.createdAt,
+                                content.watcherCount
                         );
 
         if (havingCursorCondition != null) {
-            query.having(havingCursorCondition);
+            query.having(
+                    havingCursorCondition
+            );
         }
 
         query.orderBy(
@@ -134,7 +139,9 @@ public class ContentQueryRepositoryImpl
         );
 
         List<Tuple> tuples =
-                query.limit(limit + 1L)
+                query.limit(
+                                limit + 1L
+                        )
                         .fetch();
 
         if (tuples.isEmpty()) {
@@ -144,13 +151,18 @@ public class ContentQueryRepositoryImpl
         List<UUID> contentIds =
                 tuples.stream()
                         .map(tuple ->
-                                tuple.get(content.id)
+                                tuple.get(
+                                        content.id
+                                )
                         )
                         .toList();
 
         /*
-         * 집계 쿼리에서는 Content 전체 엔티티 대신 ID와 집계값만 조회합니다.
-         * 그다음 현재 페이지에 포함된 엔티티만 한 번에 가져옵니다.
+         * 집계 쿼리에서는 Content 전체 엔티티 대신
+         * 콘텐츠 ID와 집계값만 조회합니다.
+         *
+         * 이후 현재 페이지에 포함된 콘텐츠 엔티티만
+         * 한 번의 추가 쿼리로 조회합니다.
          */
         Map<UUID, Content> contentById =
                 new LinkedHashMap<>();
@@ -158,7 +170,9 @@ public class ContentQueryRepositoryImpl
         queryFactory
                 .selectFrom(content)
                 .where(
-                        content.id.in(contentIds)
+                        content.id.in(
+                                contentIds
+                        )
                 )
                 .fetch()
                 .forEach(item ->
@@ -175,10 +189,14 @@ public class ContentQueryRepositoryImpl
 
         for (Tuple tuple : tuples) {
             UUID contentId =
-                    tuple.get(content.id);
+                    tuple.get(
+                            content.id
+                    );
 
             Content item =
-                    contentById.get(contentId);
+                    contentById.get(
+                            contentId
+                    );
 
             if (item == null) {
                 continue;
@@ -245,7 +263,7 @@ public class ContentQueryRepositoryImpl
     }
 
     /**
-     * 제목·설명 키워드와 콘텐츠 타입 필터를 생성합니다.
+     * 제목·설명 키워드 및 콘텐츠 타입 필터를 생성합니다.
      */
     private BooleanBuilder createFilterCondition(
             String keywordLike,
@@ -262,25 +280,40 @@ public class ContentQueryRepositoryImpl
                             .trim()
                             .toLowerCase();
 
-            builder.and(
+            BooleanExpression keywordCondition =
                     content.title
                             .lower()
                             .contains(
                                     normalizedKeyword
-                            )
-                            .or(
+                            );
+
+            /*
+             * description은 nullable이므로
+             * null이 아닌 경우에만 lower/contains 조건을 적용합니다.
+             */
+            BooleanExpression descriptionCondition =
+                    content.description
+                            .isNotNull()
+                            .and(
                                     content.description
                                             .lower()
                                             .contains(
                                                     normalizedKeyword
                                             )
-                            )
+                            );
+
+            builder.and(
+                    keywordCondition.or(
+                            descriptionCondition
+                    )
             );
         }
 
         if (type != null) {
             builder.and(
-                    content.type.eq(type)
+                    content.type.eq(
+                            type
+                    )
             );
         }
 
@@ -288,9 +321,8 @@ public class ContentQueryRepositoryImpl
     }
 
     /**
-     * idAfter가 가리키는 콘텐츠의 실제 정렬값을 조회합니다.
-     *
-     * cursor 값과 실제 값이 다르면 잘못된 페이지 요청으로 처리합니다.
+     * idAfter가 가리키는 콘텐츠의 실제 정렬값을 조회하고
+     * 요청 cursor 값과 일치하는지 검증합니다.
      */
     private CursorAnchor loadAndValidateAnchor(
             String cursor,
@@ -305,7 +337,8 @@ public class ContentQueryRepositoryImpl
                         .coalesce(0.0);
 
         NumberExpression<Long> watcherCount =
-                watchingSession.id.countDistinct();
+                content.watcherCount
+                        .coalesce(0L);
 
         BooleanBuilder where =
                 createFilterCondition(
@@ -314,7 +347,9 @@ public class ContentQueryRepositoryImpl
                 );
 
         where.and(
-                content.id.eq(idAfter)
+                content.id.eq(
+                        idAfter
+                )
         );
 
         Tuple tuple =
@@ -328,18 +363,15 @@ public class ContentQueryRepositoryImpl
                         .from(content)
                         .leftJoin(review)
                         .on(
-                                review.content.eq(content)
-                        )
-                        .leftJoin(watchingSession)
-                        .on(
-                                watchingSession.content.eq(
+                                review.content.eq(
                                         content
                                 )
                         )
                         .where(where)
                         .groupBy(
                                 content.id,
-                                content.createdAt
+                                content.createdAt,
+                                content.watcherCount
                         )
                         .fetchOne();
 
@@ -350,7 +382,9 @@ public class ContentQueryRepositoryImpl
         }
 
         Instant createdAt =
-                tuple.get(content.createdAt);
+                tuple.get(
+                        content.createdAt
+                );
 
         Double anchorAverageRating =
                 defaultDouble(
@@ -383,6 +417,10 @@ public class ContentQueryRepositoryImpl
         return anchor;
     }
 
+    /**
+     * 전달된 cursor 값이 idAfter 콘텐츠의 실제 정렬값과
+     * 일치하는지 검증합니다.
+     */
     private void validateCursorValue(
             String cursor,
             String sortBy,
@@ -391,7 +429,9 @@ public class ContentQueryRepositoryImpl
         switch (sortBy) {
             case "createdAt" -> {
                 Instant cursorValue =
-                        parseInstantCursor(cursor);
+                        parseInstantCursor(
+                                cursor
+                        );
 
                 if (!cursorValue.equals(
                         anchor.createdAt()
@@ -404,7 +444,9 @@ public class ContentQueryRepositoryImpl
 
             case "watcherCount" -> {
                 long cursorValue =
-                        parseLongCursor(cursor);
+                        parseLongCursor(
+                                cursor
+                        );
 
                 if (cursorValue
                         != anchor.watcherCount()) {
@@ -417,7 +459,9 @@ public class ContentQueryRepositoryImpl
 
             case "rate" -> {
                 double cursorValue =
-                        parseDoubleCursor(cursor);
+                        parseDoubleCursor(
+                                cursor
+                        );
 
                 if (Double.compare(
                         cursorValue,
@@ -438,9 +482,9 @@ public class ContentQueryRepositoryImpl
     }
 
     /**
-     * createdAt 정렬의 다음 페이지 조건입니다.
+     * createdAt 정렬의 다음 페이지 조회 조건입니다.
      *
-     * 보조 정렬 기준으로 id를 사용합니다.
+     * 정렬값이 같을 경우 id를 보조 정렬 기준으로 사용합니다.
      */
     private BooleanExpression
     createCreatedAtCursorCondition(
@@ -451,7 +495,9 @@ public class ContentQueryRepositoryImpl
                 == Direction.ASCENDING) {
 
             return content.createdAt
-                    .gt(anchor.createdAt())
+                    .gt(
+                            anchor.createdAt()
+                    )
                     .or(
                             content.createdAt
                                     .eq(
@@ -466,7 +512,9 @@ public class ContentQueryRepositoryImpl
         }
 
         return content.createdAt
-                .lt(anchor.createdAt())
+                .lt(
+                        anchor.createdAt()
+                )
                 .or(
                         content.createdAt
                                 .eq(
@@ -481,10 +529,10 @@ public class ContentQueryRepositoryImpl
     }
 
     /**
-     * watcherCount 또는 rate 집계 정렬의 다음 페이지 조건입니다.
+     * watcherCount 또는 rate 정렬의 다음 페이지 조회 조건입니다.
      *
-     * 정렬 순서:
-     * 1. 집계값
+     * 정렬 우선순위:
+     * 1. watcherCount 또는 평균 평점
      * 2. createdAt
      * 3. id
      */
@@ -502,7 +550,9 @@ public class ContentQueryRepositoryImpl
                         sortDirection
                 );
 
-        if ("watcherCount".equals(sortBy)) {
+        if ("watcherCount".equals(
+                sortBy
+        )) {
             if (sortDirection
                     == Direction.ASCENDING) {
 
@@ -536,7 +586,9 @@ public class ContentQueryRepositoryImpl
                     );
         }
 
-        if ("rate".equals(sortBy)) {
+        if ("rate".equals(
+                sortBy
+        )) {
             if (sortDirection
                     == Direction.ASCENDING) {
 
@@ -575,6 +627,11 @@ public class ContentQueryRepositoryImpl
         );
     }
 
+    /**
+     * 정렬값이 같은 콘텐츠의 다음 페이지 조건입니다.
+     *
+     * createdAt과 id를 순서대로 비교합니다.
+     */
     private BooleanExpression
     createSecondaryCursorCondition(
             CursorAnchor anchor,
@@ -584,7 +641,9 @@ public class ContentQueryRepositoryImpl
                 == Direction.ASCENDING) {
 
             return content.createdAt
-                    .gt(anchor.createdAt())
+                    .gt(
+                            anchor.createdAt()
+                    )
                     .or(
                             content.createdAt
                                     .eq(
@@ -599,7 +658,9 @@ public class ContentQueryRepositoryImpl
         }
 
         return content.createdAt
-                .lt(anchor.createdAt())
+                .lt(
+                        anchor.createdAt()
+                )
                 .or(
                         content.createdAt
                                 .eq(
@@ -614,7 +675,7 @@ public class ContentQueryRepositoryImpl
     }
 
     /**
-     * 요청된 정렬과 동일한 방향으로 모든 보조 정렬을 적용합니다.
+     * 요청된 정렬 기준과 방향에 맞는 정렬 조건을 생성합니다.
      */
     private OrderSpecifier<?>[]
     createOrderSpecifiers(
@@ -632,7 +693,10 @@ public class ContentQueryRepositoryImpl
 
         switch (sortBy) {
             case "createdAt" -> {
-                // createdAt은 아래 공통 보조 정렬에서 추가합니다.
+                /*
+                 * createdAt은 아래 공통 정렬 부분에서
+                 * 한 번만 추가합니다.
+                 */
             }
 
             case "watcherCount" ->
@@ -676,11 +740,14 @@ public class ContentQueryRepositoryImpl
             String cursor
     ) {
         try {
-            return Instant.parse(cursor);
+            return Instant.parse(
+                    cursor
+            );
 
-        } catch (DateTimeParseException e) {
+        } catch (DateTimeParseException exception) {
             throw new IllegalArgumentException(
-                    "createdAt 정렬 시 cursor는 올바른 Instant 형식이어야 합니다."
+                    "createdAt 정렬 시 cursor는 올바른 Instant 형식이어야 합니다.",
+                    exception
             );
         }
     }
@@ -689,11 +756,14 @@ public class ContentQueryRepositoryImpl
             String cursor
     ) {
         try {
-            return Long.parseLong(cursor);
+            return Long.parseLong(
+                    cursor
+            );
 
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException exception) {
             throw new IllegalArgumentException(
-                    "watcherCount 정렬 시 cursor는 숫자여야 합니다."
+                    "watcherCount 정렬 시 cursor는 숫자여야 합니다.",
+                    exception
             );
         }
     }
@@ -702,11 +772,14 @@ public class ContentQueryRepositoryImpl
             String cursor
     ) {
         try {
-            return Double.parseDouble(cursor);
+            return Double.parseDouble(
+                    cursor
+            );
 
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException exception) {
             throw new IllegalArgumentException(
-                    "rate 정렬 시 cursor는 숫자여야 합니다."
+                    "rate 정렬 시 cursor는 숫자여야 합니다.",
+                    exception
             );
         }
     }
@@ -735,3 +808,4 @@ public class ContentQueryRepositoryImpl
     ) {
     }
 }
+
