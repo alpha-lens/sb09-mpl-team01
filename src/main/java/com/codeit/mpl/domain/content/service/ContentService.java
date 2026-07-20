@@ -509,10 +509,10 @@ public class ContentService {
         Pageable pageable =
                 PageRequest.of(
                         0,
-                        5000
+                        1000
                 );
 
-        List<ContentDocument> documents;
+        Page<ContentDocument> docsPage;
 
         if (isChosung) {
             String chosungKeyword =
@@ -523,13 +523,12 @@ public class ContentService {
                                     ""
                             );
 
-            documents =
+            docsPage =
                     contentSearchRepository
                             .searchByChosung(
                                     chosungKeyword,
                                     pageable
-                            )
-                            .getContent();
+                            );
 
         } else {
             String trimmedKeyword = keywordLike.trim();
@@ -540,30 +539,35 @@ public class ContentService {
                         );
 
                 if (tokens.size() > 1) {
-                    documents =
+                    EsSearchResult multiTokenResult =
                             searchByMultiToken(
                                     tokens,
                                     pageable
                             );
+                    docsPage = new org.springframework.data.domain.PageImpl<>(
+                            multiTokenResult.documents(),
+                            pageable,
+                            multiTokenResult.totalCount()
+                    );
                 } else {
-                    documents =
+                    docsPage =
                             contentSearchRepository
                                     .searchByKeyword(
                                             trimmedKeyword,
                                             pageable
-                                    )
-                                    .getContent();
+                                    );
                 }
             } else {
-                documents =
+                docsPage =
                         contentSearchRepository
                                 .searchByKeyword(
                                         trimmedKeyword,
                                         pageable
-                                )
-                                .getContent();
+                                );
             }
         }
+
+        List<ContentDocument> documents = docsPage.getContent();
 
         List<UUID> matchingIds =
                 documents.stream()
@@ -719,8 +723,7 @@ public class ContentService {
                             .toString();
         }
 
-        long totalCount =
-                matchingIds.size();
+        long totalCount = docsPage.getTotalElements();
 
         if (type != null) {
             totalCount =
@@ -1679,10 +1682,10 @@ public class ContentService {
         }
     }
 
-    private List<ContentDocument> searchByMultiToken(
+    private EsSearchResult searchByMultiToken(
             List<String> tokens,
             Pageable pageable
-    ) {
+      ) {
         try {
             BoolQuery.Builder boolBuilder =
                     new BoolQuery.Builder();
@@ -1792,7 +1795,7 @@ public class ContentService {
                             ContentDocument.class
                     );
 
-            return searchResponse.hits()
+            List<ContentDocument> docs = searchResponse.hits()
                     .hits()
                     .stream()
                     .map(
@@ -1802,6 +1805,9 @@ public class ContentService {
                             Objects::nonNull
                     )
                     .toList();
+
+            long totalCount = searchResponse.hits().total().value();
+            return new EsSearchResult(docs, totalCount);
 
         } catch (Exception exception) {
             log.error(
@@ -1815,12 +1821,15 @@ public class ContentService {
                             tokens
                     );
 
-            return contentSearchRepository
+            Page<ContentDocument> fallbackPage = contentSearchRepository
                     .searchByKeyword(
                             joined,
                             pageable
-                    )
-                    .getContent();
+                    );
+
+            return new EsSearchResult(fallbackPage.getContent(), fallbackPage.getTotalElements());
         }
     }
+
+    private record EsSearchResult(List<ContentDocument> documents, long totalCount) {}
 }

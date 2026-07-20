@@ -7,7 +7,9 @@ import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.SearchHitsIterator;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 @Slf4j
@@ -125,21 +128,21 @@ public class ElasticsearchSyncService {
         long dbCount = contentRepository.count();
         long esCount = contentSearchRepository.count();
 
-        List<Content> allDbContents = contentRepository.findAll();
-        Set<String> dbIds = allDbContents.stream()
-                .map(c -> c.getId().toString())
+        List<UUID> allDbIds = contentRepository.findAllIds();
+        Set<String> dbIds = allDbIds.stream()
+                .map(UUID::toString)
                 .collect(Collectors.toSet());
 
-        Query query =
-                Query.findAll();
-        query.setPageable(PageRequest.of(0, 10000));
+        Query query = Query.findAll();
 
-        SearchHits<ContentDocument> searchHits =
-                elasticsearchOperations.search(query, ContentDocument.class);
-
-        Set<String> esIds = searchHits.stream()
-                .map(hit -> hit.getContent().getId())
-                .collect(Collectors.toSet());
+        Set<String> esIds;
+        try (SearchHitsIterator<ContentDocument> iterator =
+                     elasticsearchOperations.searchForStream(query, ContentDocument.class)) {
+            Iterable<SearchHit<ContentDocument>> iterable = () -> iterator;
+            esIds = StreamSupport.stream(iterable.spliterator(), false)
+                    .map(hit -> hit.getContent().getId())
+                    .collect(Collectors.toSet());
+        }
 
         List<String> missingInEs = dbIds.stream()
                 .filter(id -> !esIds.contains(id))
