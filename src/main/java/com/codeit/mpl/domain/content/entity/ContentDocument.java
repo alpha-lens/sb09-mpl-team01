@@ -10,14 +10,18 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.annotations.InnerField;
+import org.springframework.data.elasticsearch.annotations.MultiField;
 import org.springframework.data.elasticsearch.annotations.Setting;
 
 import java.time.Instant;
 import java.util.List;
 
+import java.time.temporal.ChronoUnit;
+
 @Getter
 @Builder
-@Document(indexName = "contents")
+@Document(indexName = "contents", createIndex = false)
 @Setting(settingPath = "/elasticsearch-settings.json")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -25,13 +29,19 @@ public class ContentDocument {
     @Id
     private String id; // Content UUID String
 
-    @Field(type = FieldType.Text, analyzer = "ngram_analyzer", searchAnalyzer = "standard")
+    @MultiField(
+            mainField = @Field(type = FieldType.Text, analyzer = "nori_analyzer", searchAnalyzer = "nori_analyzer"),
+            otherFields = {
+                    @InnerField(suffix = "autocomplete", type = FieldType.Text, analyzer = "nori_edge_ngram_analyzer", searchAnalyzer = "standard"),
+                    @InnerField(suffix = "standard", type = FieldType.Text, analyzer = "standard", searchAnalyzer = "standard")
+            }
+    )
     private String title;
 
     @Field(type = FieldType.Text, analyzer = "ngram_analyzer", searchAnalyzer = "keyword")
     private String titleChosung; // 초성 검색용 필드
 
-    @Field(type = FieldType.Text, analyzer = "ngram_analyzer", searchAnalyzer = "standard")
+    @Field(type = FieldType.Text, analyzer = "nori_analyzer", searchAnalyzer = "nori_analyzer")
     private String description;
 
     @Field(type = FieldType.Keyword)
@@ -43,7 +53,13 @@ public class ContentDocument {
     @Field(type = FieldType.Keyword)
     private String externalId;
 
-    @Field(type = FieldType.Text, analyzer = "ngram_analyzer", searchAnalyzer = "standard")
+    @MultiField(
+            mainField = @Field(type = FieldType.Text, analyzer = "nori_analyzer", searchAnalyzer = "nori_analyzer"),
+            otherFields = {
+                    @InnerField(suffix = "autocomplete", type = FieldType.Text, analyzer = "nori_edge_ngram_analyzer", searchAnalyzer = "standard"),
+                    @InnerField(suffix = "standard", type = FieldType.Text, analyzer = "standard", searchAnalyzer = "standard")
+            }
+    )
     private List<String> tags;
 
     @Field(type = FieldType.Text, analyzer = "ngram_analyzer", searchAnalyzer = "keyword")
@@ -55,7 +71,7 @@ public class ContentDocument {
     @Field(type = FieldType.Keyword, index = false)
     private String contentUrl;
 
-    @Field(type = FieldType.Date)
+    @Field(type = FieldType.Date, format = {}, pattern = "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX||uuuu-MM-dd'T'HH:mm:ss.SSSX||strict_date_optional_time||epoch_millis")
     private Instant createdAt;
 
     public static ContentDocument from(Content content) {
@@ -76,7 +92,7 @@ public class ContentDocument {
                 .tagsChosung(tagsChosung)
                 .thumbnailUrl(content.getThumbnailUrl())
                 .contentUrl(content.getContentUrl())
-                .createdAt(content.getCreatedAt())
+                .createdAt(content.getCreatedAt() != null ? content.getCreatedAt().truncatedTo(ChronoUnit.MILLIS) : null)
                 .build();
     }
 }
