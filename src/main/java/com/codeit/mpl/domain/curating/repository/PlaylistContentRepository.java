@@ -20,4 +20,8 @@ public interface PlaylistContentRepository extends JpaRepository<PlaylistContent
   List<PlaylistContent> findByPlaylist(@Param("playlist") Playlist playlist);
 
   void deleteByPlaylist(Playlist playlist);
+
+  // N+1 문제 해결을 위한 IN 절 일괄 조회 쿼리 추가
+  @Query("SELECT pc FROM PlaylistContent pc JOIN FETCH pc.content c LEFT JOIN FETCH c.tags WHERE pc.playlist.id IN :playlistIds")
+  List<PlaylistContent> findByPlaylistIdIn(@Param("playlistIds") List<UUID> playlistIds);
 }

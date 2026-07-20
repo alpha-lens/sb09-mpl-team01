@@ -192,24 +192,30 @@ public class PlaylistService {
     }
 
     final Set<UUID> finalSubscribedIds =
-            subscribedPlaylistIds;
+        subscribedPlaylistIds;
+
+    // --- 최적화: 콘텐츠를 한 번에 다 가져와서 맵으로 그룹화 ---
+    List<PlaylistContent> allContents = playlistContentRepository.findByPlaylistIdIn(playlistIds);
+    Map<UUID, List<PlaylistContent>> contentMap = allContents.stream()
+        .collect(Collectors.groupingBy(pc -> pc.getPlaylist().getId()));
 
     List<PlaylistDto> playlistDtos =
-            pagePlaylists.stream()
-                    .map(
-                            playlist ->
-                                    toDtoSimple(
-                                            playlist,
-                                            subscriberCountMap.getOrDefault(
-                                                    playlist.getId(),
-                                                    0L
-                                            ),
-                                            finalSubscribedIds.contains(
-                                                    playlist.getId()
-                                            )
-                                    )
+        pagePlaylists.stream()
+            .map(
+                playlist ->
+                    toDtoSimple(
+                        playlist,
+                        subscriberCountMap.getOrDefault(
+                            playlist.getId(),
+                            0L
+                        ),
+                        finalSubscribedIds.contains(
+                            playlist.getId()
+                        ),
+                        contentMap.getOrDefault(playlist.getId(), new ArrayList<>())
                     )
-                    .toList();
+            )
+            .toList();
 
     String nextCursor = null;
     String nextIdAfter = null;
@@ -833,52 +839,51 @@ public class PlaylistService {
   }
 
   private PlaylistDto toDtoSimple(
-          Playlist playlist,
-          long subscriberCount,
-          boolean subscribedByMe
+      Playlist playlist,
+      long subscriberCount,
+      boolean subscribedByMe,
+      List<PlaylistContent> contents
   ) {
     UserSummary owner =
-            new UserSummary(
-                    playlist.getOwner().getId(),
-                    playlist.getOwner().getName(),
-                    resolveProfileImageUrl(playlist.getOwner())
-            );
+        new UserSummary(
+            playlist.getOwner().getId(),
+            playlist.getOwner().getName(),
+            resolveProfileImageUrl(playlist.getOwner())
+        );
 
     List<ContentSummary> contentSummaries =
-            new ArrayList<>();
+        new ArrayList<>();
 
-    playlistContentRepository
-            .findByPlaylist(playlist)
-            .forEach(
-                    playlistContent -> {
-                      Content content =
-                              playlistContent.getContent();
+    contents.forEach(
+        playlistContent -> {
+          Content content =
+              playlistContent.getContent();
 
-                      contentSummaries.add(
-                              new ContentSummary(
-                                      content.getId(),
-                                      content.getType(),
-                                      content.getTitle(),
-                                      content.getDescription(),
-                                      content.getThumbnailUrl(),
-                                      content.getTags(),
-                                      0.0,
-                                      0,
-                                      content.getWatcherCount()
-                              )
-                      );
-                    }
-            );
+          contentSummaries.add(
+              new ContentSummary(
+                  content.getId(),
+                  content.getType(),
+                  content.getTitle(),
+                  content.getDescription(),
+                  content.getThumbnailUrl(),
+                  content.getTags(),
+                  0.0,
+                  0,
+                  content.getWatcherCount()
+              )
+          );
+        }
+    );
 
     return new PlaylistDto(
-            playlist.getId(),
-            owner,
-            playlist.getTitle(),
-            playlist.getDescription(),
-            playlist.getUpdatedAt(),
-            subscriberCount,
-            subscribedByMe,
-            contentSummaries
+        playlist.getId(),
+        owner,
+        playlist.getTitle(),
+        playlist.getDescription(),
+        playlist.getUpdatedAt(),
+        subscriberCount,
+        subscribedByMe,
+        contentSummaries
     );
   }
 
