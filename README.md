@@ -9,6 +9,16 @@
 
 ---
 
+## 👥 팀원 및 기여 파트 (Contributors)
+
+| <img src="https://github.com/geumbi1.png" width="120px;" alt="geumbi1"/> | <img src="https://github.com/parksh3070.png" width="120px;" alt="parksh3070"/> | <img src="https://github.com/by15622.png" width="120px;" alt="by15622"/> | <img src="https://github.com/alpha-lens.png" width="120px;" alt="alpha-lens"/> |
+| :---: |:------------------------------------------------------------------------------:| :---: | :---: |
+| **[geumbi1](https://github.com/geumbi1)** |                **[parksh3070](https://github.com/parksh3070)**                 | **[by15622](https://github.com/by15622)** | **[alpha_lens](https://github.com/alpha-lens)** |
+| **사용자 관리 & AWS** |                          **콘텐츠 데이터 관리 & AWS**                          | **콘텐츠 평가/큐레이팅 & 프로필** | **실시간 같이보기 & 알림** |
+| JWT/OAuth2 인증 인가 <br> 어드민 계정/권한 관리 <br> AWS ECS 인프라 구축 | Spring Batch 외부 API 수집 <br> AWS 인프라/배포 설정 <br> 콘텐츠 정렬 및 검색  | 평점/리뷰 CRUD <br> 큐레이션 플레이리스트 <br> 사용자 프로필 & 팔로우 | WebSocket STOMP 실시간 채팅 <br> 시청 세션 하트비트 생명주기 <br> SSE 실시간 알림 <br> OpenSearch 한글 검색 엔진 |
+
+---
+
 ## 🛠️ 백엔드 기술 아키텍처
 
 - **Language & Framework**: Java 17 / Spring Boot 4.1.0 (Spring Security, Spring Batch, Data JPA)
@@ -26,7 +36,7 @@ src/main/java/com/codeit/mpl/
 ├── domain/                      # 비즈니스 도메인 레이어
 │   ├── user/                    # 인증/인가 및 회원/어드민 기능
 │   ├── profile/                 # 프로필 관리 및 유저 팔로우
-│   ├── content/                 # 콘텐츠 수집(Open API, Batch) 및 검색(Elasticsearch)
+│   ├── content/                 # 콘텐츠 정보 수집(Open API, Batch) 및 검색(Elasticsearch)
 │   ├── curating/                # 플레이리스트 큐레이팅 및 구독 관리
 │   ├── review/                  # 콘텐츠 평점 및 리뷰
 │   ├── notification/            # SSE 기반 알림 리스트 관리
@@ -179,3 +189,9 @@ docker-compose up -d
 ./gradlew bootRun
 ```
 WAS 가동 후 브라우저에서 `http://localhost:8080/swagger-ui/index.html`에 접속하면, 전체 API 스펙 확인 및 API 직접 테스트(Swagger)가 가능합니다.
+
+---
+
+## 📊 테스트 커버리지 관리
+- 프로젝트 전체 테스트 커버리지를 **80% 이상** 유지하는 것을 목표로 합니다.
+- Gradle 빌드 시 `jacocoTestReport` 태스크가 자동으로 실행되어 `build/reports/jacoco/test/jacocoTestReport.xml` 경로에 XML 커버리지 리포트가 기록되며, GitHub CI 워크플로우 완료 후 Codecov로 자동 전송됩니다.
