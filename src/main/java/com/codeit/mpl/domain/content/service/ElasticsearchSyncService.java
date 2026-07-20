@@ -7,6 +7,8 @@ import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -123,15 +125,39 @@ public class ElasticsearchSyncService {
         long dbCount = contentRepository.count();
         long esCount = contentSearchRepository.count();
 
-        log.info("[ES Sync] 검증 완료 - DB:{}, ES:{}", dbCount, esCount);
+        List<Content> allDbContents = contentRepository.findAll();
+        Set<String> dbIds = allDbContents.stream()
+                .map(c -> c.getId().toString())
+                .collect(Collectors.toSet());
 
-        return new DiffResult((int) dbCount, (int) esCount, List.of(), List.of());
+        Query query =
+                Query.findAll();
+        query.setPageable(PageRequest.of(0, 10000));
+
+        SearchHits<ContentDocument> searchHits =
+                elasticsearchOperations.search(query, ContentDocument.class);
+
+        Set<String> esIds = searchHits.stream()
+                .map(hit -> hit.getContent().getId())
+                .collect(Collectors.toSet());
+
+        List<String> missingInEs = dbIds.stream()
+                .filter(id -> !esIds.contains(id))
+                .toList();
+
+        List<String> orphanInEs = esIds.stream()
+                .filter(id -> !dbIds.contains(id))
+                .toList();
+
+        log.info("[ES Sync] 검증 완료 - DB:{}, ES:{}, 누락:{}, 고아:{}", dbCount, esCount, missingInEs.size(), orphanInEs.size());
+
+        return new DiffResult((int) dbCount, (int) esCount, missingInEs, orphanInEs);
     }
 
     /**
      * 불일치 항목만 선택적으로 동기화합니다.
      * DB에는 있지만 ES에 없는 항목만 색인하고, 고아 문서는 삭제합니다.
-     *
+     *호출
      * @return 동기화 결과 요약
      */
     @Transactional(readOnly = true)
