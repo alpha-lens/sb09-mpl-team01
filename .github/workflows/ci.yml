@@ -105,3 +105,8 @@ jobs:
           ADMIN_NAME: system
 
         run: ./gradlew clean test build --stacktrace --info
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
