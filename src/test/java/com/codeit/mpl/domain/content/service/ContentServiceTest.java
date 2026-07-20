@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.codeit.mpl.domain.content.client.SportsDbClient;
 import com.codeit.mpl.domain.content.client.TmdbClient;
 import com.codeit.mpl.domain.content.dto.response.ContentSummary;
@@ -54,6 +55,8 @@ class ContentServiceTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private ContentSearchRepository contentSearchRepository;
+    @Mock
+    private ElasticsearchClient elasticsearchClient;
 
     @InjectMocks
     private ContentService contentService;
