@@ -3,6 +3,7 @@ package com.codeit.mpl.infra.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -34,6 +35,9 @@ public class SecurityConfig {
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
+    @Value("${mpl.frontend.base-url}")
+    private String frontendBaseUrl;
+
     /**
      * Configures HTTP security rules and builds the security filter chain.
      *
@@ -59,7 +63,13 @@ public class SecurityConfig {
             * */
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // 인증은 JWT로만 하고 HttpSession은 OAuth2 로그인 handshake 동안만 잠깐 쓰는
+            // 임시 저장소라, 로그인 성공 시 세션 ID를 바꾸는 고정 공격 방지가 우리에겐 의미가 없다.
+            // 오히려 로그인 콜백 응답과 그 직후 동시에 들어오는 API 요청들이 예전 세션 ID를
+            // 참조하면서 "Session was invalidated"(RedisSessionRepository)로 깨지는 원인이었다.
+            .sessionManagement(session -> session
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                    .sessionFixation().none())
             .authorizeHttpRequests(auth -> auth
                 .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/sign-in", "/api/auth/sign-out", "/api/auth/reset-password",
@@ -92,8 +102,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        //// 로컬 개발용. 운영 배포 시 실제 도메인 추가 필요
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:[*]"));
+        List<String> allowedOrigins = frontendBaseUrl.isBlank()
+                ? List.of("http://localhost:[*]")
+                : List.of("http://localhost:[*]", frontendBaseUrl);
+        configuration.setAllowedOriginPatterns(allowedOrigins);
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Cache-Control", "X-XSRF-TOKEN"));

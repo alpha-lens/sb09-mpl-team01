@@ -20,6 +20,14 @@ ALTER TABLE users
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL' CHECK (provider IN ('LOCAL', 'GOOGLE', 'KAKAO'));
 
+-- 소셜 로그인 제공자가 주는 고유 ID(예: 카카오 회원번호). 이메일을 안 주는 제공자는
+-- 이메일 대신 이걸로 기존 회원을 식별해야, 프로필(닉네임 등)이 바뀌어도 같은 계정으로 인식된다.
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_users_provider_provider_id
+    ON users (provider, provider_id) WHERE provider_id IS NOT NULL;
+
 -- 2. 콘텐츠 테이블 (contents)
 CREATE TABLE IF NOT EXISTS contents (
                           id UUID PRIMARY KEY NOT NULL,
@@ -72,6 +80,16 @@ CREATE INDEX IF NOT EXISTS idx_contents_type
 
 CREATE INDEX IF NOT EXISTS idx_contents_title
     ON contents (title);
+
+ALTER TABLE contents
+    ADD COLUMN IF NOT EXISTS watcher_count BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE contents
+    ADD COLUMN IF NOT EXISTS average_rating DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+
+ALTER TABLE contents
+    ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0;
+
 --  콘텐츠 태그 테이블
 -- 3. 콘텐츠 태그 테이블
 CREATE TABLE IF NOT EXISTS content_tags (

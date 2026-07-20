@@ -30,9 +30,11 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String email;
         String name;
         AuthProvider provider;
+        String providerId;
         if ("kakao".equals(registrationId)) {
             provider = AuthProvider.KAKAO;
             long kakaoId = ((Number) attributes.get("id")).longValue();
+            providerId = String.valueOf(kakaoId);
             @SuppressWarnings("unchecked")
             Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
             @SuppressWarnings("unchecked")
@@ -42,12 +44,13 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             email = nickname + "_" + kakaoId + "@kakao.com";
         } else {
             provider = AuthProvider.GOOGLE;
+            providerId = null;
             email = (String) attributes.get("email");
             name = (String) attributes.get("name");
         }
 
         try {
-            UUID userId = userService.resolveOrCreateOAuthUser(email, name, provider);
+            UUID userId = userService.resolveOrCreateOAuthUser(email, name, provider, providerId);
             return new CustomOAuth2User(
                     userId,
                     attributes,

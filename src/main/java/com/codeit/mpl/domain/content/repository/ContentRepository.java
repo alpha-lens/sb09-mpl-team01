@@ -30,4 +30,7 @@ public interface ContentRepository
             String sourceType,
             Collection<String> externalIds
     );
+
+    List<Content> findAllByWatcherCountGreaterThan(long watcherCount);
 }
+

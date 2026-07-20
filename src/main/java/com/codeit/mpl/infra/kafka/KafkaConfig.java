@@ -40,6 +40,18 @@ public class KafkaConfig {
     @Value("${spring.kafka.properties.sasl.jaas.config:}")
     private String saslJaasConfig;
 
+    // Kafka consumer 연결 안정성 설정
+    // OOM 재시작 등으로 consumer가 group에서 빠질 때 리밸런싱이 연속으로 발생하는 것을
+    // 완화하기 위해 session timeout을 충분히 크게 설정한다.
+    @Value("${spring.kafka.consumer.session-timeout-ms:90000}")
+    private int sessionTimeoutMs;
+
+    @Value("${spring.kafka.consumer.heartbeat-interval-ms:30000}")
+    private int heartbeatIntervalMs;
+
+    @Value("${spring.kafka.consumer.request-timeout-ms:30000}")
+    private int requestTimeoutMs;
+
     /**
      * 순수 spring-kafka 라이브러리만 사용 중이라(spring-boot-starter-kafka 없음)
      * spring.kafka.properties.*가 자동 바인딩되지 않는다 - 여기서 직접 주입해서 반영한다.
@@ -96,10 +108,18 @@ public class KafkaConfig {
         configProps.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        // OOM 재시작 등으로 consumer가 group에서 빠질 때 리밸런싱이 연속 발생하는 문제를 완화한다.
+        // session.timeout.ms: broker가 consumer를 dead로 판정하기까지의 시간 (기본 45s → 90s)
+        // heartbeat.interval.ms: consumer가 broker에 heartbeat를 보내는 주기 (session의 1/3 이하로 설정)
+        // request.timeout.ms: Confluent Cloud 연결 끊김 후 빠른 재연결을 위해 명시
+        configProps.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, sessionTimeoutMs);
+        configProps.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, heartbeatIntervalMs);
+        configProps.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, requestTimeoutMs);
         applySecurityProperties(configProps);
 
         return new DefaultKafkaConsumerFactory<>(configProps);
     }
+
 
     /**
      * Creates a Kafka listener container factory for consuming Kafka messages.

@@ -1,5 +1,10 @@
 package com.codeit.mpl.domain.notification.listener;
 
+import com.codeit.mpl.domain.notification.dto.NotificationKafkaMessage;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -8,17 +13,44 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Profile("!test")
 @Component
+@RequiredArgsConstructor
 public class NotificationKafkaConsumer {
+
+    private final UserRepository userRepository;
+    private final NotificationAsyncHandler notificationAsyncHandler;
 
     /**
      * Consumes notification events from the Kafka notification topic.
      *
-     * @param notificationEvent the notification event payload to process
+     * @param message the notification event payload to process
      */
     @KafkaListener(topics = "notification-topic", groupId = "mpl-group")
-    public void consumeNotificationEvent(Object notificationEvent) {
-        log.info("[Kafka] 알림 이벤트 수신: {}", notificationEvent);
+    public void consumeNotificationEvent(NotificationKafkaMessage message) {
+        log.info("[Kafka] 알림 이벤트 수신: {}", message);
         
-        // TODO: 알림 히스토리 기록 및 복잡한 비즈니스 알림 룰 가공 처리
+        try {
+            User receiver = userRepository.findById(message.receiverId())
+                    .orElseThrow(() -> new IllegalArgumentException("Receiver not found: " + message.receiverId()));
+            
+            User sender = null;
+            if (message.senderId() != null) {
+                sender = userRepository.findById(message.senderId()).orElse(null);
+            }
+
+            NotificationEvent event = new NotificationEvent(
+                    receiver,
+                    sender,
+                    message.level(),
+                    message.title(),
+                    message.content(),
+                    message.type(),
+                    message.targetId()
+            );
+
+            notificationAsyncHandler.process(event);
+            log.info("[Kafka] 알림 이벤트 처리 완료: receiverId={}", message.receiverId());
+        } catch (Exception e) {
+            log.error("[Kafka] 알림 처리 실패: {}", message, e);
+        }
     }
 }

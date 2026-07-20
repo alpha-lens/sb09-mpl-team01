@@ -233,24 +233,25 @@ class BasicUserServiceTest {
   @DisplayName("토큰 재발급 성공")
   void refresh_success() {
     String refreshToken = "old-refresh-token";
-    given(jwtUtil.validateRefreshToken(refreshToken)).willReturn(true);
     given(jwtUtil.extractUserIdFromRefreshToken(refreshToken)).willReturn(userId);
+    given(jwtUtil.isValidForRotation(userId, refreshToken)).willReturn(true);
     given(userRepository.findById(userId)).willReturn(Optional.of(user));
     given(jwtUtil.generateAccessToken(user)).willReturn("new-access-token");
-    given(jwtUtil.generateRefreshToken(userId)).willReturn("new-refresh-token");
+    given(jwtUtil.rotateRefreshToken(userId, refreshToken)).willReturn("new-refresh-token");
     given(userMapper.toDto(user)).willReturn(userDto);
 
     SignInResult result = userService.refresh(refreshToken);
 
     assertThat(result.refreshToken()).isEqualTo("new-refresh-token");
     assertThat(result.jwtDto().accessToken()).isEqualTo("new-access-token");
-    then(jwtUtil).should().deleteRefreshToken(userId);
+    then(jwtUtil).should().rotateRefreshToken(userId, refreshToken);
   }
 
   @Test
   @DisplayName("토큰 재발급 실패 - 유효하지 않은 RefreshToken")
   void refresh_fail_invalidToken() {
-    given(jwtUtil.validateRefreshToken("bad-token")).willReturn(false);
+    given(jwtUtil.extractUserIdFromRefreshToken("bad-token")).willReturn(userId);
+    given(jwtUtil.isValidForRotation(userId, "bad-token")).willReturn(false);
 
     assertThatThrownBy(() -> userService.refresh("bad-token"))
         .isInstanceOf(MplException.class)

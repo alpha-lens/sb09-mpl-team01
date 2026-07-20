@@ -28,6 +28,8 @@ public class JwtUtil {
     private long refreshExpirationMs;
 
     private static final String REFRESH_TOKEN_PREFIX = "refresh_token:";
+    private static final String REFRESH_TOKEN_GRACE_PREFIX = "refresh_token_grace:";
+    private static final long REFRESH_TOKEN_GRACE_TTL_SECONDS = 10;
     private static final String BLACKLIST_ACCESS_TOKEN_PREFIX = "blacklist:access_token:";
     private static final String TOKEN_VERSION_PREFIX = "user:token_version:";
     private static final long TOKEN_VERSION_CACHE_TTL_SECONDS = 4200;
@@ -63,6 +65,47 @@ public class JwtUtil {
         UUID userId = extractUserIdFromRefreshToken(token);
         Object stored = redisTemplate.opsForValue().get(REFRESH_TOKEN_PREFIX + userId);
         return stored != null && stored.toString().equals(token);
+    }
+
+    /**
+     * /api/auth/refresh 전용 검증. 유저당 refresh token 슬롯이 하나뿐이라, 프론트가
+     * 이 API를 거의 동시에 두 번 호출하면 먼저 처리된 요청이 이미 로테이션시킨 직후의
+     * 옛 토큰으로 두 번째 요청이 들어와 항상 401을 받는 경쟁 상태가 있었다. rotateRefreshToken이
+     * 옛 토큰을 grace 슬롯에 잠깐 남겨두므로, 그 기간 내의 옛 토큰도 유효하게 인정한다.
+     * signOut/비밀번호 변경/권한 변경처럼 즉시 무효화가 필요한 경로는 이 grace가 있으면
+     * 안 되므로 반드시 기존 deleteRefreshToken을 그대로 사용해야 한다.
+     */
+    public boolean isValidForRotation(UUID userId, String token) {
+        Object current = redisTemplate.opsForValue().get(REFRESH_TOKEN_PREFIX + userId);
+        if (current != null && current.toString().equals(token)) {
+            return true;
+        }
+        Object grace = redisTemplate.opsForValue().get(REFRESH_TOKEN_GRACE_PREFIX + userId);
+        return grace != null && grace.toString().equals(token);
+    }
+
+    /**
+     * 현재 refresh token을 grace 슬롯으로 옮겨두고 새 토큰을 발급한다.
+     * isValidForRotation과 짝을 이루어 /api/auth/refresh의 중복 호출 경쟁 상태를 없앤다.
+     * <p>
+     * 동시 요청이 3개 이상 겹치는 경우까지 고려해, presentedToken이 현재 슬롯과 다르면
+     * (=다른 동시 요청이 이미 로테이션을 끝냈다는 뜻) 또 새로 만들지 않고 그 결과를
+     * 그대로 반환한다. 이렇게 해야 요청마다 서로 다른 토큰을 돌려받아 grace 슬롯이
+     * 계속 밀려나는 문제(CodeRabbit 지적)가 없어진다.
+     */
+    public String rotateRefreshToken(UUID userId, String presentedToken) {
+        String key = REFRESH_TOKEN_PREFIX + userId;
+        Object current = redisTemplate.opsForValue().get(key);
+        if (current != null && !current.toString().equals(presentedToken)) {
+            return current.toString();
+        }
+        if (current != null) {
+            redisTemplate.opsForValue().set(
+                    REFRESH_TOKEN_GRACE_PREFIX + userId, current, REFRESH_TOKEN_GRACE_TTL_SECONDS, TimeUnit.SECONDS);
+        }
+        String newToken = userId + ":" + UUID.randomUUID();
+        redisTemplate.opsForValue().set(key, newToken, refreshExpirationMs, TimeUnit.MILLISECONDS);
+        return newToken;
     }
 
     public void deleteRefreshToken(UUID userId) {

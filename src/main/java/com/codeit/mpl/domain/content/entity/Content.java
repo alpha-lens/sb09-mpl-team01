@@ -90,6 +90,25 @@ public class Content extends BaseUpdatableEntity {
     )
     private List<String> tags = new ArrayList<>();
 
+    @Column(name = "watcher_count", nullable = false)
+    private Long watcherCount = 0L;
+
+    @Column(name = "average_rating", nullable = false)
+    private Double averageRating = 0.0;
+
+    @Column(name = "review_count", nullable = false)
+    private Integer reviewCount = 0;
+
+    public void updateWatcherCount(Long watcherCount) {
+        this.watcherCount = watcherCount != null ? watcherCount : 0L;
+    }
+
+    public void updateReviewStats(Double averageRating, Integer reviewCount) {
+        this.averageRating = averageRating != null ? averageRating : 0.0;
+        this.reviewCount = reviewCount != null ? reviewCount : 0;
+    }
+
+
     public static Content create(
             User creator,
             ContentType type,

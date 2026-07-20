@@ -1,14 +1,17 @@
 package com.codeit.mpl.infra.common;
 
 import com.codeit.mpl.domain.content.entity.Content;
+import com.codeit.mpl.domain.content.entity.ContentDocument;
 import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
+import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.curating.entity.PlaylistContent;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
+import com.codeit.mpl.domain.content.service.ElasticsearchSyncService;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -20,12 +23,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Profile("!test")
 public class DataInitializer implements ApplicationRunner {
 
     private final UserRepository userRepository;
@@ -34,6 +39,8 @@ public class DataInitializer implements ApplicationRunner {
     private final PlaylistContentRepository playlistContentRepository;
     private final ReviewRepository reviewRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ContentSearchRepository contentSearchRepository;
+    private final ElasticsearchSyncService elasticsearchSyncService;
 
     @Value("${admin.email}")
     private String adminEmail;
@@ -163,5 +170,40 @@ public class DataInitializer implements ApplicationRunner {
             reviewRepository.save(new Review(admin, sonHighlight, "주말 예능 축구는 언제나 최고입니다. 손흥민 최고!", 5));
             log.info("Seeded 3 reviews.");
         }
+
+        // 3. Sync existing database contents with Elasticsearch on startup
+        syncDatabaseWithElasticsearch();
+    }
+
+    private void syncDatabaseWithElasticsearch() {
+        log.info("Starting database contents sync with Elasticsearch...");
+        try {
+            elasticsearchSyncService.ensureIndexWithMapping();
+            long dbCount = contentRepository.count();
+            if (dbCount == 0) {
+                log.info("No content in database to sync.");
+                return;
+            }
+
+            List<Content> allContents = contentRepository.findAll();
+            List<ContentDocument> documents = allContents.stream()
+                    .map(ContentDocument::from)
+                    .toList();
+
+            // OpenSearch의 http.max_content_length(기본 100MB) 초과로 413 오류가 발생하는 것을 방지하기 위해
+            // 전체를 한 번에 보내지 않고 BATCH_SIZE 건씩 나눠서 인덱싱한다.
+            int batchSize = 100;
+            int totalSynced = 0;
+            for (int i = 0; i < documents.size(); i += batchSize) {
+                List<ContentDocument> batch = documents.subList(i, Math.min(i + batchSize, documents.size()));
+                contentSearchRepository.saveAll(batch);
+                totalSynced += batch.size();
+                log.info("Elasticsearch sync progress: {}/{}", totalSynced, documents.size());
+            }
+            log.info("Successfully synced {} contents to Elasticsearch.", totalSynced);
+        } catch (Exception e) {
+            log.error("Failed to sync database contents with Elasticsearch on startup", e);
+        }
     }
 }
+
