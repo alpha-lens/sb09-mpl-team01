@@ -8,6 +8,13 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    command: >
+      sh -c "
+        if ! ./bin/elasticsearch-plugin list | grep -q analysis-nori; then
+          ./bin/elasticsearch-plugin install --batch analysis-nori;
+        fi;
+        /usr/local/bin/docker-entrypoint.sh elasticsearch
+      "
     ports:
       - "9200:9200"
       - "9300:9300"
