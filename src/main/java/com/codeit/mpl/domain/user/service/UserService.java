@@ -35,6 +35,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -163,6 +164,12 @@ public class UserService {
         return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), refreshToken);
     }
 
+    // 클래스 레벨 @Transactional을 그대로 두면 이 메서드 안의 Redis 호출(isValidForRotation,
+    // generateAccessToken, rotateRefreshToken) 3번이 끝날 때까지 DB 커넥션을 붙잡고 있게 되어
+    // HikariCP 커넥션 풀이 고갈되는 원인이 됐다(leak-detection-threshold 2초를 넘겨 경고 발생).
+    // 실제로 DB가 필요한 건 findUserById 한 번뿐이라, 트랜잭션을 걸지 않아 그 호출만 Spring Data
+    // JPA가 자체적으로 짧게 여닫는 트랜잭션을 쓰게 하고 나머지는 커넥션 없이 실행되게 한다.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public SignInResult refresh(String refreshToken) {
         UUID userId = jwtUtil.extractUserIdFromRefreshToken(refreshToken);
         if (!jwtUtil.isValidForRotation(userId, refreshToken)) {
