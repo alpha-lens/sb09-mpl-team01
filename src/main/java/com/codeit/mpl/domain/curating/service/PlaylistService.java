@@ -91,7 +91,7 @@ public class PlaylistService {
     }
 
     List<String> allowedSortFields = List.of("createdAt", "updatedAt", "title");
-    if (!allowedSortFields.contains(sortBy)) {
+    if (sortBy == null || !allowedSortFields.contains(sortBy)) { // null 체크 추가!
       log.debug("허용되지 않은 sortBy={} -> createdAt으로 대체", sortBy);
       sortBy = "createdAt";
     }
