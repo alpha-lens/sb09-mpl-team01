@@ -34,6 +34,7 @@ import com.codeit.mpl.infra.exception.playlist.PlaylistForbiddenException;
 import com.codeit.mpl.infra.exception.playlist.PlaylistNotFoundException;
 import com.codeit.mpl.infra.exception.playlist.PlaylistSubscriptionAlreadyExistsException;
 import com.codeit.mpl.infra.exception.playlist.PlaylistSubscriptionNotFoundException;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -69,6 +70,7 @@ public class PlaylistService {
   private final ReviewRepository reviewRepository;
   private final FollowRepository followRepository;
   private final ApplicationEventPublisher eventPublisher;
+  private final BinaryContentStorage binaryContentStorage;
 
   @Transactional(readOnly = true)
   public CursorPageResponseDto<PlaylistDto> getPlaylists(
@@ -747,6 +749,13 @@ public class PlaylistService {
     );
   }
 
+  // User.profileImageUrl 컬럼엔 S3 key가 저장되므로, 응답 시점마다 presigned URL로 변환해서 내려준다.
+  private String resolveProfileImageUrl(User owner) {
+    return owner.getProfileImageUrl() != null
+        ? binaryContentStorage.getUrl(owner.getProfileImageUrl())
+        : null;
+  }
+
   private PlaylistDto toDto(
           Playlist playlist,
           UUID currentUserId
@@ -755,8 +764,7 @@ public class PlaylistService {
             new UserSummary(
                     playlist.getOwner().getId(),
                     playlist.getOwner().getName(),
-                    playlist.getOwner()
-                            .getProfileImageUrl()
+                    resolveProfileImageUrl(playlist.getOwner())
             );
 
     long subscriberCount =
@@ -838,8 +846,7 @@ public class PlaylistService {
             new UserSummary(
                     playlist.getOwner().getId(),
                     playlist.getOwner().getName(),
-                    playlist.getOwner()
-                            .getProfileImageUrl()
+                    resolveProfileImageUrl(playlist.getOwner())
             );
 
     List<ContentSummary> contentSummaries =
