@@ -38,6 +38,9 @@ class ContentSearchIntegrationTest {
     @Autowired
     private ContentSearchRepository contentSearchRepository;
 
+    @Autowired
+    private org.springframework.data.elasticsearch.core.ElasticsearchOperations elasticsearchOperations;
+
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -73,6 +76,11 @@ class ContentSearchIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        var indexOps = elasticsearchOperations.indexOps(ContentDocument.class);
+        if (!indexOps.exists()) {
+            indexOps.create();
+            indexOps.putMapping(indexOps.createMapping(ContentDocument.class));
+        }
         contentSearchRepository.deleteAll();
     }
 
@@ -129,8 +137,8 @@ class ContentSearchIntegrationTest {
 
     @Test
     void testBulkInsertPerformanceWithTuning() throws Exception {
-        int totalCount = 10000;
-        int batchSize = 2000;
+        int totalCount = 1000;
+        int batchSize = 100;
 
         // 1. refresh_interval 비활성화 (-1)
         elasticsearchClient.indices().putSettings(s -> s

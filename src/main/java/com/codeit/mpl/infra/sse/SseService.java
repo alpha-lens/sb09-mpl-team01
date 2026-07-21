@@ -33,6 +33,9 @@ public class SseService {
                             .data("ping"));
                 } catch (IOException e) {
                     sseEmitterRepository.deleteById(key);
+                    log.trace("[SSE] Heartbeat failed due to client disconnection for key {}, removing emitter: {}", key, e.getMessage());
+                } catch (Exception e) {
+                    log.error("[SSE] Heartbeat unexpected error for key {}", key, e);
                 }
             });
         }
@@ -132,9 +135,11 @@ public class SseService {
                     .id(eventId)
                     .name(eventName)
                     .data(data));
-        } catch (IOException exception) {
+        } catch (IOException e) {
             sseEmitterRepository.deleteById(emitterId);
-            log.error("SSE 연결 전송 중 오류 발생: {}", exception.getMessage());
+            log.debug("SSE 연결 전송 중 클라이언트 연결 종료 발생 (emitterId={}): {}", emitterId, e.getMessage());
+        } catch (Exception exception) {
+            log.error("SSE 전송 unexpected 오류 발생 (emitterId={})", emitterId, exception);
         }
     }
 

@@ -77,6 +77,7 @@ public class UserService {
 
     public UserDto register(UserCreateRequest request) {
         if (userRepository.existsByEmail(request.email())) {
+            log.warn("[UserService] 회원가입 실패 - 이미 존재하는 이메일: {}", request.email());
             throw new EmailAlreadyExistsException();
         }
         User user = User.builder()
@@ -84,27 +85,36 @@ public class UserService {
                 .password(passwordEncoder.encode(request.password()))
                 .name(request.name())
                 .build();
-        return userMapper.toDto(userRepository.save(user));
+        User saved = userRepository.save(user);
+        log.info("[UserService] 회원가입 완료 - userId={}, email={}", saved.getId(), request.email());
+        return userMapper.toDto(saved);
     }
 
     public SignInResult signIn(SignInRequest request) {
         User user = userRepository.findByEmail(request.username())
-                .orElseThrow(UserNotFoundException::new);
+                .orElseThrow(() -> {
+                    log.warn("[UserService] 로그인 실패 - 존재하지 않는 사용자: {}", request.username());
+                    return new UserNotFoundException();
+                });
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+            log.warn("[UserService] 로그인 실패 - 비밀번호 불일치, userId={}", user.getId());
             throw new InvalidCredentialsException();
         }
         if (user.isTemporaryPassword()) {
             Boolean hasTempKey = redisTemplate.hasKey(TEMP_PASSWORD_PREFIX + user.getId());
             if (hasTempKey == null || !hasTempKey) {
+                log.warn("[UserService] 로그인 실패 - 임시 비밀번호 만료, userId={}", user.getId());
                 throw new TemporaryPasswordExpiredException();
             }
         }
         if (user.isLocked()) {
+            log.warn("[UserService] 로그인 실패 - 잠긴 계정, userId={}", user.getId());
             throw new AccountLockedException();
         }
         jwtUtil.deleteRefreshToken(user.getId());
         String accessToken = jwtUtil.generateAccessToken(user);
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
+        log.info("[UserService] 로그인 성공 - userId={}", user.getId());
         return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), refreshToken);
     }
 
@@ -118,6 +128,7 @@ public class UserService {
                 log.warn("Failed to blacklist access token on sign-out: {}", e.getMessage());
             }
         }
+        log.info("[UserService] 로그아웃 완료 - userId={}", userId);
     }
 
     // providerId가 있는 제공자(예: 카카오)는 이메일을 자체적으로 안 줘서 닉네임 기반으로
@@ -139,6 +150,7 @@ public class UserService {
                     .orElseGet(() -> registerOAuthUser(email, name, provider, null));
         }
         if (user.isLocked()) {
+            log.warn("[UserService] OAuth 로그인 실패 - 잠긴 계정, userId={}", user.getId());
             throw new AccountLockedException();
         }
         return user.getId();
@@ -153,7 +165,9 @@ public class UserService {
                 .provider(provider)
                 .providerId(providerId)
                 .build();
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        log.info("[UserService] OAuth 신규 가입 완료 - userId={}, provider={}", saved.getId(), provider);
+        return saved;
     }
 
     public SignInResult issueTokens(UUID userId) {
@@ -161,6 +175,7 @@ public class UserService {
         jwtUtil.deleteRefreshToken(userId);
         String accessToken = jwtUtil.generateAccessToken(user);
         String refreshToken = jwtUtil.generateRefreshToken(userId);
+        log.info("[UserService] 토큰 발급 완료 - userId={}", userId);
         return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), refreshToken);
     }
 
@@ -173,11 +188,13 @@ public class UserService {
     public SignInResult refresh(String refreshToken) {
         UUID userId = jwtUtil.extractUserIdFromRefreshToken(refreshToken);
         if (!jwtUtil.isValidForRotation(userId, refreshToken)) {
+            log.warn("[UserService] 토큰 재발급 실패 - 유효하지 않은 refresh token, userId={}", userId);
             throw new InvalidTokenException();
         }
         User user = findUserById(userId);
         String accessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.rotateRefreshToken(userId, refreshToken);
+        log.debug("[UserService] 토큰 재발급 성공 - userId={}", userId);
         return new SignInResult(new JwtDto(userMapper.toDto(user), accessToken), newRefreshToken);
     }
 
@@ -242,6 +259,7 @@ public class UserService {
                 registerCleanupOnCommit(previousKey);
             }
         }
+        log.info("[UserService] 사용자 정보 수정 완료 - userId={}", userId);
         return userMapper.toDto(user);
     }
 
@@ -307,6 +325,7 @@ public class UserService {
             ));
         }
 
+        log.info("[UserService] 권한 변경 완료 - userId={}, {} -> {}", userId, oldRole, newRole);
         return userMapper.toDto(user);
     }
 
@@ -316,6 +335,7 @@ public class UserService {
         if (request.locked()) {
             triggerSecurityEvent(userId);
         }
+        log.info("[UserService] 계정 잠금 상태 변경 완료 - userId={}, locked={}", userId, request.locked());
         return userMapper.toDto(user);
     }
 
@@ -325,11 +345,16 @@ public class UserService {
         user.clearTemporaryPassword();
         redisTemplate.delete(TEMP_PASSWORD_PREFIX + userId);
         jwtUtil.deleteRefreshToken(userId);
+        log.info("[UserService] 비밀번호 변경 완료 - userId={}", userId);
     }
 
+    // 비밀번호 문자열(request.password(), tempPassword)은 절대 로그에 남기지 않는다.
     public void resetPassword(ResetPasswordRequest request) {
         User user = userRepository.findByEmail(request.email())
-                .orElseThrow(UserNotFoundException::new);
+                .orElseThrow(() -> {
+                    log.warn("[UserService] 비밀번호 초기화 실패 - 존재하지 않는 이메일: {}", request.email());
+                    return new UserNotFoundException();
+                });
         String tempPassword = generateTempPassword();
         user.updatePassword(passwordEncoder.encode(tempPassword));
         user.markTemporaryPassword();
@@ -341,6 +366,7 @@ public class UserService {
         );
         eventPublisher.publishEvent(new PasswordResetMailEvent(user.getEmail(), tempPassword));
         triggerSecurityEvent(user.getId());
+        log.info("[UserService] 비밀번호 초기화 완료 - userId={}", user.getId());
     }
 
     // 권한 변경/계정 잠금/비밀번호 초기화처럼 기존 세션을 전부 무효화해야 하는 이벤트에서 호출한다.

@@ -9,13 +9,22 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsableException(AsyncRequestNotUsableException e) {
+        log.trace("Async request / SSE stream closed by client: {}", e.getMessage());
+    }
+
     @ExceptionHandler(MplException.class)
     public ResponseEntity<ErrorResponse> handleMplException(MplException e) {
         ErrorCode errorCode = e.getErrorCode();
+        // 요청 본문(비밀번호 등 민감정보)은 남기지 않고, 어떤 에러코드가 왜 발생했는지만 추적한다.
+        log.warn("Business exception occurred: {} - {}", errorCode, e.getMessage());
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
                 .body(ErrorResponse.of(errorCode));
@@ -29,6 +38,7 @@ public class GlobalExceptionHandler {
                         fieldError -> fieldError.getDefaultMessage() != null ? fieldError.getDefaultMessage() : "유효하지 않은 값입니다.",
                         (first, second) -> first
                 ));
+        log.warn("Validation failed: {}", details.keySet());
         ErrorResponse response = new ErrorResponse("ValidationException", "입력값이 올바르지 않습니다.", details);
         return ResponseEntity.badRequest().body(response);
     }

@@ -73,4 +73,7 @@ public interface ContentRepository
     int incrementWatcherCount(
             @Param("contentId") UUID contentId
     );
+
+    @Query("SELECT c.id FROM Content c")
+    List<UUID> findAllIds();
 }

@@ -23,8 +23,11 @@ import java.util.List;
 
 import static org.springframework.http.HttpMethod.POST;
 
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 

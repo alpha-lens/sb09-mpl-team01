@@ -25,6 +25,7 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageRequestDto;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
@@ -64,6 +65,9 @@ class ConversationServiceTest {
 
   @Mock
   private ActiveConversationManager activeConversationManager;
+
+  @Mock
+  private BinaryContentStorage binaryContentStorage;
 
   @InjectMocks
   private ConversationService conversationService;
