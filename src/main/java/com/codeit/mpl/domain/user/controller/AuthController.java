@@ -40,7 +40,7 @@ public class AuthController implements AuthApi {
     @PostMapping(value = "/sign-in", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     @Override
     public ResponseEntity<JwtDto> signInForm(@Valid SignInRequest request, HttpServletResponse response) {
-        log.info("signIn (Form)");
+        log.info("[Auth API] POST /api/auth/sign-in 요청 - username={}", request.username());
         SignInResult result = userService.signIn(request);
         CookieUtil.setRefreshTokenCookie(response, result.refreshToken(), jwtUtil.getRefreshExpirationMs() / 1000);
         return ResponseEntity.ok(result.jwtDto());
@@ -69,6 +69,7 @@ public class AuthController implements AuthApi {
                 log.debug("Failed to resolve userId from refresh token on sign-out: {}", e.getMessage());
             }
         }
+        log.info("[Auth API] POST /api/auth/sign-out 요청 - userId={}", userId);
         if (userId != null) {
             userService.signOut(userId, accessToken);
         }
@@ -79,6 +80,7 @@ public class AuthController implements AuthApi {
     @PostMapping("/reset-password")
     @Override
     public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        log.info("[Auth API] POST /api/auth/reset-password 요청 - email={}", request.email());
         userService.resetPassword(request);
         return ResponseEntity.noContent().build();
     }
@@ -88,6 +90,7 @@ public class AuthController implements AuthApi {
     public ResponseEntity<JwtDto> refresh(
             @CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken,
             HttpServletResponse response) {
+        log.debug("[Auth API] POST /api/auth/refresh 요청");
         SignInResult result = userService.refresh(refreshToken);
         CookieUtil.setRefreshTokenCookie(response, result.refreshToken(), jwtUtil.getRefreshExpirationMs() / 1000);
         return ResponseEntity.ok(result.jwtDto());

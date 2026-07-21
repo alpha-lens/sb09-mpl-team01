@@ -123,7 +123,7 @@ public class ConversationService {
                 UserSummary with = new UserSummary(
                     flat.otherUserId(),
                     flat.otherUserName(),
-                    flat.otherUserProfileImage()
+                    resolveProfileImageUrl(flat.otherUserProfileImage())
                 );
 
                 DirectMessageDto lastMessage = null;
@@ -325,8 +325,14 @@ public class ConversationService {
 
     // User.profileImageUrl 컬럼엔 S3 key가 저장되므로, 응답 시점마다 presigned URL로 변환해서 내려준다.
     private String resolveProfileImageUrl(User user) {
-        return user.getProfileImageUrl() != null
-            ? binaryContentStorage.getUrl(user.getProfileImageUrl())
+        return resolveProfileImageUrl(user.getProfileImageUrl());
+    }
+
+    // getConversations()는 엔티티가 아니라 QueryDSL 플랫 프로젝션(ConversationQueryDto)에서
+    // key를 직접 받아오므로, User가 아닌 key(String) 그대로 받는 오버로드가 따로 필요하다.
+    private String resolveProfileImageUrl(String profileImageKey) {
+        return profileImageKey != null
+            ? binaryContentStorage.getUrl(profileImageKey)
             : null;
     }
 
