@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -15,6 +16,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
@@ -26,6 +28,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         OAuth2User oAuth2User = super.loadUser(userRequest);
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         Map<String, Object> attributes = oAuth2User.getAttributes();
+        log.info("[OAuth2UserService] {} 로그인 시도", registrationId);
 
         String email;
         String name;
@@ -51,6 +54,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         try {
             UUID userId = userService.resolveOrCreateOAuthUser(email, name, provider, providerId);
+            log.info("[OAuth2UserService] {} 로그인 처리 완료 - userId={}", provider, userId);
             return new CustomOAuth2User(
                     userId,
                     attributes,
