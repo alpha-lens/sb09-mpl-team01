@@ -79,7 +79,7 @@ public class SecurityConfig {
                     "/api/auth/refresh", "/api/auth/csrf-token").permitAll()
                 .requestMatchers(POST, "/api/users").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                .requestMatchers("/", "/index.html", "/favicon.svg", "/static/**", "/assets/**", "/uploads/**","/profile-images/**").permitAll()
+                .requestMatchers("/", "/index.html", "/favicon.svg", "/placeholder-movie.png", "/static/**", "/assets/**", "/uploads/**","/profile-images/**").permitAll()
                 .requestMatchers("/api/notifications/subscribe").permitAll()
                 .requestMatchers("/ws/**", "/ws-chat/**").permitAll()
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
