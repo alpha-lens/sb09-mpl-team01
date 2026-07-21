@@ -343,7 +343,7 @@ class ContentSyncServiceTest {
                             "수정된 영화 설명",
                             "https://image.tmdb.org/t/p/w500/updated-movie.jpg",
                             "https://www.themoviedb.org/movie/200",
-                            List.of("MOVIE")
+                            List.of("드라마")
                     );
 
             @SuppressWarnings("unchecked")
@@ -470,7 +470,7 @@ class ContentSyncServiceTest {
                             "기존 영화 설명",
                             null,
                             "https://www.themoviedb.org/movie/700",
-                            List.of("MOVIE")
+                            List.of("드라마")
                     );
 
             verify(contentRepository, never())
@@ -1023,6 +1023,8 @@ class ContentSyncServiceTest {
                 posterPath,
                 null,
                 null,
+                null,
+                List.of(18),
                 null
         );
     }
@@ -1041,6 +1043,8 @@ class ContentSyncServiceTest {
                 posterPath,
                 null,
                 null,
+                null,
+                List.of(18),
                 null
         );
     }
