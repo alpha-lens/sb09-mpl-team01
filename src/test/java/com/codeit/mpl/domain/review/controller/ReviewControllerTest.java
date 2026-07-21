@@ -1,4 +1,4 @@
-package com.codeit.mpl.review.controller;
+package com.codeit.mpl.domain.review.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -7,7 +7,6 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.codeit.mpl.domain.review.cotroller.ReviewController;
 import com.codeit.mpl.domain.review.dto.request.ReviewCreateRequest;
 import com.codeit.mpl.domain.review.dto.request.ReviewUpdateRequest;
 import com.codeit.mpl.domain.review.dto.response.ReviewDto;

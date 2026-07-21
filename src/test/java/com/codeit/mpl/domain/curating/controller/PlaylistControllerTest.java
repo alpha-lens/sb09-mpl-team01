@@ -1,4 +1,4 @@
-package com.codeit.mpl.curating.controller;
+package com.codeit.mpl.domain.curating.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -11,7 +11,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.codeit.mpl.domain.curating.controller.PlaylistController;
 import com.codeit.mpl.domain.curating.dto.request.PlaylistCreateRequest;
 import com.codeit.mpl.domain.curating.dto.request.PlaylistUpdateRequest;
 import com.codeit.mpl.domain.curating.dto.response.PlaylistDto;

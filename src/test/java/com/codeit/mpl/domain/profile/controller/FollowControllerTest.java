@@ -1,9 +1,10 @@
 package com.codeit.mpl.domain.profile.controller;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willDoNothing;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -11,80 +12,102 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.codeit.mpl.domain.profile.dto.request.FollowRequest;
 import com.codeit.mpl.domain.profile.dto.response.FollowDto;
 import com.codeit.mpl.domain.profile.service.FollowService;
-import com.codeit.mpl.infra.exception.GlobalExceptionHandler;
 import com.codeit.mpl.infra.security.UserPrincipal;
+import com.codeit.mpl.infra.security.SecurityConfig;
+import com.codeit.mpl.infra.storage.StorageProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import java.util.List;
+import java.util.Collections;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.Spy;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.MethodParameter;
-import org.springframework.http.MediaType;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.bind.support.WebDataBinderFactory;
-import org.springframework.web.context.request.NativeWebRequest;
-import org.springframework.web.method.support.HandlerMethodArgumentResolver;
-import org.springframework.web.method.support.ModelAndViewContainer;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
 
-@ExtendWith(MockitoExtension.class)
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
+import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientAutoConfiguration;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.codeit.mpl.infra.security.TestSecurityConfig;
+
+@WebMvcTest(
+    controllers = FollowController.class,
+    excludeAutoConfiguration = {
+        SecurityAutoConfiguration.class,
+        OAuth2ClientAutoConfiguration.class
+    },
+    excludeFilters = {
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class)
+    }
+)
+@AutoConfigureMockMvc(addFilters = false) // 보안 필터를 비활성화하고 순수 컨트롤러 로직만 격리 테스트
+@Import({FollowControllerTest.TestConfig.class, TestSecurityConfig.class})
 class FollowControllerTest {
 
+  @MockitoBean
+  private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
+  @TestConfiguration
+  static class TestConfig {
+    @Bean
+    public ObjectMapper objectMapper() {
+      return new ObjectMapper();
+    }
+
+    @Bean
+    public StorageProperties storageProperties() {
+      return new StorageProperties(
+          "local",
+          new StorageProperties.Local(".mpl/storage-test"),
+          null
+      );
+    }
+  }
+
+  @Autowired
   private MockMvc mockMvc;
 
+  @Autowired
+  private ObjectMapper objectMapper;
 
-  // FollowController가 ObjectMapper를 생성자 주입(@RequiredArgsConstructor)으로 받으므로
-  // @Mock(null 반환)이 아닌 @Spy(실제 인스턴스)로 선언해야 getFollowedByMe()에서 NPE가 발생하지 않습니다.
-  @Spy
-  private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-
-  @Mock
+  @MockitoBean
   private FollowService followService;
 
-  @InjectMocks
-  private FollowController followController;
-
-  private UserPrincipal userPrincipal;
   private UUID followerId;
+  private UserPrincipal mockUserPrincipal;
 
   @BeforeEach
   void setUp() {
     followerId = UUID.randomUUID();
-    // UserPrincipal record: (UUID userId, String email, authorities, int tokenVersion)
-    // tokenVersion은 int 타입이므로 반드시 정수값(0 이상)으로 명시해야 합니다.
-    userPrincipal = new UserPrincipal(followerId, "test@example.com", List.of(), 1);
 
-    // @AuthenticationPrincipal UserPrincipal 파라미터를 위한 ArgumentResolver
-    HandlerMethodArgumentResolver principalResolver = new HandlerMethodArgumentResolver() {
-      @Override
-      public boolean supportsParameter(MethodParameter parameter) {
-        return parameter.hasParameterAnnotation(AuthenticationPrincipal.class)
-            && parameter.getParameterType().equals(UserPrincipal.class);
-      }
+    mockUserPrincipal = Mockito.mock(UserPrincipal.class);
+    when(mockUserPrincipal.userId()).thenReturn(followerId);
 
-      @Override
-      public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
-          NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-        return userPrincipal;
-      }
-    };
+    SecurityContext context = SecurityContextHolder.createEmptyContext();
+    context.setAuthentication(
+        new UsernamePasswordAuthenticationToken(mockUserPrincipal, null, Collections.emptyList())
+    );
+    SecurityContextHolder.setContext(context);
+  }
 
-    mockMvc = MockMvcBuilders.standaloneSetup(followController)
-        .setCustomArgumentResolvers(principalResolver)
-        .setControllerAdvice(new GlobalExceptionHandler())
-        .build();
+  @org.junit.jupiter.api.AfterEach
+  void tearDown() {
+    org.springframework.security.core.context.SecurityContextHolder.clearContext();
   }
 
   @Test
@@ -93,18 +116,67 @@ class FollowControllerTest {
     UUID followeeId = UUID.randomUUID();
     UUID followId = UUID.randomUUID();
 
-    FollowRequest request = new FollowRequest(followeeId);
-    FollowDto followDto = new FollowDto(followId, followeeId, followerId);
+    String requestJson = String.format("{\"followeeId\": \"%s\"}", followeeId);
 
-    given(followService.follow(eq(followerId), eq(followeeId))).willReturn(followDto);
+    FollowDto responseDto = new FollowDto(followId, followeeId, followerId);
+
+    when(followService.follow(eq(followerId), any(UUID.class))).thenReturn(responseDto);
 
     mockMvc.perform(post("/api/follows")
+            .with(csrf())
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(request)))
+            .content(requestJson))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(followId.toString()))
         .andExpect(jsonPath("$.followeeId").value(followeeId.toString()))
         .andExpect(jsonPath("$.followerId").value(followerId.toString()));
+  }
+
+  @Test
+  @DisplayName("GET /api/follows/followed-by-me - 팔로우 중인 경우 데이터 반환")
+  void getFollowedByMe_exists() throws Exception {
+    UUID followeeId = UUID.randomUUID();
+    UUID followId = UUID.randomUUID();
+    FollowDto responseDto = new FollowDto(followId, followeeId, followerId);
+
+    when(followService.getFollowedByMe(followerId, followeeId)).thenReturn(responseDto);
+
+    String expectedJson = objectMapper.writeValueAsString(responseDto);
+
+    mockMvc.perform(get("/api/follows/followed-by-me")
+            .param("followeeId", followeeId.toString())
+            .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().string(expectedJson));
+  }
+
+  @Test
+  @DisplayName("GET /api/follows/followed-by-me - 팔로우 중이 아닌 경우 'null' 문자열 반환")
+  void getFollowedByMe_notExists() throws Exception {
+    UUID followeeId = UUID.randomUUID();
+
+    when(followService.getFollowedByMe(followerId, followeeId)).thenReturn(null);
+
+    mockMvc.perform(get("/api/follows/followed-by-me")
+            .param("followeeId", followeeId.toString())
+            .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().string("null"));
+  }
+
+  @Test
+  @DisplayName("GET /api/follows/count - 팔로워 수 조회 성공")
+  void getFollowerCount_success() throws Exception {
+    UUID followeeId = UUID.randomUUID();
+    long expectedCount = 100L;
+
+    when(followService.getFollowerCount(followeeId)).thenReturn(expectedCount);
+
+    mockMvc.perform(get("/api/follows/count")
+            .param("followeeId", followeeId.toString())
+            .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().string(String.valueOf(expectedCount)));
   }
 
   @Test
@@ -112,40 +184,11 @@ class FollowControllerTest {
   void unfollow_success() throws Exception {
     UUID followId = UUID.randomUUID();
 
-    willDoNothing().given(followService).unfollow(eq(followerId), eq(followId));
+    doNothing().when(followService).unfollow(followerId, followId);
 
-    mockMvc.perform(delete("/api/follows/{followId}", followId))
+    mockMvc.perform(delete("/api/follows/{followId}", followId)
+            .with(csrf())
+            .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isNoContent());
-  }
-
-  @Test
-  @DisplayName("GET /api/follows/followed-by-me - 팔로우 중인 경우 데이터 반환")
-  void getFollowedByMe_following() throws Exception {
-    UUID followeeId = UUID.randomUUID();
-    UUID followId = UUID.randomUUID();
-
-    FollowDto followDto = new FollowDto(followId, followeeId, followerId);
-    given(followService.getFollowedByMe(eq(followerId), eq(followeeId))).willReturn(followDto);
-
-    mockMvc.perform(get("/api/follows/followed-by-me")
-            .param("followeeId", followeeId.toString()))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id").value(followId.toString()))
-        .andExpect(jsonPath("$.followeeId").value(followeeId.toString()))
-        .andExpect(jsonPath("$.followerId").value(followerId.toString()));
-  }
-
-  @Test
-  @DisplayName("GET /api/follows/followed-by-me - 팔로우 중이 아닌 경우 'null' 문자열 반환")
-  void getFollowedByMe_notFollowing() throws Exception {
-    UUID followeeId = UUID.randomUUID();
-
-    // 팔로우 관계 없을 때 service는 null 반환 → controller는 "null" 문자열로 직렬화
-    given(followService.getFollowedByMe(eq(followerId), eq(followeeId))).willReturn(null);
-
-    mockMvc.perform(get("/api/follows/followed-by-me")
-            .param("followeeId", followeeId.toString()))
-        .andExpect(status().isOk())
-        .andExpect(content().string("null"));
   }
 }

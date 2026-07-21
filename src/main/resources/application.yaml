@@ -12,6 +12,12 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        show_sql: true          # 실행되는 SQL 쿼리 출력
+        format_sql: true        # SQL을 보기 좋게 정렬(포맷팅)해서 출력
+        use_sql_comments: true  # 쿼리가 왜 실행되었는지 주석 코멘트 추가 (JPQL 힌트 등)
+
 
   sql:
     init:

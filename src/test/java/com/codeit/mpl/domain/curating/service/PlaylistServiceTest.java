@@ -1,4 +1,4 @@
-package com.codeit.mpl.curating.service;
+package com.codeit.mpl.domain.curating.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -432,6 +432,7 @@ class PlaylistServiceTest {
 
     List<Object[]> stats = Collections.singletonList(new Object[]{playlistId, 0L});
     when(playlistSubscriptionRepository.findSubscriptionStats(any())).thenReturn(stats);
+    when(playlistContentRepository.findByPlaylistIdIn(any())).thenReturn(Collections.emptyList());
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 10, "createdAt", Direction.DESCENDING, null
     );
@@ -465,6 +466,7 @@ class PlaylistServiceTest {
 
     List<Object[]> stats = Collections.singletonList(new Object[]{playlistId, 0L});
     when(playlistSubscriptionRepository.findSubscriptionStats(any())).thenReturn(stats);
+    when(playlistContentRepository.findByPlaylistIdIn(any())).thenReturn(Collections.emptyList());
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 10, "invalidField", Direction.DESCENDING, null
     );
@@ -552,6 +554,8 @@ class PlaylistServiceTest {
 
     when(playlistSubscriptionRepository.findSubscribedPlaylistIds(any(), any())).thenReturn(List.of(p1Id));
 
+    when(playlistContentRepository.findByPlaylistIdIn(any())).thenReturn(Collections.emptyList());
+
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 1, "title", Direction.ASCENDING, currentUserId
     );
@@ -579,6 +583,8 @@ class PlaylistServiceTest {
 
     when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of(p1, p2)));
+
+    when(playlistContentRepository.findByPlaylistIdIn(any())).thenReturn(Collections.emptyList());
 
     CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
         null, null, null, null, null, 1, "updatedAt", Direction.DESCENDING, null
