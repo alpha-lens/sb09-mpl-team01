@@ -39,6 +39,7 @@ import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -158,6 +159,12 @@ public class PlaylistService {
             pagePlaylists.stream()
                     .map(Playlist::getId)
                     .toList();
+    if (playlistIds.isEmpty()) {
+      long totalCount = playlistRepository.count(filterSpec);
+      return new CursorPageResponseDto<>(
+          Collections.emptyList(), null, null, false, totalCount, sortBy, sortDirection
+      );
+    }
 
     Map<UUID, Long> subscriberCountMap =
             playlistSubscriptionRepository

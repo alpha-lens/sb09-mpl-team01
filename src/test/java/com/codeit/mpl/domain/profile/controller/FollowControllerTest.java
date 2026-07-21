@@ -105,6 +105,11 @@ class FollowControllerTest {
     SecurityContextHolder.setContext(context);
   }
 
+  @org.junit.jupiter.api.AfterEach
+  void tearDown() {
+    org.springframework.security.core.context.SecurityContextHolder.clearContext();
+  }
+
   @Test
   @DisplayName("POST /api/follows - 팔로우 요청 성공")
   void follow_success() throws Exception {
