@@ -1,5 +1,7 @@
 package com.codeit.mpl.domain.content.dto.external;
 
+import java.util.List;
+
 public record TmdbContentItem(
         Long id,
         String title,
@@ -8,6 +10,8 @@ public record TmdbContentItem(
         String poster_path,
         String backdrop_path,
         String release_date,
-        String first_air_date
+        String first_air_date,
+        List<Integer> genre_ids,
+        List<TmdbGenre> genres
 ) {
 }
