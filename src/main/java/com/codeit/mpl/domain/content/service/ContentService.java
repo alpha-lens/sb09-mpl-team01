@@ -49,6 +49,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.codeit.mpl.domain.content.dto.external.TmdbGenre;
+
 
 @Slf4j
 @Service
@@ -1178,11 +1180,16 @@ public class ContentService {
                         + externalId;
 
         List<String> tags =
-                new ArrayList<>();
-
-        tags.add(
-                type.name()
-        );
+                item.genres() == null
+                        ? List.of()
+                        : item.genres()
+                        .stream()
+                        .map(TmdbGenre::name)
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(name -> !name.isBlank())
+                        .distinct()
+                        .toList();
 
         return Content.createFromExternalApi(
                 creator,
