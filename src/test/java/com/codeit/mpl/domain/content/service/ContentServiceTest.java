@@ -20,6 +20,7 @@ import com.codeit.mpl.domain.content.dto.external.SportsDbEventItem;
 import com.codeit.mpl.domain.content.dto.external.SportsDbEventResponse;
 import com.codeit.mpl.domain.content.dto.external.SportsDbTeamResponse;
 import com.codeit.mpl.domain.content.dto.external.TmdbContentItem;
+import com.codeit.mpl.domain.content.dto.external.TmdbGenre;
 import com.codeit.mpl.domain.content.dto.external.TmdbSearchResponse;
 import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
@@ -319,7 +320,7 @@ class ContentServiceTest {
         }
 
         @Test
-        @DisplayName("신규 영화를 가져와 저장한다")
+        @DisplayName("신규 영화를 실제 TMDB 장르와 함께 가져와 저장한다")
         void importMovie_success() {
             ContentImportRequest request =
                     new ContentImportRequest("157336", ContentType.MOVIE);
@@ -337,6 +338,13 @@ class ContentServiceTest {
             when(item.title()).thenReturn("인터스텔라");
             when(item.overview()).thenReturn("우주 탐사 영화");
             when(item.poster_path()).thenReturn("/poster.jpg");
+            when(item.genres()).thenReturn(List.of(
+                    new TmdbGenre(18, "드라마"),
+                    new TmdbGenre(878, "SF"),
+                    new TmdbGenre(18, "드라마"),
+                    new TmdbGenre(0, " "),
+                    new TmdbGenre(1, null)
+            ));
             when(contentRepository.saveAndFlush(any(Content.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -345,7 +353,16 @@ class ContentServiceTest {
 
             assertThat(result).isSameAs(contentDto);
             verify(tmdbClient).getMovieDetail("157336");
-            verify(contentRepository).saveAndFlush(any(Content.class));
+
+            ArgumentCaptor<Content> contentCaptor =
+                    ArgumentCaptor.forClass(Content.class);
+
+            verify(contentRepository)
+                    .saveAndFlush(contentCaptor.capture());
+
+            assertThat(contentCaptor.getValue().getTags())
+                    .containsExactly("드라마", "SF");
+
             verify(eventPublisher)
                     .publishEvent(any(ContentEvent.class));
         }
