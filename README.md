@@ -1,6 +1,6 @@
 # 모두의 플리 (MOPL) 🎬🍿
 
-[![codecov](https://codecov.io/gh/alpha-lens/sb09-mpl-team01/graph/badge.svg)](https://codecov.io/gh/alpha-lens/sb09-mpl-team01)
+[![codecov](https://codecov.io/github/alpha-lens/sb09-mpl-team03/graph/badge.svg?token=RR8C08B6MV)](https://codecov.io/github/alpha-lens/sb09-mpl-team03)
 
 > **영화, 드라마, 스포츠 콘텐츠 평점 및 실시간 같이 보기 큐레이션 플랫폼**
 > 

@@ -20,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.codeit.mpl.domain.content.mapper.TmdbGenreMapper;
+
 
 @Slf4j
 @Service
@@ -404,7 +406,10 @@ public class ContentSyncService {
                 item.overview(),
                 thumbnailUrl,
                 contentUrl,
-                List.of(type.name())
+                TmdbGenreMapper.toGenreNames(
+                        type,
+                        item.genre_ids()
+                )
         );
     }
 
