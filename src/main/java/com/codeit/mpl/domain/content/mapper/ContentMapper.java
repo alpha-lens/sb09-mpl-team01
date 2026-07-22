@@ -3,11 +3,17 @@ package com.codeit.mpl.domain.content.mapper;
 import com.codeit.mpl.domain.content.dto.response.ContentDto;
 import com.codeit.mpl.domain.content.dto.response.ContentSummary;
 import com.codeit.mpl.domain.content.entity.Content;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.Named;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Mapper(componentModel = "spring")
-public interface ContentMapper {
+public abstract class ContentMapper {
+
+    @Autowired
+    protected BinaryContentStorage binaryContentStorage;
 
     @Mapping(target = "id", source = "content.id")
     @Mapping(target = "type", source = "content.type")
@@ -18,7 +24,8 @@ public interface ContentMapper {
     )
     @Mapping(
             target = "thumbnailUrl",
-            source = "content.thumbnailUrl"
+            source = "content.thumbnailUrl",
+            qualifiedByName = "resolveThumbnailUrl"
     )
     @Mapping(target = "tags", source = "content.tags")
     @Mapping(
@@ -33,7 +40,7 @@ public interface ContentMapper {
             target = "watcherCount",
             source = "watcherCount"
     )
-    ContentDto toDto(
+    public abstract ContentDto toDto(
             Content content,
             Double averageRating,
             Integer reviewCount,
@@ -49,7 +56,8 @@ public interface ContentMapper {
     )
     @Mapping(
             target = "thumbnailUrl",
-            source = "content.thumbnailUrl"
+            source = "content.thumbnailUrl",
+            qualifiedByName = "resolveThumbnailUrl"
     )
     @Mapping(target = "tags", source = "content.tags")
     @Mapping(
@@ -64,10 +72,21 @@ public interface ContentMapper {
             target = "watcherCount",
             source = "watcherCount"
     )
-    ContentSummary toSummary(
+    public abstract ContentSummary toSummary(
             Content content,
             Double averageRating,
             Integer reviewCount,
             Long watcherCount
     );
+
+    @Named("resolveThumbnailUrl")
+    protected String resolveThumbnailUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) {
+            return null;
+        }
+        if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://") || rawUrl.startsWith("/uploads/")) {
+            return rawUrl;
+        }
+        return binaryContentStorage.getUrl(rawUrl);
+    }
 }

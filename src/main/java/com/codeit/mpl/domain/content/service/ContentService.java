@@ -106,6 +106,7 @@ public class ContentService {
                 );
 
         if (thumbnail != null && !thumbnail.isEmpty()) {
+            validateThumbnailContentType(thumbnail);
             String key = "content-thumbnails/" + UUID.randomUUID()
                     + extractSafeExtension(thumbnail.getOriginalFilename());
             String storedKey = binaryContentStorage.put(key, thumbnail);
@@ -302,6 +303,7 @@ public class ContentService {
         );
 
         if (thumbnail != null && !thumbnail.isEmpty()) {
+            validateThumbnailContentType(thumbnail);
             String key = "content-thumbnails/" + UUID.randomUUID()
                     + extractSafeExtension(thumbnail.getOriginalFilename());
             String storedKey = binaryContentStorage.put(key, thumbnail);
@@ -323,6 +325,13 @@ public class ContentService {
         return toDto(
                 content
         );
+    }
+
+    private void validateThumbnailContentType(MultipartFile thumbnail) {
+        String contentType = thumbnail.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
+        }
     }
 
     private String extractSafeExtension(String originalFilename) {
