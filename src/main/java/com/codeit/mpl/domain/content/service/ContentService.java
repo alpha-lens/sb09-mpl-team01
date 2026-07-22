@@ -499,7 +499,7 @@ public class ContentService {
         Page<ContentDocument> docsPage =
                 contentSearchService.search(
                         keywordLike,
-                        Pageable.unpaged()
+                        PageRequest.of(0, 10000)
                 );
 
         List<ContentDocument> documents = docsPage.getContent();

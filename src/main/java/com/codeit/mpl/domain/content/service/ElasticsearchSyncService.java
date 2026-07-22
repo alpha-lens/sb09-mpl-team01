@@ -7,6 +7,8 @@ import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -133,25 +135,36 @@ public class ElasticsearchSyncService {
 
         Set<String> esIds = new HashSet<>();
         int pageSize = 1000;
-        int pageNumber = 0;
+        List<Object> searchAfter = null;
 
         while (true) {
             Query pageQuery = Query.findAll();
-            pageQuery.setPageable(PageRequest.of(pageNumber, pageSize));
+            // search_after 페이징을 위해 pageNumber는 항상 0으로 고정하고, id 필드로 정렬을 적용합니다.
+            pageQuery.setPageable(PageRequest.of(0, pageSize, Sort.by(Sort.Direction.ASC, "id")));
+            if (searchAfter != null) {
+                pageQuery.setSearchAfter(searchAfter);
+            }
 
             SearchHits<ContentDocument> searchHits =
                     elasticsearchOperations.search(pageQuery, ContentDocument.class);
 
-            searchHits.getSearchHits().forEach(hit -> {
+            List<SearchHit<ContentDocument>> hits = searchHits.getSearchHits();
+            if (hits.isEmpty()) {
+                break;
+            }
+
+            hits.forEach(hit -> {
                 if (hit.getContent() != null && hit.getContent().getId() != null) {
                     esIds.add(hit.getContent().getId());
                 }
             });
 
-            if (searchHits.getSearchHits().size() < pageSize) {
+            if (hits.size() < pageSize) {
                 break;
             }
-            pageNumber++;
+
+            SearchHit<ContentDocument> lastHit = hits.get(hits.size() - 1);
+            searchAfter = lastHit.getSortValues();
         }
 
         List<String> missingInEs = dbIds.stream()

@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -29,11 +30,12 @@ public class ContentSearchService {
      * 키워드를 기반으로 Elasticsearch에서 콘텐츠를 검색합니다.
      */
     public Page<ContentDocument> search(String keywordLike, Pageable pageable) {
+        Pageable resolvedPageable = pageable.isPaged() ? pageable : PageRequest.of(0, 10000);
         boolean isChosung = keywordLike.trim().matches("^[\\u3131-\\u314e\\s]+$");
 
         if (isChosung) {
             String chosungKeyword = keywordLike.trim().replaceAll("\\s+", "");
-            return contentSearchRepository.searchByChosung(chosungKeyword, pageable);
+            return contentSearchRepository.searchByChosung(chosungKeyword, resolvedPageable);
         }
 
         String trimmedKeyword = keywordLike.trim();
@@ -41,12 +43,12 @@ public class ContentSearchService {
             List<String> tokens = analyzeKeywordWithNori(trimmedKeyword);
 
             if (tokens.size() > 1) {
-                EsSearchResult multiTokenResult = searchByMultiToken(tokens, pageable);
-                return new PageImpl<>(multiTokenResult.documents(), pageable, multiTokenResult.totalCount());
+                EsSearchResult multiTokenResult = searchByMultiToken(tokens, resolvedPageable);
+                return new PageImpl<>(multiTokenResult.documents(), resolvedPageable, multiTokenResult.totalCount());
             }
         }
 
-        return contentSearchRepository.searchByKeyword(trimmedKeyword, pageable);
+        return contentSearchRepository.searchByKeyword(trimmedKeyword, resolvedPageable);
     }
 
     private List<String> analyzeKeywordWithNori(String keyword) {

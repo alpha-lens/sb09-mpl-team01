@@ -16,6 +16,7 @@ import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.entity.ContentDocument;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -302,6 +303,69 @@ class ElasticsearchSyncServiceTest {
                     .containsExactly(missingId.toString());
             assertThat(result.orphanInEs())
                     .containsExactly(orphanId);
+        }
+
+        @Test
+        @DisplayName("10페이지 이상의 대량의 데이터를 search_after 페이징으로 가져올 때, 마지막 부분 페이지를 포함하여 정상 동작한다")
+        void validateDiff_handlesLargeDataPaginationWithSearchAfter() {
+            // Given
+            prepareExistingIndex();
+
+            UUID dbId = UUID.randomUUID();
+            when(contentRepository.count()).thenReturn(10010L);
+            when(contentSearchRepository.count()).thenReturn(10010L);
+            when(contentRepository.findAllIds()).thenReturn(List.of(dbId));
+
+            SearchHits<ContentDocument> fullPageHits = mock(SearchHits.class);
+            SearchHits<ContentDocument> partialPageHits = mock(SearchHits.class);
+
+            List<SearchHit<ContentDocument>> fullList = new ArrayList<>();
+            for (int i = 0; i < 1000; i++) {
+                SearchHit<ContentDocument> hit = mock(SearchHit.class);
+                ContentDocument doc = mock(ContentDocument.class);
+                if (i == 999) {
+                    when(hit.getSortValues()).thenReturn(List.of("sort-val-" + i));
+                }
+                when(hit.getContent()).thenReturn(doc);
+                when(doc.getId()).thenReturn(UUID.randomUUID().toString());
+                fullList.add(hit);
+            }
+
+            List<SearchHit<ContentDocument>> partialList = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                SearchHit<ContentDocument> hit = mock(SearchHit.class);
+                ContentDocument doc = mock(ContentDocument.class);
+                when(hit.getContent()).thenReturn(doc);
+                if (i == 0) {
+                    when(doc.getId()).thenReturn(dbId.toString());
+                } else {
+                    when(doc.getId()).thenReturn(UUID.randomUUID().toString());
+                }
+                partialList.add(hit);
+            }
+
+            when(fullPageHits.getSearchHits()).thenReturn(fullList);
+            when(partialPageHits.getSearchHits()).thenReturn(partialList);
+
+            when(elasticsearchOperations.search(
+                    any(Query.class),
+                    org.mockito.ArgumentMatchers.eq(ContentDocument.class)
+            )).thenReturn(
+                    fullPageHits, fullPageHits, fullPageHits, fullPageHits, fullPageHits,
+                    fullPageHits, fullPageHits, fullPageHits, fullPageHits, fullPageHits,
+                    partialPageHits
+            );
+
+            // When
+            ElasticsearchSyncService.DiffResult result = service.validateDiff();
+
+            // Then
+            assertThat(result.dbCount()).isEqualTo(10010L);
+            assertThat(result.esCount()).isEqualTo(10010L);
+            verify(elasticsearchOperations, org.mockito.Mockito.times(11)).search(
+                    any(Query.class),
+                    org.mockito.ArgumentMatchers.eq(ContentDocument.class)
+            );
         }
 
         @Test
