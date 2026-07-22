@@ -71,7 +71,7 @@ public class ContentDocument {
     @Field(type = FieldType.Keyword, index = false)
     private String contentUrl;
 
-    @Field(type = FieldType.Date, format = {}, pattern = "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX||uuuu-MM-dd'T'HH:mm:ss.SSSX||strict_date_optional_time||epoch_millis")
+    @Field(type = FieldType.Date, format = {}, pattern = "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX||uuuu-MM-dd'T'HH:mm:ss.SSSSSSX||uuuu-MM-dd'T'HH:mm:ss.SSSX||uuuu-MM-dd'T'HH:mm:ssX||strict_date_optional_time||epoch_millis")
     private Instant createdAt;
 
     public static ContentDocument from(Content content) {

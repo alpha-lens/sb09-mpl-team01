@@ -139,8 +139,8 @@ public class ElasticsearchSyncService {
 
         while (true) {
             Query pageQuery = Query.findAll();
-            // search_after 페이징을 위해 pageNumber는 항상 0으로 고정하고, id 필드로 정렬을 적용합니다.
-            pageQuery.setPageable(PageRequest.of(0, pageSize, Sort.by(Sort.Direction.ASC, "id")));
+            // search_after 페이징을 위해 pageNumber는 항상 0으로 고정하고, _doc 정렬을 적용합니다.
+            pageQuery.setPageable(PageRequest.of(0, pageSize, Sort.by(Sort.Direction.ASC, "_doc")));
             if (searchAfter != null) {
                 pageQuery.setSearchAfter(searchAfter);
             }
