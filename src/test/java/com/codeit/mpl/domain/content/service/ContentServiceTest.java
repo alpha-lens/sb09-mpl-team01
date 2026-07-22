@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -35,7 +38,7 @@ import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.event.ContentEvent;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
-import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
+import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -60,7 +63,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -91,9 +93,13 @@ class ContentServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
-    private ContentSearchRepository contentSearchRepository;
+    private ContentSearchService contentSearchService;
+
     @Mock
-    private ElasticsearchClient elasticsearchClient;
+    private PlaylistContentRepository playlistContentRepository;
+
+    @Mock
+    private com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
 
     @Mock
     private User admin;
@@ -124,8 +130,9 @@ class ContentServiceTest {
                 tmdbClient,
                 sportsDbClient,
                 eventPublisher,
-                contentSearchRepository,
-                elasticsearchClient
+                contentSearchService,
+                playlistContentRepository,
+                binaryContentStorage
         );
 
         when(admin.getRole()).thenReturn(UserRole.ADMIN);
@@ -251,6 +258,24 @@ class ContentServiceTest {
 
             verify(contentRepository, never())
                     .save(any(Content.class));
+        }
+
+        @Test
+        @DisplayName("썸네일 MIME 타입이 이미지가 아니면 생성에 실패한다")
+        void createContent_failsWhenThumbnailIsNotImage() {
+            ContentCreateRequest request = mock(ContentCreateRequest.class);
+            org.springframework.web.multipart.MultipartFile thumbnail = mock(org.springframework.web.multipart.MultipartFile.class);
+
+            when(userRepository.findByEmail(ADMIN_EMAIL)).thenReturn(Optional.of(admin));
+            when(request.type()).thenReturn(ContentType.MOVIE);
+            when(thumbnail.isEmpty()).thenReturn(false);
+            when(thumbnail.getContentType()).thenReturn("application/pdf");
+
+            assertThatThrownBy(() -> contentService.createContent(ADMIN_EMAIL, request, thumbnail))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("이미지 파일만 업로드할 수 있습니다.");
+
+            verify(binaryContentStorage, never()).put(any(), any());
         }
     }
 
@@ -761,7 +786,9 @@ class ContentServiceTest {
 
             contentService.deleteContent(USER_EMAIL, contentId);
 
-            verify(contentRepository).delete(content);
+            var inOrder = inOrder(playlistContentRepository, contentRepository);
+            inOrder.verify(playlistContentRepository).deleteByContent(content);
+            inOrder.verify(contentRepository).delete(content);
             verify(eventPublisher)
                     .publishEvent(any(ContentEvent.class));
         }
@@ -781,7 +808,9 @@ class ContentServiceTest {
 
             contentService.deleteContent(ADMIN_EMAIL, contentId);
 
-            verify(contentRepository).delete(content);
+            var inOrder = inOrder(playlistContentRepository, contentRepository);
+            inOrder.verify(playlistContentRepository).deleteByContent(content);
+            inOrder.verify(contentRepository).delete(content);
         }
 
         @Test
@@ -824,12 +853,14 @@ class ContentServiceTest {
                     null,
                     null,
                     null,
+                    null,
                     ContentType.MOVIE,
                     20,
                     "createdAt",
                     Direction.DESCENDING
             )).thenReturn(List.of());
             when(contentRepository.countContents(
+                    null,
                     null,
                     ContentType.MOVIE
             )).thenReturn(0L);
@@ -847,6 +878,7 @@ class ContentServiceTest {
 
             assertThat(result).isNotNull();
             verify(contentRepository).findContents(
+                    null,
                     null,
                     null,
                     null,
@@ -878,6 +910,7 @@ class ContentServiceTest {
                     null,
                     null,
                     null,
+                    null,
                     2,
                     "createdAt",
                     Direction.DESCENDING
@@ -886,7 +919,7 @@ class ContentServiceTest {
                     new ContentQueryRow(second, 3.5, 2, 5L),
                     new ContentQueryRow(extra, 3.0, 3, 1L)
             ));
-            when(contentRepository.countContents(null, null))
+            when(contentRepository.countContents(null, null, null))
                     .thenReturn(3L);
 
             CursorPageResponseDto<ContentSummary> result =
@@ -925,6 +958,7 @@ class ContentServiceTest {
                     null,
                     null,
                     null,
+                    null,
                     2,
                     "watcherCount",
                     Direction.DESCENDING
@@ -933,7 +967,7 @@ class ContentServiceTest {
                     new ContentQueryRow(second, 3.5, 2, 5L),
                     new ContentQueryRow(extra, 3.0, 3, 1L)
             ));
-            when(contentRepository.countContents(null, null))
+            when(contentRepository.countContents(null, null, null))
                     .thenReturn(3L);
 
             CursorPageResponseDto<ContentSummary> result =
@@ -972,6 +1006,7 @@ class ContentServiceTest {
                     null,
                     null,
                     null,
+                    null,
                     2,
                     "rate",
                     Direction.DESCENDING
@@ -980,7 +1015,7 @@ class ContentServiceTest {
                     new ContentQueryRow(second, 4.5, 8, 5L),
                     new ContentQueryRow(extra, 4.0, 3, 1L)
             ));
-            when(contentRepository.countContents(null, null))
+            when(contentRepository.countContents(null, null, null))
                     .thenReturn(3L);
 
             CursorPageResponseDto<ContentSummary> result =
@@ -1013,11 +1048,12 @@ class ContentServiceTest {
                     idAfter,
                     null,
                     null,
+                    null,
                     10,
                     "watcherCount",
                     Direction.ASCENDING
             )).thenReturn(List.of());
-            when(contentRepository.countContents(null, null))
+            when(contentRepository.countContents(null, null, null))
                     .thenReturn(0L);
 
             contentService.getContents(
@@ -1033,6 +1069,7 @@ class ContentServiceTest {
             verify(contentRepository).findContents(
                     "10",
                     idAfter,
+                    null,
                     null,
                     null,
                     10,
@@ -1147,18 +1184,25 @@ class ContentServiceTest {
                     mock(ContentDocument.class);
             Page<ContentDocument> searchPage =
                     new PageImpl<>(List.of(document));
-            Page<Content> contentPage =
-                    new PageImpl<>(List.of(content));
 
             when(document.getId()).thenReturn(contentId.toString());
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(searchPage);
-            when(contentRepository.findAll(
-                    any(Specification.class),
-                    any(Pageable.class)
-            )).thenReturn(contentPage);
+            when(contentRepository.findContents(
+                    isNull(),
+                    isNull(),
+                    isNull(),
+                    anyList(),
+                    isNull(),
+                    eq(20),
+                    eq("createdAt"),
+                    eq(Direction.DESCENDING)
+            )).thenReturn(List.of(new ContentQueryRow(content, 0.0, 0, 0L)));
+            when(contentRepository.countContents(
+                    isNull(), anyList(), isNull()
+            )).thenReturn(1L);
 
             CursorPageResponseDto<ContentSummary> result =
                     contentService.getContents(
@@ -1172,15 +1216,19 @@ class ContentServiceTest {
                     );
 
             assertThat(result).isNotNull();
-            verify(contentSearchRepository).searchByKeyword(
+            verify(contentSearchService).search(
                     eq("영화"),
                     any(Pageable.class)
             );
-            verify(contentMapper).toSummary(
-                    content,
-                    0.0,
-                    0,
-                    0L
+            verify(contentRepository).findContents(
+                    isNull(),
+                    isNull(),
+                    isNull(),
+                    anyList(),
+                    isNull(),
+                    eq(20),
+                    eq("createdAt"),
+                    eq(Direction.DESCENDING)
             );
         }
 
@@ -1192,14 +1240,16 @@ class ContentServiceTest {
                     mock(ContentDocument.class);
 
             when(document.getId()).thenReturn(contentId.toString());
-            when(contentSearchRepository.searchByChosung(
+            when(contentSearchService.search(
                     eq("ㅇㅌㅅㅌㄹ"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
-            when(contentRepository.findAll(
-                    any(Specification.class),
-                    any(Pageable.class)
-            )).thenReturn(new PageImpl<>(List.of(content)));
+            when(contentRepository.findContents(
+                    isNull(), isNull(), isNull(), anyList(),
+                    isNull(), eq(20), eq("watcherCount"), eq(Direction.DESCENDING)
+            )).thenReturn(List.of(new ContentQueryRow(content, 0.0, 0, 0L)));
+            when(contentRepository.countContents(isNull(), anyList(), isNull()))
+                    .thenReturn(1L);
 
             CursorPageResponseDto<ContentSummary> result =
                     contentService.getContents(
@@ -1213,7 +1263,7 @@ class ContentServiceTest {
                     );
 
             assertThat(result).isNotNull();
-            verify(contentSearchRepository).searchByChosung(
+            verify(contentSearchService).search(
                     eq("ㅇㅌㅅㅌㄹ"),
                     any(Pageable.class)
             );
@@ -1222,7 +1272,7 @@ class ContentServiceTest {
         @Test
         @DisplayName("Elasticsearch 결과가 비어 있으면 빈 응답을 반환한다")
         void getContents_elasticsearchEmpty() {
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("없음"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of()));
@@ -1239,16 +1289,15 @@ class ContentServiceTest {
                     );
 
             assertThat(result).isNotNull();
-            verify(contentRepository, never()).findAll(
-                    any(Specification.class),
-                    any(Pageable.class)
+            verify(contentRepository, never()).findContents(
+                    any(), any(), any(), any(), any(), anyInt(), any(), any()
             );
         }
 
         @Test
         @DisplayName("Elasticsearch 장애 시 DB 검색으로 폴백한다")
         void getContents_elasticsearchFailureFallsBackToDatabase() {
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenThrow(new RuntimeException("ES unavailable"));
@@ -1257,6 +1306,7 @@ class ContentServiceTest {
                     null,
                     null,
                     "영화",
+                    null,
                     ContentType.MOVIE,
                     20,
                     "createdAt",
@@ -1264,6 +1314,7 @@ class ContentServiceTest {
             )).thenReturn(List.of());
             when(contentRepository.countContents(
                     "영화",
+                    null,
                     ContentType.MOVIE
             )).thenReturn(0L);
 
@@ -1283,6 +1334,7 @@ class ContentServiceTest {
                     null,
                     null,
                     "영화",
+                    null,
                     ContentType.MOVIE,
                     20,
                     "createdAt",
@@ -1291,23 +1343,24 @@ class ContentServiceTest {
         }
 
         @Test
-        @DisplayName("Elasticsearch 타입 필터가 있으면 일치 건수를 조회한다")
+        @DisplayName("Elasticsearch 타입 필터가 있으면 countContents로 일치 건수를 조회한다")
         void getContents_elasticsearchTypeCount() {
             UUID contentId = UUID.randomUUID();
             ContentDocument document =
                     mock(ContentDocument.class);
 
             when(document.getId()).thenReturn(contentId.toString());
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
-            when(contentRepository.findAll(
-                    any(Specification.class),
-                    any(Pageable.class)
-            )).thenReturn(new PageImpl<>(List.of(content)));
-            when(contentRepository.count(any(Specification.class)))
-                    .thenReturn(1L);
+            when(contentRepository.findContents(
+                    isNull(), isNull(), isNull(), anyList(),
+                    eq(ContentType.MOVIE), eq(20), eq("createdAt"), eq(Direction.DESCENDING)
+            )).thenReturn(List.of(new ContentQueryRow(content, 0.0, 0, 0L)));
+            when(contentRepository.countContents(
+                    isNull(), anyList(), eq(ContentType.MOVIE)
+            )).thenReturn(1L);
 
             CursorPageResponseDto<ContentSummary> result =
                     contentService.getContents(
@@ -1321,8 +1374,9 @@ class ContentServiceTest {
                     );
 
             assertThat(result).isNotNull();
-            verify(contentRepository)
-                    .count(any(Specification.class));
+            verify(contentRepository).countContents(
+                    isNull(), anyList(), eq(ContentType.MOVIE)
+            );
         }
 
         @Test
@@ -1346,21 +1400,20 @@ class ContentServiceTest {
             when(second.getCreatedAt())
                     .thenReturn(Instant.parse("2026-07-20T00:00:00Z"));
 
-            when(first.getAverageRating()).thenReturn(4.8);
-            when(first.getReviewCount()).thenReturn(1);
-            when(first.getWatcherCount()).thenReturn(10L);
-            when(second.getAverageRating()).thenReturn(4.5);
-            when(second.getReviewCount()).thenReturn(2);
-            when(second.getWatcherCount()).thenReturn(5L);
-
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
-            when(contentRepository.findAll(
-                    any(Specification.class),
-                    any(Pageable.class)
-            )).thenReturn(new PageImpl<>(List.of(first, second, extra)));
+            when(contentRepository.findContents(
+                    isNull(), isNull(), isNull(), anyList(),
+                    isNull(), eq(2), eq("createdAt"), eq(Direction.DESCENDING)
+            )).thenReturn(List.of(
+                    new ContentQueryRow(first, 4.8, 1, 10L),
+                    new ContentQueryRow(second, 4.5, 2, 5L),
+                    new ContentQueryRow(extra, 4.0, 3, 1L)
+            ));
+            when(contentRepository.countContents(isNull(), anyList(), isNull()))
+                    .thenReturn(3L);
 
             CursorPageResponseDto<ContentSummary> result =
                     contentService.getContents(
@@ -1397,21 +1450,20 @@ class ContentServiceTest {
             when(second.getId()).thenReturn(UUID.randomUUID());
             when(extra.getId()).thenReturn(UUID.randomUUID());
 
-            when(first.getAverageRating()).thenReturn(4.8);
-            when(first.getReviewCount()).thenReturn(1);
-            when(first.getWatcherCount()).thenReturn(10L);
-            when(second.getAverageRating()).thenReturn(4.5);
-            when(second.getReviewCount()).thenReturn(2);
-            when(second.getWatcherCount()).thenReturn(5L);
-
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
-            when(contentRepository.findAll(
-                    any(Specification.class),
-                    any(Pageable.class)
-            )).thenReturn(new PageImpl<>(List.of(first, second, extra)));
+            when(contentRepository.findContents(
+                    isNull(), isNull(), isNull(), anyList(),
+                    isNull(), eq(2), eq("watcherCount"), eq(Direction.DESCENDING)
+            )).thenReturn(List.of(
+                    new ContentQueryRow(first, 4.8, 1, 10L),
+                    new ContentQueryRow(second, 4.5, 2, 5L),
+                    new ContentQueryRow(extra, 4.0, 3, 1L)
+            ));
+            when(contentRepository.countContents(isNull(), anyList(), isNull()))
+                    .thenReturn(3L);
 
             CursorPageResponseDto<ContentSummary> result =
                     contentService.getContents(
@@ -1448,21 +1500,20 @@ class ContentServiceTest {
             when(second.getId()).thenReturn(UUID.randomUUID());
             when(extra.getId()).thenReturn(UUID.randomUUID());
 
-            when(first.getAverageRating()).thenReturn(4.8);
-            when(first.getReviewCount()).thenReturn(1);
-            when(first.getWatcherCount()).thenReturn(10L);
-            when(second.getAverageRating()).thenReturn(4.5);
-            when(second.getReviewCount()).thenReturn(2);
-            when(second.getWatcherCount()).thenReturn(5L);
-
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
-            when(contentRepository.findAll(
-                    any(Specification.class),
-                    any(Pageable.class)
-            )).thenReturn(new PageImpl<>(List.of(first, second, extra)));
+            when(contentRepository.findContents(
+                    isNull(), isNull(), isNull(), anyList(),
+                    isNull(), eq(2), eq("rate"), eq(Direction.DESCENDING)
+            )).thenReturn(List.of(
+                    new ContentQueryRow(first, 4.8, 1, 10L),
+                    new ContentQueryRow(second, 4.5, 2, 5L),
+                    new ContentQueryRow(extra, 4.0, 3, 1L)
+            ));
+            when(contentRepository.countContents(isNull(), anyList(), isNull()))
+                    .thenReturn(3L);
 
             CursorPageResponseDto<ContentSummary> result =
                     contentService.getContents(

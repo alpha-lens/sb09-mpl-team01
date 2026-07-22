@@ -40,6 +40,15 @@ public class LocalBinaryContentStorage implements BinaryContentStorage {
 
     @Override
     public String getUrl(String key) {
+        if (key == null) {
+            return null;
+        }
+        if (key.startsWith(PUBLIC_PATH_PREFIX)) {
+            return key;
+        }
+        if (key.startsWith("/")) {
+            return PUBLIC_PATH_PREFIX + key.substring(1);
+        }
         return PUBLIC_PATH_PREFIX + key;
     }
 

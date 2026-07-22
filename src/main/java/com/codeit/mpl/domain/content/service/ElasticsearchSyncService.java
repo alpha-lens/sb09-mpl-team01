@@ -7,9 +7,9 @@ import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.SearchHitsIterator;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,12 +18,11 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 @Slf4j
 @Service
@@ -96,14 +95,15 @@ public class ElasticsearchSyncService {
                 synced += docs.size();
                 log.info("[ES Sync] 진행 중: {}/{}", synced, total);
             } catch (Exception e) {
-                log.error("[ES Sync] 배치 색인 실패 (offset={}): {}", i, e.getMessage());
+                log.error("[ES Sync] 배치 색인 실패 (offset={})", i, e);
+
                 // 배치 실패 시 개별 재시도
                 for (ContentDocument doc : docs) {
                     try {
                         contentSearchRepository.save(doc);
                         synced++;
                     } catch (Exception ex) {
-                        log.error("[ES Sync] 단건 색인 실패 id={}: {}", doc.getId(), ex.getMessage());
+                        log.error("[ES Sync] 단건 색인 실패 id={}", doc.getId(), ex);
                         failed++;
                         failedIds.add(doc.getId());
                     }
@@ -133,15 +133,38 @@ public class ElasticsearchSyncService {
                 .map(UUID::toString)
                 .collect(Collectors.toSet());
 
-        Query query = Query.findAll();
+        Set<String> esIds = new HashSet<>();
+        int pageSize = 1000;
+        List<Object> searchAfter = null;
 
-        Set<String> esIds;
-        try (SearchHitsIterator<ContentDocument> iterator =
-                     elasticsearchOperations.searchForStream(query, ContentDocument.class)) {
-            Iterable<SearchHit<ContentDocument>> iterable = () -> iterator;
-            esIds = StreamSupport.stream(iterable.spliterator(), false)
-                    .map(hit -> hit.getContent().getId())
-                    .collect(Collectors.toSet());
+        while (true) {
+            Query pageQuery = Query.findAll();
+            // search_after 페이징을 위해 pageNumber는 항상 0으로 고정하고, _doc 정렬을 적용합니다.
+            pageQuery.setPageable(PageRequest.of(0, pageSize, Sort.by(Sort.Direction.ASC, "_doc")));
+            if (searchAfter != null) {
+                pageQuery.setSearchAfter(searchAfter);
+            }
+
+            SearchHits<ContentDocument> searchHits =
+                    elasticsearchOperations.search(pageQuery, ContentDocument.class);
+
+            List<SearchHit<ContentDocument>> hits = searchHits.getSearchHits();
+            if (hits.isEmpty()) {
+                break;
+            }
+
+            hits.forEach(hit -> {
+                if (hit.getContent() != null && hit.getContent().getId() != null) {
+                    esIds.add(hit.getContent().getId());
+                }
+            });
+
+            if (hits.size() < pageSize) {
+                break;
+            }
+
+            SearchHit<ContentDocument> lastHit = hits.get(hits.size() - 1);
+            searchAfter = lastHit.getSortValues();
         }
 
         List<String> missingInEs = dbIds.stream()
@@ -152,9 +175,20 @@ public class ElasticsearchSyncService {
                 .filter(id -> !dbIds.contains(id))
                 .toList();
 
-        log.info("[ES Sync] 검증 완료 - DB:{}, ES:{}, 누락:{}, 고아:{}", dbCount, esCount, missingInEs.size(), orphanInEs.size());
+        log.info(
+                "[ES Sync] 검증 완료 - DB:{}, ES:{}, 누락:{}, 고아:{}",
+                dbCount,
+                esCount,
+                missingInEs.size(),
+                orphanInEs.size()
+        );
 
-        return new DiffResult((int) dbCount, (int) esCount, missingInEs, orphanInEs);
+        return new DiffResult(
+                (int) dbCount,
+                (int) esCount,
+                missingInEs,
+                orphanInEs
+        );
     }
 
     /**
@@ -185,12 +219,15 @@ public class ElasticsearchSyncService {
                     .toList();
 
             for (int i = 0; i < docs.size(); i += BATCH_SIZE) {
-                List<ContentDocument> batch = docs.subList(i, Math.min(i + BATCH_SIZE, docs.size()));
+                List<ContentDocument> batch =
+                        docs.subList(i, Math.min(i + BATCH_SIZE, docs.size()));
+
                 try {
                     contentSearchRepository.saveAll(batch);
                     synced += batch.size();
                 } catch (Exception e) {
-                    log.error("[ES Sync] 누락 항목 색인 실패: {}", e.getMessage());
+                    log.error("[ES Sync] 누락 항목 색인 실패", e);
+
                     for (ContentDocument doc : batch) {
                         try {
                             contentSearchRepository.save(doc);
@@ -212,19 +249,37 @@ public class ElasticsearchSyncService {
                 contentSearchRepository.deleteById(orphanId);
                 deletedOrphan++;
             } catch (Exception e) {
-                log.error("[ES Sync] 고아 문서 삭제 실패 id={}: {}", orphanId, e.getMessage());
+                log.error("[ES Sync] 고아 문서 삭제 실패 id={}", orphanId, e);
                 failed++;
                 failedIds.add(orphanId);
             }
         }
+
         if (deletedOrphan > 0) {
             log.info("[ES Sync] 고아 문서 {}건 삭제 완료", deletedOrphan);
         }
 
-        return new SyncResult(diff.missingInEs().size() + diff.orphanInEs().size(), synced + deletedOrphan, failed, failedIds);
+        return new SyncResult(
+                diff.missingInEs().size() + diff.orphanInEs().size(),
+                synced + deletedOrphan,
+                failed,
+                failedIds
+        );
     }
 
-    public record SyncResult(int total, int synced, int failed, List<String> failedIds) {}
+    public record SyncResult(
+            int total,
+            int synced,
+            int failed,
+            List<String> failedIds
+    ) {
+    }
 
-    public record DiffResult(int dbCount, int esCount, List<String> missingInEs, List<String> orphanInEs) {}
+    public record DiffResult(
+            int dbCount,
+            int esCount,
+            List<String> missingInEs,
+            List<String> orphanInEs
+    ) {
+    }
 }

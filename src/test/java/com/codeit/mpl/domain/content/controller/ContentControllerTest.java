@@ -78,7 +78,8 @@ class ContentControllerTest {
         when(
                 contentService.createContent(
                         requesterEmail,
-                        request
+                        request,
+                        null
                 )
         ).thenReturn(expectedResponse);
 
@@ -86,7 +87,8 @@ class ContentControllerTest {
         ResponseEntity<ContentDto> response =
                 contentController.createContent(
                         userDetails,
-                        request
+                        request,
+                        null
                 );
 
         // then
@@ -98,7 +100,8 @@ class ContentControllerTest {
 
         verify(contentService).createContent(
                 requesterEmail,
-                request
+                request,
+                null
         );
     }
 
@@ -223,7 +226,8 @@ class ContentControllerTest {
                 contentService.updateContent(
                         requesterEmail,
                         contentId,
-                        request
+                        request,
+                        null
                 )
         ).thenReturn(expectedResponse);
 
@@ -232,7 +236,8 @@ class ContentControllerTest {
                 contentController.updateContent(
                         userDetails,
                         contentId,
-                        request
+                        request,
+                        null
                 );
 
         // then
@@ -245,7 +250,8 @@ class ContentControllerTest {
         verify(contentService).updateContent(
                 requesterEmail,
                 contentId,
-                request
+                request,
+                null
         );
     }
 

@@ -20,6 +20,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -39,17 +42,21 @@ public class ContentController {
     private final ContentService contentService;
 
     /**
-     * 관리자가 콘텐츠를 직접 생성합니다.
+     * 관리자가 콘텐츠를 직접 생성합니다 (multipart/form-data).
+     * JSON 파트는 반드시 Content-Type: application/json 으로 전송해야 합니다.
+     * (예: new Blob([JSON.stringify(payload)], { type: 'application/json' }))
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ContentDto> createContent(
             @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody ContentCreateRequest request
+            @RequestPart("request") @Valid ContentCreateRequest request,
+            @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail
     ) {
         ContentDto response =
                 contentService.createContent(
                         userDetails.getUsername(),
-                        request
+                        request,
+                        thumbnail
                 );
 
         return ResponseEntity.ok(response);
@@ -86,19 +93,21 @@ public class ContentController {
     }
 
     /**
-     * 콘텐츠를 수정합니다.
+     * 콘텐츠를 수정합니다 (JSON 데이터 및 썸네일 이미지 지원).
      */
-    @PatchMapping("/{contentId}")
+    @PatchMapping(value = "/{contentId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ContentDto> updateContent(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable UUID contentId,
-            @Valid @RequestBody ContentUpdateRequest request
+            @RequestPart("request") @Valid ContentUpdateRequest request,
+            @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail
     ) {
         ContentDto response =
                 contentService.updateContent(
                         userDetails.getUsername(),
                         contentId,
-                        request
+                        request,
+                        thumbnail
                 );
 
         return ResponseEntity.ok(response);
