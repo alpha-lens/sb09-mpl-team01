@@ -411,12 +411,31 @@ class BasicUserServiceTest {
   void resolveOrCreateOAuthUser_foundByProviderId() {
     given(userRepository.findByProviderAndProviderId(AuthProvider.KAKAO, "kakao-123"))
         .willReturn(Optional.of(user));
+    given(user.getName()).willReturn(name);
     given(user.isLocked()).willReturn(false);
     given(user.getId()).willReturn(userId);
 
     UUID result = userService.resolveOrCreateOAuthUser(email, name, AuthProvider.KAKAO, "kakao-123");
 
     assertThat(result).isEqualTo(userId);
+    then(user).should(never()).updateName(any());
+    then(userRepository).should(never()).save(any());
+  }
+
+  @Test
+  @DisplayName("OAuth 사용자 처리 - providerId로 찾았는데 닉네임이 바뀌었으면 name을 갱신한다")
+  void resolveOrCreateOAuthUser_foundByProviderId_nicknameChanged() {
+    String changedName = "테스트유저(변경됨)";
+    given(userRepository.findByProviderAndProviderId(AuthProvider.KAKAO, "kakao-123"))
+        .willReturn(Optional.of(user));
+    given(user.getName()).willReturn(name);
+    given(user.isLocked()).willReturn(false);
+    given(user.getId()).willReturn(userId);
+
+    UUID result = userService.resolveOrCreateOAuthUser(email, changedName, AuthProvider.KAKAO, "kakao-123");
+
+    assertThat(result).isEqualTo(userId);
+    then(user).should().updateName(changedName);
     then(userRepository).should(never()).save(any());
   }
 
