@@ -566,14 +566,11 @@ public class ContentService {
             nextIdAfter = lastRow.content().getId().toString();
         }
 
-        long totalCount = docsPage.getTotalElements();
-        if (type != null) {
-            totalCount = contentRepository.countContents(
-                    null,
-                    matchingIds,
-                    type
-            );
-        }
+        long totalCount = contentRepository.countContents(
+                null,
+                matchingIds,
+                type
+        );
 
         return new CursorPageResponseDto<>(
                 contentSummaries,
