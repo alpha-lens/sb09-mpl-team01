@@ -130,66 +130,94 @@ public class TmdbContentCollectionService {
             int configuredMaxPages,
             IntFunction<TmdbSearchResponse> pageLoader
     ) {
+        long startedAt = System.currentTimeMillis();
+
         int maxPages =
                 normalizeMaxPages(configuredMaxPages);
+
+        log.info(
+                "[TMDB Collection] 목록 수집 시작: collection={}, type={}, maxPages={}",
+                collectionName,
+                type,
+                maxPages
+        );
 
         ContentSyncResult totalResult =
                 ContentSyncResult.empty();
 
-        for (int page = 1; page <= maxPages; page++) {
-            TmdbSearchResponse response =
-                    pageLoader.apply(page);
+        try {
+            for (int page = 1; page <= maxPages; page++) {
+                TmdbSearchResponse response =
+                        pageLoader.apply(page);
 
-            if (response == null
-                    || response.results() == null
-                    || response.results().isEmpty()) {
+                if (response == null
+                        || response.results() == null
+                        || response.results().isEmpty()) {
 
-                log.info(
-                        "TMDB 수집 종료: collection={}, page={}, reason=empty",
-                        collectionName,
-                        page
-                );
-
-                break;
-            }
-
-            ContentSyncResult pageResult =
-                    contentSyncService.syncTmdbPage(
-                            type,
-                            response.results()
+                    log.info(
+                            "[TMDB Collection] 목록 수집 종료: "
+                                    + "collection={}, page={}, reason=empty",
+                            collectionName,
+                            page
                     );
 
-            totalResult =
-                    totalResult.plus(pageResult);
+                    break;
+                }
+
+                ContentSyncResult pageResult =
+                        contentSyncService.syncTmdbPage(
+                                type,
+                                response.results()
+                        );
+
+                totalResult =
+                        totalResult.plus(pageResult);
+
+                log.info(
+                        "[TMDB Collection] 페이지 수집 완료: "
+                                + "collection={}, page={}, created={}, "
+                                + "updated={}, skipped={}",
+                        collectionName,
+                        page,
+                        pageResult.createdCount(),
+                        pageResult.updatedCount(),
+                        pageResult.skippedCount()
+                );
+
+                int totalPages = Math.min(
+                        response.total_pages(),
+                        TMDB_MAX_PAGE
+                );
+
+                if (page >= totalPages) {
+                    break;
+                }
+            }
 
             log.info(
-                    "TMDB 페이지 수집 완료: collection={}, page={}, created={}, updated={}, skipped={}",
+                    "[TMDB Collection] 목록 수집 완료: "
+                            + "collection={}, created={}, updated={}, "
+                            + "skipped={}, durationMs={}",
                     collectionName,
-                    page,
-                    pageResult.createdCount(),
-                    pageResult.updatedCount(),
-                    pageResult.skippedCount()
+                    totalResult.createdCount(),
+                    totalResult.updatedCount(),
+                    totalResult.skippedCount(),
+                    System.currentTimeMillis() - startedAt
             );
 
-            int totalPages = Math.min(
-                    response.total_pages(),
-                    TMDB_MAX_PAGE
+            return totalResult;
+        } catch (Exception e) {
+            log.error(
+                    "[TMDB Collection] 목록 수집 실패: "
+                            + "collection={}, type={}, durationMs={}",
+                    collectionName,
+                    type,
+                    System.currentTimeMillis() - startedAt,
+                    e
             );
 
-            if (page >= totalPages) {
-                break;
-            }
+            throw e;
         }
-
-        log.info(
-                "TMDB 목록 수집 완료: collection={}, created={}, updated={}, skipped={}",
-                collectionName,
-                totalResult.createdCount(),
-                totalResult.updatedCount(),
-                totalResult.skippedCount()
-        );
-
-        return totalResult;
     }
 
     private int normalizeMaxPages(
