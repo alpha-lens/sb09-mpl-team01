@@ -37,6 +37,7 @@ import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.event.ContentEvent;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
+import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -94,6 +95,12 @@ class ContentServiceTest {
     private ContentSearchService contentSearchService;
 
     @Mock
+    private PlaylistContentRepository playlistContentRepository;
+
+    @Mock
+    private com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
+
+    @Mock
     private User admin;
 
     @Mock
@@ -122,7 +129,9 @@ class ContentServiceTest {
                 tmdbClient,
                 sportsDbClient,
                 eventPublisher,
-                contentSearchService
+                contentSearchService,
+                playlistContentRepository,
+                binaryContentStorage
         );
 
         when(admin.getRole()).thenReturn(UserRole.ADMIN);
@@ -758,6 +767,7 @@ class ContentServiceTest {
 
             contentService.deleteContent(USER_EMAIL, contentId);
 
+            verify(playlistContentRepository).deleteByContent(content);
             verify(contentRepository).delete(content);
             verify(eventPublisher)
                     .publishEvent(any(ContentEvent.class));
