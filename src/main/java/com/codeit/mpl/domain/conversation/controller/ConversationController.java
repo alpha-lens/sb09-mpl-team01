@@ -10,6 +10,7 @@ import com.codeit.mpl.infra.common.dto.CursorPageRequestDto;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.SearchRequest;
 import com.codeit.mpl.infra.exception.user.UserNotFoundException;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -117,8 +118,10 @@ public class ConversationController {
     if (userDetails == null) {
       throw new IllegalArgumentException("인증 정보가 유효하지 않습니다.");
     }
-    return userRepository.findByEmail(userDetails.getUsername())
-        .map(User::getId)
-        .orElseThrow(UserNotFoundException::new);
+    return (userDetails instanceof UserPrincipal)
+        ? ((UserPrincipal) userDetails).userId()
+        : userRepository.findByEmail(userDetails.getUsername())
+            .map(User::getId)
+            .orElseThrow(UserNotFoundException::new);
   }
 }

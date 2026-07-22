@@ -36,6 +36,7 @@ public class ContentQueryRepositoryImpl
             String cursor,
             UUID idAfter,
             String keywordLike,
+            List<UUID> matchingIds,
             ContentType type,
             int limit,
             String sortBy,
@@ -61,6 +62,7 @@ public class ContentQueryRepositoryImpl
         BooleanBuilder where =
                 createFilterCondition(
                         keywordLike,
+                        matchingIds,
                         type
                 );
 
@@ -169,6 +171,7 @@ public class ContentQueryRepositoryImpl
 
         queryFactory
                 .selectFrom(content)
+                .leftJoin(content.tags).fetchJoin()
                 .where(
                         content.id.in(
                                 contentIds
@@ -241,6 +244,7 @@ public class ContentQueryRepositoryImpl
     @Override
     public long countContents(
             String keywordLike,
+            List<UUID> matchingIds,
             ContentType type
     ) {
         Long count =
@@ -252,6 +256,7 @@ public class ContentQueryRepositoryImpl
                         .where(
                                 createFilterCondition(
                                         keywordLike,
+                                        matchingIds,
                                         type
                                 )
                         )
@@ -263,14 +268,27 @@ public class ContentQueryRepositoryImpl
     }
 
     /**
-     * 제목·설명 키워드 및 콘텐츠 타입 필터를 생성합니다.
+     * ES matchingIds 필터, 제목밀설명 키워드 및 콘텐츠 타입 필터를 생성합니다.
+     *
+     * @param matchingIds ES 검색으로 필터링된 ID 목록. null이면 적용 안 함.
      */
     private BooleanBuilder createFilterCondition(
             String keywordLike,
+            List<UUID> matchingIds,
             ContentType type
     ) {
         BooleanBuilder builder =
                 new BooleanBuilder();
+
+        // ES 검색 ID 필터
+        if (matchingIds != null
+                && !matchingIds.isEmpty()) {
+            builder.and(
+                    content.id.in(
+                            matchingIds
+                    )
+            );
+        }
 
         if (keywordLike != null
                 && !keywordLike.isBlank()) {
@@ -343,6 +361,7 @@ public class ContentQueryRepositoryImpl
         BooleanBuilder where =
                 createFilterCondition(
                         keywordLike,
+                        null,
                         type
                 );
 

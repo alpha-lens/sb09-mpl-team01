@@ -7,9 +7,9 @@ import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.SearchHitsIterator;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,12 +18,11 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 @Slf4j
 @Service
@@ -134,15 +133,38 @@ public class ElasticsearchSyncService {
                 .map(UUID::toString)
                 .collect(Collectors.toSet());
 
-        Query query = Query.findAll();
+        Set<String> esIds = new HashSet<>();
+        int pageSize = 1000;
+        List<Object> searchAfter = null;
 
-        Set<String> esIds;
-        try (SearchHitsIterator<ContentDocument> iterator =
-                     elasticsearchOperations.searchForStream(query, ContentDocument.class)) {
-            Iterable<SearchHit<ContentDocument>> iterable = () -> iterator;
-            esIds = StreamSupport.stream(iterable.spliterator(), false)
-                    .map(hit -> hit.getContent().getId())
-                    .collect(Collectors.toSet());
+        while (true) {
+            Query pageQuery = Query.findAll();
+            // search_after 페이징을 위해 pageNumber는 항상 0으로 고정하고, _doc 정렬을 적용합니다.
+            pageQuery.setPageable(PageRequest.of(0, pageSize, Sort.by(Sort.Direction.ASC, "_doc")));
+            if (searchAfter != null) {
+                pageQuery.setSearchAfter(searchAfter);
+            }
+
+            SearchHits<ContentDocument> searchHits =
+                    elasticsearchOperations.search(pageQuery, ContentDocument.class);
+
+            List<SearchHit<ContentDocument>> hits = searchHits.getSearchHits();
+            if (hits.isEmpty()) {
+                break;
+            }
+
+            hits.forEach(hit -> {
+                if (hit.getContent() != null && hit.getContent().getId() != null) {
+                    esIds.add(hit.getContent().getId());
+                }
+            });
+
+            if (hits.size() < pageSize) {
+                break;
+            }
+
+            SearchHit<ContentDocument> lastHit = hits.get(hits.size() - 1);
+            searchAfter = lastHit.getSortValues();
         }
 
         List<String> missingInEs = dbIds.stream()

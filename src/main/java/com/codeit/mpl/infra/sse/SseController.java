@@ -2,6 +2,7 @@ package com.codeit.mpl.infra.sse;
 
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +31,11 @@ public class SseController {
         if (userDetails == null) {
             throw new IllegalArgumentException("인증 정보가 유효하지 않습니다.");
         }
-        UUID userId = userRepository.findByEmail(userDetails.getUsername())
-                .map(User::getId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+        UUID userId = (userDetails instanceof UserPrincipal)
+                ? ((UserPrincipal) userDetails).userId()
+                : userRepository.findByEmail(userDetails.getUsername())
+                        .map(User::getId)
+                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
         log.info("[SSE] /api/sse 구독 요청. userId={}, Last-Event-ID={}", userId, lastEventId);
         SseEmitter emitter = sseService.subscribe(userId, lastEventId);

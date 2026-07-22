@@ -16,6 +16,7 @@ import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.entity.ContentDocument;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,10 +27,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
-import org.springframework.data.elasticsearch.core.SearchHitsIterator;
+import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.document.Document;
 import org.springframework.data.elasticsearch.core.query.Query;
 
@@ -271,7 +273,8 @@ class ElasticsearchSyncServiceTest {
             ContentDocument orphanDocument = mock(ContentDocument.class);
             SearchHit<ContentDocument> commonHit = mock(SearchHit.class);
             SearchHit<ContentDocument> orphanHit = mock(SearchHit.class);
-            SearchHitsIterator<ContentDocument> iterator = mock(SearchHitsIterator.class);
+
+            SearchHits<ContentDocument> searchHits = mock(SearchHits.class);
 
             prepareExistingIndex();
 
@@ -285,20 +288,12 @@ class ElasticsearchSyncServiceTest {
             when(commonDocument.getId()).thenReturn(commonId.toString());
             when(orphanDocument.getId()).thenReturn(orphanId);
 
-            org.mockito.Mockito.doAnswer(invocation -> {
-                @SuppressWarnings("unchecked")
-                java.util.function.Consumer<SearchHit<ContentDocument>> consumer =
-                        invocation.getArgument(0);
-
-                consumer.accept(commonHit);
-                consumer.accept(orphanHit);
-                return null;
-            }).when(iterator).forEachRemaining(any());
-
-            when(elasticsearchOperations.searchForStream(
+            // 페이지 루프: 첫 페이지에서 2건 반환 후 종료 (size < pageSize)
+            when(searchHits.getSearchHits()).thenReturn(List.of(commonHit, orphanHit));
+            when(elasticsearchOperations.search(
                     any(Query.class),
                     org.mockito.ArgumentMatchers.eq(ContentDocument.class)
-            )).thenReturn(iterator);
+            )).thenReturn(searchHits);
 
             ElasticsearchSyncService.DiffResult result = service.validateDiff();
 
@@ -308,8 +303,69 @@ class ElasticsearchSyncServiceTest {
                     .containsExactly(missingId.toString());
             assertThat(result.orphanInEs())
                     .containsExactly(orphanId);
+        }
 
-            verify(iterator).close();
+        @Test
+        @DisplayName("10페이지 이상의 대량의 데이터를 search_after 페이징으로 가져올 때, 마지막 부분 페이지를 포함하여 정상 동작한다")
+        void validateDiff_handlesLargeDataPaginationWithSearchAfter() {
+            // Given
+            prepareExistingIndex();
+
+            UUID dbId = UUID.randomUUID();
+            when(contentRepository.count()).thenReturn(10010L);
+            when(contentSearchRepository.count()).thenReturn(10010L);
+            when(contentRepository.findAllIds()).thenReturn(List.of(dbId));
+
+            SearchHits<ContentDocument> fullPageHits = mock(SearchHits.class);
+            SearchHits<ContentDocument> partialPageHits = mock(SearchHits.class);
+
+            List<SearchHit<ContentDocument>> fullList = new ArrayList<>();
+            for (int i = 0; i < 1000; i++) {
+                SearchHit<ContentDocument> hit = mock(SearchHit.class);
+                ContentDocument doc = mock(ContentDocument.class);
+                if (i == 999) {
+                    when(hit.getSortValues()).thenReturn(List.of("sort-val-" + i));
+                }
+                when(hit.getContent()).thenReturn(doc);
+                when(doc.getId()).thenReturn(UUID.randomUUID().toString());
+                fullList.add(hit);
+            }
+
+            List<SearchHit<ContentDocument>> partialList = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                SearchHit<ContentDocument> hit = mock(SearchHit.class);
+                ContentDocument doc = mock(ContentDocument.class);
+                when(hit.getContent()).thenReturn(doc);
+                if (i == 0) {
+                    when(doc.getId()).thenReturn(dbId.toString());
+                } else {
+                    when(doc.getId()).thenReturn(UUID.randomUUID().toString());
+                }
+                partialList.add(hit);
+            }
+
+            when(fullPageHits.getSearchHits()).thenReturn(fullList);
+            when(partialPageHits.getSearchHits()).thenReturn(partialList);
+
+            when(elasticsearchOperations.search(
+                    any(Query.class),
+                    org.mockito.ArgumentMatchers.eq(ContentDocument.class)
+            )).thenReturn(
+                    fullPageHits, fullPageHits, fullPageHits, fullPageHits, fullPageHits,
+                    fullPageHits, fullPageHits, fullPageHits, fullPageHits, fullPageHits,
+                    partialPageHits
+            );
+
+            // When
+            ElasticsearchSyncService.DiffResult result = service.validateDiff();
+
+            // Then
+            assertThat(result.dbCount()).isEqualTo(10010L);
+            assertThat(result.esCount()).isEqualTo(10010L);
+            verify(elasticsearchOperations, org.mockito.Mockito.times(11)).search(
+                    any(Query.class),
+                    org.mockito.ArgumentMatchers.eq(ContentDocument.class)
+            );
         }
 
         @Test
@@ -319,7 +375,7 @@ class ElasticsearchSyncServiceTest {
 
             ContentDocument document = mock(ContentDocument.class);
             SearchHit<ContentDocument> hit = mock(SearchHit.class);
-            SearchHitsIterator<ContentDocument> iterator = mock(SearchHitsIterator.class);
+            SearchHits<ContentDocument> searchHits = mock(SearchHits.class);
 
             prepareExistingIndex();
 
@@ -329,19 +385,13 @@ class ElasticsearchSyncServiceTest {
 
             when(hit.getContent()).thenReturn(document);
             when(document.getId()).thenReturn(id.toString());
-            org.mockito.Mockito.doAnswer(invocation -> {
-                @SuppressWarnings("unchecked")
-                java.util.function.Consumer<SearchHit<ContentDocument>> consumer =
-                        invocation.getArgument(0);
 
-                consumer.accept(hit);
-                return null;
-            }).when(iterator).forEachRemaining(any());
-
-            when(elasticsearchOperations.searchForStream(
+            // 페이지 루프: 1건 반환 후 종료
+            when(searchHits.getSearchHits()).thenReturn(List.of(hit));
+            when(elasticsearchOperations.search(
                     any(Query.class),
                     org.mockito.ArgumentMatchers.eq(ContentDocument.class)
-            )).thenReturn(iterator);
+            )).thenReturn(searchHits);
 
             ElasticsearchSyncService.DiffResult result = service.validateDiff();
 
@@ -349,8 +399,6 @@ class ElasticsearchSyncServiceTest {
             assertThat(result.esCount()).isEqualTo(1);
             assertThat(result.missingInEs()).isEmpty();
             assertThat(result.orphanInEs()).isEmpty();
-
-            verify(iterator).close();
         }
     }
 
