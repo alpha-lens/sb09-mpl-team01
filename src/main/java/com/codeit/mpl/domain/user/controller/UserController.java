@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -69,6 +70,7 @@ public class UserController implements UserApi {
     }
 
     @PatchMapping(value = "/{userId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.userId()")
     @Override
     public ResponseEntity<UserDto> updateUser(
             @PathVariable UUID userId,
@@ -80,6 +82,7 @@ public class UserController implements UserApi {
     }
 
     @PatchMapping("/{userId}/role")
+    @PreAuthorize("hasRole('ADMIN')")
     @Override
     public ResponseEntity<Void> updateUserRole(
             @PathVariable UUID userId,
@@ -91,6 +94,7 @@ public class UserController implements UserApi {
     }
 
     @PatchMapping("/{userId}/locked")
+    @PreAuthorize("hasRole('ADMIN')")
     @Override
     public ResponseEntity<Void> updateUserLocked(
             @PathVariable UUID userId,
@@ -102,6 +106,7 @@ public class UserController implements UserApi {
     }
 
     @PatchMapping("/{userId}/password")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.userId()")
     @Override
     public ResponseEntity<Void> updateUserPassword(
             @PathVariable UUID userId,
