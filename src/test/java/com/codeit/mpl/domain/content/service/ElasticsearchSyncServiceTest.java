@@ -26,10 +26,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
-import org.springframework.data.elasticsearch.core.SearchHitsIterator;
+import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.document.Document;
 import org.springframework.data.elasticsearch.core.query.Query;
 
@@ -271,7 +272,8 @@ class ElasticsearchSyncServiceTest {
             ContentDocument orphanDocument = mock(ContentDocument.class);
             SearchHit<ContentDocument> commonHit = mock(SearchHit.class);
             SearchHit<ContentDocument> orphanHit = mock(SearchHit.class);
-            SearchHitsIterator<ContentDocument> iterator = mock(SearchHitsIterator.class);
+
+            SearchHits<ContentDocument> searchHits = mock(SearchHits.class);
 
             prepareExistingIndex();
 
@@ -285,20 +287,12 @@ class ElasticsearchSyncServiceTest {
             when(commonDocument.getId()).thenReturn(commonId.toString());
             when(orphanDocument.getId()).thenReturn(orphanId);
 
-            org.mockito.Mockito.doAnswer(invocation -> {
-                @SuppressWarnings("unchecked")
-                java.util.function.Consumer<SearchHit<ContentDocument>> consumer =
-                        invocation.getArgument(0);
-
-                consumer.accept(commonHit);
-                consumer.accept(orphanHit);
-                return null;
-            }).when(iterator).forEachRemaining(any());
-
-            when(elasticsearchOperations.searchForStream(
+            // 페이지 루프: 첫 페이지에서 2건 반환 후 종료 (size < pageSize)
+            when(searchHits.getSearchHits()).thenReturn(List.of(commonHit, orphanHit));
+            when(elasticsearchOperations.search(
                     any(Query.class),
                     org.mockito.ArgumentMatchers.eq(ContentDocument.class)
-            )).thenReturn(iterator);
+            )).thenReturn(searchHits);
 
             ElasticsearchSyncService.DiffResult result = service.validateDiff();
 
@@ -308,8 +302,6 @@ class ElasticsearchSyncServiceTest {
                     .containsExactly(missingId.toString());
             assertThat(result.orphanInEs())
                     .containsExactly(orphanId);
-
-            verify(iterator).close();
         }
 
         @Test
@@ -319,7 +311,7 @@ class ElasticsearchSyncServiceTest {
 
             ContentDocument document = mock(ContentDocument.class);
             SearchHit<ContentDocument> hit = mock(SearchHit.class);
-            SearchHitsIterator<ContentDocument> iterator = mock(SearchHitsIterator.class);
+            SearchHits<ContentDocument> searchHits = mock(SearchHits.class);
 
             prepareExistingIndex();
 
@@ -329,19 +321,13 @@ class ElasticsearchSyncServiceTest {
 
             when(hit.getContent()).thenReturn(document);
             when(document.getId()).thenReturn(id.toString());
-            org.mockito.Mockito.doAnswer(invocation -> {
-                @SuppressWarnings("unchecked")
-                java.util.function.Consumer<SearchHit<ContentDocument>> consumer =
-                        invocation.getArgument(0);
 
-                consumer.accept(hit);
-                return null;
-            }).when(iterator).forEachRemaining(any());
-
-            when(elasticsearchOperations.searchForStream(
+            // 페이지 루프: 1건 반환 후 종료
+            when(searchHits.getSearchHits()).thenReturn(List.of(hit));
+            when(elasticsearchOperations.search(
                     any(Query.class),
                     org.mockito.ArgumentMatchers.eq(ContentDocument.class)
-            )).thenReturn(iterator);
+            )).thenReturn(searchHits);
 
             ElasticsearchSyncService.DiffResult result = service.validateDiff();
 
@@ -349,8 +335,6 @@ class ElasticsearchSyncServiceTest {
             assertThat(result.esCount()).isEqualTo(1);
             assertThat(result.missingInEs()).isEmpty();
             assertThat(result.orphanInEs()).isEmpty();
-
-            verify(iterator).close();
         }
     }
 

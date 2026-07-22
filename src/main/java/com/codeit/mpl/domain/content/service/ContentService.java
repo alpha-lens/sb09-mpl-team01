@@ -26,9 +26,7 @@ import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
-import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -39,8 +37,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.codeit.mpl.domain.content.dto.external.TmdbGenre;
@@ -413,6 +409,7 @@ public class ContentService {
                         cursor,
                         parsedIdAfter,
                         keywordLike,
+                        null,
                         type,
                         limit,
                         sortBy,
@@ -466,6 +463,7 @@ public class ContentService {
         long totalCount =
                 contentRepository.countContents(
                         keywordLike,
+                        null,
                         type
                 );
 
@@ -482,7 +480,11 @@ public class ContentService {
 
     /**
      * Elasticsearch 검색 결과에 포함된 ID를 대상으로
-     * 데이터베이스 정렬과 커서 페이지네이션을 적용합니다.
+     * QueryDSL 기반 정렬과 커서 페이지네이션을 적용합니다.
+     *
+     * 기존 JPA Specification + createCursorPredicate() 방식을 제거하고
+     * ContentQueryRepositoryImpl.findContents()를 재사용합니다.
+     * 제한 없이 매칭 ID 전체를 수집합니다(Pageable.unpaged()).
      */
     private CursorPageResponseDto<ContentSummary>
     getContentsViaElasticsearch(
@@ -494,16 +496,10 @@ public class ContentService {
             String sortBy,
             Direction sortDirection
     ) {
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        1000
-                );
-
         Page<ContentDocument> docsPage =
                 contentSearchService.search(
                         keywordLike,
-                        pageable
+                        Pageable.unpaged()
                 );
 
         List<ContentDocument> documents = docsPage.getContent();
@@ -530,162 +526,53 @@ public class ContentService {
             );
         }
 
-        Specification<Content> specification =
-                (
-                        root,
-                        query,
-                        criteriaBuilder
-                ) -> {
-                    List<Predicate> predicates =
-                            new ArrayList<>();
+        UUID parsedIdAfter =
+                idAfter == null || idAfter.isBlank()
+                        ? null
+                        : parseIdAfter(idAfter);
 
-                    predicates.add(
-                            root.get(
-                                    "id"
-                            ).in(
-                                    matchingIds
-                            )
-                    );
-
-                    if (type != null) {
-                        predicates.add(
-                                criteriaBuilder.equal(
-                                        root.get(
-                                                "type"
-                                        ),
-                                        type
-                                )
-                        );
-                    }
-
-                    Predicate cursorPredicate =
-                            createCursorPredicate(
-                                    cursor,
-                                    idAfter,
-                                    sortBy,
-                                    sortDirection,
-                                    root,
-                                    criteriaBuilder
-                            );
-
-                    if (cursorPredicate != null) {
-                        predicates.add(
-                                cursorPredicate
-                        );
-                    }
-
-                    return criteriaBuilder.and(
-                            predicates.toArray(
-                                    new Predicate[0]
-                            )
-                    );
-                };
-
-        Sort.Direction direction =
-                sortDirection
-                        == Direction.ASCENDING
-                        ? Sort.Direction.ASC
-                        : Sort.Direction.DESC;
-
-        String dbSortBy =
-                "rate".equals(
-                        sortBy
-                )
-                        ? "averageRating"
-                        : sortBy;
-
-        Pageable dbPageable =
-                PageRequest.of(
-                        0,
-                        limit + 1,
-                        Sort.by(
-                                        direction,
-                                        dbSortBy
-                                )
-                                .and(
-                                        Sort.by(
-                                                direction,
-                                                "id"
-                                        )
-                                )
+        List<ContentQueryRow> rows =
+                contentRepository.findContents(
+                        cursor,
+                        parsedIdAfter,
+                        null,
+                        matchingIds,
+                        type,
+                        limit,
+                        sortBy,
+                        sortDirection
                 );
-
-        Page<Content> contentPage =
-                contentRepository.findAll(
-                        specification,
-                        dbPageable
-                );
-
-        List<Content> contents =
-                contentPage.getContent();
 
         boolean hasNext =
-                contents.size() > limit;
+                rows.size() > limit;
 
-        List<Content> pageContents =
+        List<ContentQueryRow> pageRows =
                 hasNext
-                        ? contents.subList(
-                        0,
-                        limit
-                )
-                        : contents;
+                        ? rows.subList(0, limit)
+                        : rows;
 
         List<ContentSummary> contentSummaries =
-                pageContents.stream()
-                        .map(
-                                this::toSummary
-                        )
+                pageRows.stream()
+                        .map(this::toSummary)
                         .toList();
 
-        String nextCursor =
-                null;
+        String nextCursor = null;
+        String nextIdAfter = null;
 
-        String nextIdAfter =
-                null;
-
-        if (hasNext
-                && !pageContents.isEmpty()) {
-
-            Content lastContent =
-                    pageContents.get(
-                            pageContents.size() - 1
-                    );
-
-            nextCursor =
-                    getCursorValue(
-                            lastContent,
-                            sortBy
-                    );
-
-            nextIdAfter =
-                    lastContent.getId()
-                            .toString();
+        if (hasNext && !pageRows.isEmpty()) {
+            ContentQueryRow lastRow =
+                    pageRows.get(pageRows.size() - 1);
+            nextCursor = getCursorValue(lastRow, sortBy);
+            nextIdAfter = lastRow.content().getId().toString();
         }
 
         long totalCount = docsPage.getTotalElements();
-
         if (type != null) {
-            totalCount =
-                    contentRepository.count(
-                            (
-                                    root,
-                                    query,
-                                    criteriaBuilder
-                            ) ->
-                                    criteriaBuilder.and(
-                                            root.get(
-                                                    "id"
-                                            ).in(
-                                                    matchingIds
-                                            ),
-                                            criteriaBuilder.equal(
-                                                    root.get(
-                                                            "type"
-                                                    ),
-                                                    type
-                                            )
-                                    )
-                    );
+            totalCount = contentRepository.countContents(
+                    null,
+                    matchingIds,
+                    type
+            );
         }
 
         return new CursorPageResponseDto<>(
@@ -699,244 +586,7 @@ public class ContentService {
         );
     }
 
-    /**
-     * Elasticsearch 결과 조회 시 사용하는 커서 조건입니다.
-     */
-    private Predicate createCursorPredicate(
-            String cursor,
-            String idAfter,
-            String sortBy,
-            Direction sortDirection,
-            jakarta.persistence.criteria.Root<Content> root,
-            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
-    ) {
-        if (cursor == null
-                || cursor.isBlank()
-                || idAfter == null
-                || idAfter.isBlank()) {
 
-            return null;
-        }
-
-        UUID idAfterValue =
-                parseIdAfter(
-                        idAfter
-                );
-
-        if ("createdAt".equals(
-                sortBy
-        )) {
-            Instant cursorValue =
-                    parseInstantCursor(
-                            cursor
-                    );
-
-            Predicate sortPredicate;
-            Predicate sameSortValuePredicate;
-
-            if (sortDirection
-                    == Direction.ASCENDING) {
-
-                sortPredicate =
-                        criteriaBuilder.greaterThan(
-                                root.get(
-                                        "createdAt"
-                                ),
-                                cursorValue
-                        );
-
-                sameSortValuePredicate =
-                        criteriaBuilder.and(
-                                criteriaBuilder.equal(
-                                        root.get(
-                                                "createdAt"
-                                        ),
-                                        cursorValue
-                                ),
-                                criteriaBuilder.greaterThan(
-                                        root.get(
-                                                "id"
-                                        ),
-                                        idAfterValue
-                                )
-                        );
-
-            } else {
-                sortPredicate =
-                        criteriaBuilder.lessThan(
-                                root.get(
-                                        "createdAt"
-                                ),
-                                cursorValue
-                        );
-
-                sameSortValuePredicate =
-                        criteriaBuilder.and(
-                                criteriaBuilder.equal(
-                                        root.get(
-                                                "createdAt"
-                                        ),
-                                        cursorValue
-                                ),
-                                criteriaBuilder.lessThan(
-                                        root.get(
-                                                "id"
-                                        ),
-                                        idAfterValue
-                                )
-                        );
-            }
-
-            return criteriaBuilder.or(
-                    sortPredicate,
-                    sameSortValuePredicate
-            );
-        }
-
-        if ("watcherCount".equals(
-                sortBy
-        )) {
-            Long cursorValue =
-                    parseLongCursor(
-                            cursor
-                    );
-
-            Predicate sortPredicate;
-            Predicate sameSortValuePredicate;
-
-            if (sortDirection
-                    == Direction.ASCENDING) {
-
-                sortPredicate =
-                        criteriaBuilder.greaterThan(
-                                root.get(
-                                        "watcherCount"
-                                ),
-                                cursorValue
-                        );
-
-                sameSortValuePredicate =
-                        criteriaBuilder.and(
-                                criteriaBuilder.equal(
-                                        root.get(
-                                                "watcherCount"
-                                        ),
-                                        cursorValue
-                                ),
-                                criteriaBuilder.greaterThan(
-                                        root.get(
-                                                "id"
-                                        ),
-                                        idAfterValue
-                                )
-                        );
-
-            } else {
-                sortPredicate =
-                        criteriaBuilder.lessThan(
-                                root.get(
-                                        "watcherCount"
-                                ),
-                                cursorValue
-                        );
-
-                sameSortValuePredicate =
-                        criteriaBuilder.and(
-                                criteriaBuilder.equal(
-                                        root.get(
-                                                "watcherCount"
-                                        ),
-                                        cursorValue
-                                ),
-                                criteriaBuilder.lessThan(
-                                        root.get(
-                                                "id"
-                                        ),
-                                        idAfterValue
-                                )
-                        );
-            }
-
-            return criteriaBuilder.or(
-                    sortPredicate,
-                    sameSortValuePredicate
-            );
-        }
-
-        if ("rate".equals(
-                sortBy
-        )) {
-            Double cursorValue =
-                    parseDoubleCursor(
-                            cursor
-                    );
-
-            Predicate sortPredicate;
-            Predicate sameSortValuePredicate;
-
-            if (sortDirection
-                    == Direction.ASCENDING) {
-
-                sortPredicate =
-                        criteriaBuilder.greaterThan(
-                                root.get(
-                                        "averageRating"
-                                ),
-                                cursorValue
-                        );
-
-                sameSortValuePredicate =
-                        criteriaBuilder.and(
-                                criteriaBuilder.equal(
-                                        root.get(
-                                                "averageRating"
-                                        ),
-                                        cursorValue
-                                ),
-                                criteriaBuilder.greaterThan(
-                                        root.get(
-                                                "id"
-                                        ),
-                                        idAfterValue
-                                )
-                        );
-
-            } else {
-                sortPredicate =
-                        criteriaBuilder.lessThan(
-                                root.get(
-                                        "averageRating"
-                                ),
-                                cursorValue
-                        );
-
-                sameSortValuePredicate =
-                        criteriaBuilder.and(
-                                criteriaBuilder.equal(
-                                        root.get(
-                                                "averageRating"
-                                        ),
-                                        cursorValue
-                                ),
-                                criteriaBuilder.lessThan(
-                                        root.get(
-                                                "id"
-                                        ),
-                                        idAfterValue
-                                )
-                        );
-            }
-
-            return criteriaBuilder.or(
-                    sortPredicate,
-                    sameSortValuePredicate
-            );
-        }
-
-        throw new IllegalArgumentException(
-                "지원하지 않는 정렬 기준입니다."
-        );
-    }
 
     @Transactional(readOnly = true)
     public List<ExternalContentSearchResult>
@@ -1426,53 +1076,6 @@ public class ContentService {
         }
     }
 
-    private Instant parseInstantCursor(
-            String cursor
-    ) {
-        try {
-            return Instant.parse(
-                    cursor
-            );
-
-        } catch (DateTimeParseException exception) {
-            throw new IllegalArgumentException(
-                    "createdAt 정렬 시 cursor는 올바른 Instant 형식이어야 합니다.",
-                    exception
-            );
-        }
-    }
-
-    private long parseLongCursor(
-            String cursor
-    ) {
-        try {
-            return Long.parseLong(
-                    cursor
-            );
-
-        } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException(
-                    "watcherCount 정렬 시 cursor는 숫자여야 합니다.",
-                    exception
-            );
-        }
-    }
-
-    private double parseDoubleCursor(
-            String cursor
-    ) {
-        try {
-            return Double.parseDouble(
-                    cursor
-            );
-
-        } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException(
-                    "rate 정렬 시 cursor는 숫자여야 합니다.",
-                    exception
-            );
-        }
-    }
 
     private String getCursorValue(
             ContentQueryRow row,
@@ -1492,32 +1095,6 @@ public class ContentService {
             case "rate" ->
                     String.valueOf(
                             row.averageRating()
-                    );
-
-            default ->
-                    throw new IllegalArgumentException(
-                            "지원하지 않는 정렬 기준입니다."
-                    );
-        };
-    }
-
-    private String getCursorValue(
-            Content content,
-            String sortBy
-    ) {
-        return switch (sortBy) {
-            case "createdAt" ->
-                    content.getCreatedAt()
-                            .toString();
-
-            case "watcherCount" ->
-                    String.valueOf(
-                            content.getWatcherCount()
-                    );
-
-            case "rate" ->
-                    String.valueOf(
-                            content.getAverageRating()
                     );
 
             default ->

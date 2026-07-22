@@ -7,9 +7,7 @@ import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.SearchHitsIterator;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,12 +16,11 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 @Slf4j
 @Service
@@ -134,15 +131,27 @@ public class ElasticsearchSyncService {
                 .map(UUID::toString)
                 .collect(Collectors.toSet());
 
-        Query query = Query.findAll();
+        Set<String> esIds = new HashSet<>();
+        int pageSize = 1000;
+        int pageNumber = 0;
 
-        Set<String> esIds;
-        try (SearchHitsIterator<ContentDocument> iterator =
-                     elasticsearchOperations.searchForStream(query, ContentDocument.class)) {
-            Iterable<SearchHit<ContentDocument>> iterable = () -> iterator;
-            esIds = StreamSupport.stream(iterable.spliterator(), false)
-                    .map(hit -> hit.getContent().getId())
-                    .collect(Collectors.toSet());
+        while (true) {
+            Query pageQuery = Query.findAll();
+            pageQuery.setPageable(PageRequest.of(pageNumber, pageSize));
+
+            SearchHits<ContentDocument> searchHits =
+                    elasticsearchOperations.search(pageQuery, ContentDocument.class);
+
+            searchHits.getSearchHits().forEach(hit -> {
+                if (hit.getContent() != null && hit.getContent().getId() != null) {
+                    esIds.add(hit.getContent().getId());
+                }
+            });
+
+            if (searchHits.getSearchHits().size() < pageSize) {
+                break;
+            }
+            pageNumber++;
         }
 
         List<String> missingInEs = dbIds.stream()

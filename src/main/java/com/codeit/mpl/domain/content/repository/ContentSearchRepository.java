@@ -17,7 +17,8 @@ public interface ContentSearchRepository extends ElasticsearchRepository<Content
            "  {\"multi_match\": {" +
            "    \"query\": \"?0\"," +
            "    \"fields\": [\"title.standard^3.0\", \"tags.standard^2.0\", \"description\"]," +
-           "    \"fuzziness\": \"AUTO\"" +
+           "    \"fuzziness\": \"AUTO\"," +
+           "    \"operator\": \"AND\"" +
            "  }}" +
            "]}}")
     Page<ContentDocument> searchByKeyword(String keyword, Pageable pageable);
