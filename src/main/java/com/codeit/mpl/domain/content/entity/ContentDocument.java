@@ -38,7 +38,7 @@ public class ContentDocument {
     )
     private String title;
 
-    @Field(type = FieldType.Text, analyzer = "ngram_analyzer", searchAnalyzer = "keyword")
+    @Field(type = FieldType.Text, analyzer = "chosung_edge_ngram_analyzer", searchAnalyzer = "keyword")
     private String titleChosung; // 초성 검색용 필드
 
     @Field(type = FieldType.Text, analyzer = "nori_analyzer", searchAnalyzer = "nori_analyzer")
@@ -62,7 +62,7 @@ public class ContentDocument {
     )
     private List<String> tags;
 
-    @Field(type = FieldType.Text, analyzer = "ngram_analyzer", searchAnalyzer = "keyword")
+    @Field(type = FieldType.Text, analyzer = "chosung_edge_ngram_analyzer", searchAnalyzer = "keyword")
     private List<String> tagsChosung; // 초성 검색용 필드
 
     @Field(type = FieldType.Keyword, index = false)

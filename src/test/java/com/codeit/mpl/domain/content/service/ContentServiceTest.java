@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -37,6 +38,7 @@ import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.event.ContentEvent;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
+import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -94,6 +96,12 @@ class ContentServiceTest {
     private ContentSearchService contentSearchService;
 
     @Mock
+    private PlaylistContentRepository playlistContentRepository;
+
+    @Mock
+    private com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
+
+    @Mock
     private User admin;
 
     @Mock
@@ -122,7 +130,9 @@ class ContentServiceTest {
                 tmdbClient,
                 sportsDbClient,
                 eventPublisher,
-                contentSearchService
+                contentSearchService,
+                playlistContentRepository,
+                binaryContentStorage
         );
 
         when(admin.getRole()).thenReturn(UserRole.ADMIN);
@@ -248,6 +258,24 @@ class ContentServiceTest {
 
             verify(contentRepository, never())
                     .save(any(Content.class));
+        }
+
+        @Test
+        @DisplayName("썸네일 MIME 타입이 이미지가 아니면 생성에 실패한다")
+        void createContent_failsWhenThumbnailIsNotImage() {
+            ContentCreateRequest request = mock(ContentCreateRequest.class);
+            org.springframework.web.multipart.MultipartFile thumbnail = mock(org.springframework.web.multipart.MultipartFile.class);
+
+            when(userRepository.findByEmail(ADMIN_EMAIL)).thenReturn(Optional.of(admin));
+            when(request.type()).thenReturn(ContentType.MOVIE);
+            when(thumbnail.isEmpty()).thenReturn(false);
+            when(thumbnail.getContentType()).thenReturn("application/pdf");
+
+            assertThatThrownBy(() -> contentService.createContent(ADMIN_EMAIL, request, thumbnail))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("이미지 파일만 업로드할 수 있습니다.");
+
+            verify(binaryContentStorage, never()).put(any(), any());
         }
     }
 
@@ -758,7 +786,9 @@ class ContentServiceTest {
 
             contentService.deleteContent(USER_EMAIL, contentId);
 
-            verify(contentRepository).delete(content);
+            var inOrder = inOrder(playlistContentRepository, contentRepository);
+            inOrder.verify(playlistContentRepository).deleteByContent(content);
+            inOrder.verify(contentRepository).delete(content);
             verify(eventPublisher)
                     .publishEvent(any(ContentEvent.class));
         }
@@ -778,7 +808,9 @@ class ContentServiceTest {
 
             contentService.deleteContent(ADMIN_EMAIL, contentId);
 
-            verify(contentRepository).delete(content);
+            var inOrder = inOrder(playlistContentRepository, contentRepository);
+            inOrder.verify(playlistContentRepository).deleteByContent(content);
+            inOrder.verify(contentRepository).delete(content);
         }
 
         @Test

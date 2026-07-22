@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -41,6 +42,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.codeit.mpl.domain.content.dto.external.TmdbGenre;
 
+
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -64,10 +70,20 @@ public class ContentService {
     private final SportsDbClient sportsDbClient;
     private final ApplicationEventPublisher eventPublisher;
     private final ContentSearchService contentSearchService;
+    private final PlaylistContentRepository playlistContentRepository;
+    private final BinaryContentStorage binaryContentStorage;
 
     public ContentDto createContent(
             String requesterEmail,
             ContentCreateRequest request
+    ) {
+        return createContent(requesterEmail, request, null);
+    }
+
+    public ContentDto createContent(
+            String requesterEmail,
+            ContentCreateRequest request,
+            MultipartFile thumbnail
     ) {
         User creator =
                 getRequester(
@@ -88,6 +104,15 @@ public class ContentService {
                         null,
                         request.tags()
                 );
+
+        if (thumbnail != null && !thumbnail.isEmpty()) {
+            validateThumbnailContentType(thumbnail);
+            String key = "content-thumbnails/" + UUID.randomUUID()
+                    + extractSafeExtension(thumbnail.getOriginalFilename());
+            String storedKey = binaryContentStorage.put(key, thumbnail);
+            content.updateThumbnailUrl(storedKey);
+            registerCleanupOnRollback(storedKey);
+        }
 
         Content savedContent =
                 contentRepository.save(
@@ -247,6 +272,15 @@ public class ContentService {
             UUID contentId,
             ContentUpdateRequest request
     ) {
+        return updateContent(requesterEmail, contentId, request, null);
+    }
+
+    public ContentDto updateContent(
+            String requesterEmail,
+            UUID contentId,
+            ContentUpdateRequest request,
+            MultipartFile thumbnail
+    ) {
         User requester =
                 getRequester(
                         requesterEmail
@@ -268,6 +302,19 @@ public class ContentService {
                 request.tags()
         );
 
+        if (thumbnail != null && !thumbnail.isEmpty()) {
+            validateThumbnailContentType(thumbnail);
+            String key = "content-thumbnails/" + UUID.randomUUID()
+                    + extractSafeExtension(thumbnail.getOriginalFilename());
+            String storedKey = binaryContentStorage.put(key, thumbnail);
+            String previousKey = content.getThumbnailUrl();
+            content.updateThumbnailUrl(storedKey);
+            registerCleanupOnRollback(storedKey);
+            if (previousKey != null && !previousKey.isBlank()) {
+                registerCleanupOnCommit(previousKey);
+            }
+        }
+
         eventPublisher.publishEvent(
                 new ContentEvent(
                         content,
@@ -278,6 +325,56 @@ public class ContentService {
         return toDto(
                 content
         );
+    }
+
+    private void validateThumbnailContentType(MultipartFile thumbnail) {
+        String contentType = thumbnail.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
+        }
+    }
+
+    private String extractSafeExtension(String originalFilename) {
+        if (originalFilename == null || !originalFilename.contains(".")) {
+            return ".png";
+        }
+        String ext = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+        if (ext.matches("^\\.(png|jpg|jpeg|gif|webp)$")) {
+            return ext;
+        }
+        return ".png";
+    }
+
+    private void registerCleanupOnRollback(String key) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) {
+                        try {
+                            binaryContentStorage.delete(key);
+                        } catch (Exception e) {
+                            log.warn("롤백 후 바이너리 파일 삭제 실패: {}", key, e);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    private void registerCleanupOnCommit(String key) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        binaryContentStorage.delete(key);
+                    } catch (Exception e) {
+                        log.warn("커밋 후 이전 바이너리 파일 삭제 실패: {}", key, e);
+                    }
+                }
+            });
+        }
     }
 
     public void deleteContent(
@@ -298,6 +395,8 @@ public class ContentService {
                 requester,
                 content
         );
+
+        playlistContentRepository.deleteByContent(content);
 
         contentRepository.delete(
                 content

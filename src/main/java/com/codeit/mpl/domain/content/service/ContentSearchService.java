@@ -35,6 +35,9 @@ public class ContentSearchService {
 
         if (isChosung) {
             String chosungKeyword = keywordLike.trim().replaceAll("\\s+", "");
+            if (chosungKeyword.length() > 10) {
+                chosungKeyword = chosungKeyword.substring(0, 10);
+            }
             return contentSearchRepository.searchByChosung(chosungKeyword, resolvedPageable);
         }
 

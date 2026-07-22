@@ -66,6 +66,26 @@ class ContentSearchServiceTest {
     }
 
     @Test
+    @DisplayName("10자 초과 초성 검색어가 들어오면 10자로 잘라서 searchByChosung을 호출한다")
+    void search_chosungKeywordExceedingTenChars() {
+        // Given
+        String keyword = "ㅇㄴㅌㅅㅌㄹㅇㅇㅌㅅ"; // 11자
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
+
+        when(contentSearchRepository.searchByChosung(eq("ㅇㄴㅌㅅㅌㄹㅇㅇㅌㅅ".substring(0, 10)), eq(pageable)))
+                .thenReturn(expectedPage);
+
+        // When
+        Page<ContentDocument> result = contentSearchService.search(keyword, pageable);
+
+        // Then
+        assertThat(result).isSameAs(expectedPage);
+        verify(contentSearchRepository).searchByChosung(eq("ㅇㄴㅌㅅㅌㄹㅇㅇㅌㅅ".substring(0, 10)), eq(pageable));
+        verify(contentSearchRepository, never()).searchByKeyword(any(), any());
+    }
+
+    @Test
     @DisplayName("일반 단일 검색어가 들어오면 searchByKeyword를 호출한다")
     void search_singleKeyword() {
         // Given

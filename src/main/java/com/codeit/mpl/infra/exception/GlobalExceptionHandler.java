@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -41,6 +42,14 @@ public class GlobalExceptionHandler {
         log.warn("Validation failed: {}", details.keySet());
         ErrorResponse response = new ErrorResponse("ValidationException", "입력값이 올바르지 않습니다.", details);
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMediaTypeNotSupportedException(org.springframework.web.HttpMediaTypeNotSupportedException e) {
+        log.warn("Unsupported Media Type: {}", e.getMessage());
+        return ResponseEntity
+                .status(org.springframework.http.HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(new ErrorResponse("UnsupportedMediaType", "지원하지 않는 Content-Type 요청입니다. application/json 형식으로 요청해 주세요.", null));
     }
 
     @ExceptionHandler(Exception.class)

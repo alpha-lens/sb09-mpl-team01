@@ -171,6 +171,10 @@ public class Content extends BaseUpdatableEntity {
         replaceTags(tags);
     }
 
+    public void updateThumbnailUrl(String thumbnailUrl) {
+        this.thumbnailUrl = thumbnailUrl;
+    }
+
     /*
      * TMDB 또는 SportsDB 동기화 시 기존 데이터 갱신
      */
