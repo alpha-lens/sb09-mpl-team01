@@ -96,14 +96,15 @@ public class ElasticsearchSyncService {
                 synced += docs.size();
                 log.info("[ES Sync] 진행 중: {}/{}", synced, total);
             } catch (Exception e) {
-                log.error("[ES Sync] 배치 색인 실패 (offset={}): {}", i, e.getMessage());
+                log.error("[ES Sync] 배치 색인 실패 (offset={})", i, e);
+
                 // 배치 실패 시 개별 재시도
                 for (ContentDocument doc : docs) {
                     try {
                         contentSearchRepository.save(doc);
                         synced++;
                     } catch (Exception ex) {
-                        log.error("[ES Sync] 단건 색인 실패 id={}: {}", doc.getId(), ex.getMessage());
+                        log.error("[ES Sync] 단건 색인 실패 id={}", doc.getId(), ex);
                         failed++;
                         failedIds.add(doc.getId());
                     }
@@ -152,9 +153,20 @@ public class ElasticsearchSyncService {
                 .filter(id -> !dbIds.contains(id))
                 .toList();
 
-        log.info("[ES Sync] 검증 완료 - DB:{}, ES:{}, 누락:{}, 고아:{}", dbCount, esCount, missingInEs.size(), orphanInEs.size());
+        log.info(
+                "[ES Sync] 검증 완료 - DB:{}, ES:{}, 누락:{}, 고아:{}",
+                dbCount,
+                esCount,
+                missingInEs.size(),
+                orphanInEs.size()
+        );
 
-        return new DiffResult((int) dbCount, (int) esCount, missingInEs, orphanInEs);
+        return new DiffResult(
+                (int) dbCount,
+                (int) esCount,
+                missingInEs,
+                orphanInEs
+        );
     }
 
     /**
@@ -185,12 +197,15 @@ public class ElasticsearchSyncService {
                     .toList();
 
             for (int i = 0; i < docs.size(); i += BATCH_SIZE) {
-                List<ContentDocument> batch = docs.subList(i, Math.min(i + BATCH_SIZE, docs.size()));
+                List<ContentDocument> batch =
+                        docs.subList(i, Math.min(i + BATCH_SIZE, docs.size()));
+
                 try {
                     contentSearchRepository.saveAll(batch);
                     synced += batch.size();
                 } catch (Exception e) {
-                    log.error("[ES Sync] 누락 항목 색인 실패: {}", e.getMessage());
+                    log.error("[ES Sync] 누락 항목 색인 실패", e);
+
                     for (ContentDocument doc : batch) {
                         try {
                             contentSearchRepository.save(doc);
@@ -212,19 +227,37 @@ public class ElasticsearchSyncService {
                 contentSearchRepository.deleteById(orphanId);
                 deletedOrphan++;
             } catch (Exception e) {
-                log.error("[ES Sync] 고아 문서 삭제 실패 id={}: {}", orphanId, e.getMessage());
+                log.error("[ES Sync] 고아 문서 삭제 실패 id={}", orphanId, e);
                 failed++;
                 failedIds.add(orphanId);
             }
         }
+
         if (deletedOrphan > 0) {
             log.info("[ES Sync] 고아 문서 {}건 삭제 완료", deletedOrphan);
         }
 
-        return new SyncResult(diff.missingInEs().size() + diff.orphanInEs().size(), synced + deletedOrphan, failed, failedIds);
+        return new SyncResult(
+                diff.missingInEs().size() + diff.orphanInEs().size(),
+                synced + deletedOrphan,
+                failed,
+                failedIds
+        );
     }
 
-    public record SyncResult(int total, int synced, int failed, List<String> failedIds) {}
+    public record SyncResult(
+            int total,
+            int synced,
+            int failed,
+            List<String> failedIds
+    ) {
+    }
 
-    public record DiffResult(int dbCount, int esCount, List<String> missingInEs, List<String> orphanInEs) {}
+    public record DiffResult(
+            int dbCount,
+            int esCount,
+            List<String> missingInEs,
+            List<String> orphanInEs
+    ) {
+    }
 }
