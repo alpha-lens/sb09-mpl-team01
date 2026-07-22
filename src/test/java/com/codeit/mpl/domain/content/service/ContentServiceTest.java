@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -257,6 +258,24 @@ class ContentServiceTest {
 
             verify(contentRepository, never())
                     .save(any(Content.class));
+        }
+
+        @Test
+        @DisplayName("썸네일 MIME 타입이 이미지가 아니면 생성에 실패한다")
+        void createContent_failsWhenThumbnailIsNotImage() {
+            ContentCreateRequest request = mock(ContentCreateRequest.class);
+            org.springframework.web.multipart.MultipartFile thumbnail = mock(org.springframework.web.multipart.MultipartFile.class);
+
+            when(userRepository.findByEmail(ADMIN_EMAIL)).thenReturn(Optional.of(admin));
+            when(request.type()).thenReturn(ContentType.MOVIE);
+            when(thumbnail.isEmpty()).thenReturn(false);
+            when(thumbnail.getContentType()).thenReturn("application/pdf");
+
+            assertThatThrownBy(() -> contentService.createContent(ADMIN_EMAIL, request, thumbnail))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("이미지 파일만 업로드할 수 있습니다.");
+
+            verify(binaryContentStorage, never()).put(any(), any());
         }
     }
 
@@ -767,8 +786,9 @@ class ContentServiceTest {
 
             contentService.deleteContent(USER_EMAIL, contentId);
 
-            verify(playlistContentRepository).deleteByContent(content);
-            verify(contentRepository).delete(content);
+            var inOrder = inOrder(playlistContentRepository, contentRepository);
+            inOrder.verify(playlistContentRepository).deleteByContent(content);
+            inOrder.verify(contentRepository).delete(content);
             verify(eventPublisher)
                     .publishEvent(any(ContentEvent.class));
         }
@@ -788,7 +808,9 @@ class ContentServiceTest {
 
             contentService.deleteContent(ADMIN_EMAIL, contentId);
 
-            verify(contentRepository).delete(content);
+            var inOrder = inOrder(playlistContentRepository, contentRepository);
+            inOrder.verify(playlistContentRepository).deleteByContent(content);
+            inOrder.verify(contentRepository).delete(content);
         }
 
         @Test
