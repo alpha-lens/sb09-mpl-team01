@@ -91,9 +91,7 @@ class ContentServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
-    private ContentSearchRepository contentSearchRepository;
-    @Mock
-    private ElasticsearchClient elasticsearchClient;
+    private ContentSearchService contentSearchService;
 
     @Mock
     private User admin;
@@ -124,8 +122,7 @@ class ContentServiceTest {
                 tmdbClient,
                 sportsDbClient,
                 eventPublisher,
-                contentSearchRepository,
-                elasticsearchClient
+                contentSearchService
         );
 
         when(admin.getRole()).thenReturn(UserRole.ADMIN);
@@ -1151,7 +1148,7 @@ class ContentServiceTest {
                     new PageImpl<>(List.of(content));
 
             when(document.getId()).thenReturn(contentId.toString());
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(searchPage);
@@ -1172,7 +1169,7 @@ class ContentServiceTest {
                     );
 
             assertThat(result).isNotNull();
-            verify(contentSearchRepository).searchByKeyword(
+            verify(contentSearchService).search(
                     eq("영화"),
                     any(Pageable.class)
             );
@@ -1192,7 +1189,7 @@ class ContentServiceTest {
                     mock(ContentDocument.class);
 
             when(document.getId()).thenReturn(contentId.toString());
-            when(contentSearchRepository.searchByChosung(
+            when(contentSearchService.search(
                     eq("ㅇㅌㅅㅌㄹ"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
@@ -1213,7 +1210,7 @@ class ContentServiceTest {
                     );
 
             assertThat(result).isNotNull();
-            verify(contentSearchRepository).searchByChosung(
+            verify(contentSearchService).search(
                     eq("ㅇㅌㅅㅌㄹ"),
                     any(Pageable.class)
             );
@@ -1222,7 +1219,7 @@ class ContentServiceTest {
         @Test
         @DisplayName("Elasticsearch 결과가 비어 있으면 빈 응답을 반환한다")
         void getContents_elasticsearchEmpty() {
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("없음"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of()));
@@ -1248,7 +1245,7 @@ class ContentServiceTest {
         @Test
         @DisplayName("Elasticsearch 장애 시 DB 검색으로 폴백한다")
         void getContents_elasticsearchFailureFallsBackToDatabase() {
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenThrow(new RuntimeException("ES unavailable"));
@@ -1298,7 +1295,7 @@ class ContentServiceTest {
                     mock(ContentDocument.class);
 
             when(document.getId()).thenReturn(contentId.toString());
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
@@ -1353,7 +1350,7 @@ class ContentServiceTest {
             when(second.getReviewCount()).thenReturn(2);
             when(second.getWatcherCount()).thenReturn(5L);
 
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
@@ -1404,7 +1401,7 @@ class ContentServiceTest {
             when(second.getReviewCount()).thenReturn(2);
             when(second.getWatcherCount()).thenReturn(5L);
 
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
@@ -1455,7 +1452,7 @@ class ContentServiceTest {
             when(second.getReviewCount()).thenReturn(2);
             when(second.getWatcherCount()).thenReturn(5L);
 
-            when(contentSearchRepository.searchByKeyword(
+            when(contentSearchService.search(
                     eq("영화"),
                     any(Pageable.class)
             )).thenReturn(new PageImpl<>(List.of(document)));
