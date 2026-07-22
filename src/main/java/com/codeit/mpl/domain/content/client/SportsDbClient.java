@@ -72,7 +72,7 @@ public class SportsDbClient {
 
         } catch (RestClientException e) {
             log.warn(
-                    "SportsDB 전체 리그 조회 실패",
+                    "[SportsDB Client] 전체 리그 조회 실패",
                     e
             );
 
@@ -116,7 +116,7 @@ public class SportsDbClient {
 
         } catch (RestClientException e) {
             log.warn(
-                    "SportsDB 시즌 목록 조회 실패: leagueId={}",
+                    "[SportsDB Client] 시즌 목록 조회 실패: leagueId={}",
                     leagueId,
                     e
             );
@@ -159,7 +159,7 @@ public class SportsDbClient {
 
         } catch (RestClientException e) {
             log.warn(
-                    "SportsDB 팀 검색 실패: keyword={}",
+                    "[SportsDB Client] 팀 검색 실패: keyword={}",
                     keyword,
                     e
             );
@@ -200,7 +200,7 @@ public class SportsDbClient {
 
         } catch (RestClientException e) {
             log.warn(
-                    "SportsDB 팀 예정 경기 조회 실패: teamId={}",
+                    "[SportsDB Client] 팀 예정 경기 조회 실패: teamId={}",
                     teamId,
                     e
             );
@@ -239,7 +239,7 @@ public class SportsDbClient {
 
         } catch (RestClientException e) {
             log.warn(
-                    "SportsDB 리그 예정 경기 조회 실패: leagueId={}",
+                    "[SportsDB Client] 리그 예정 경기 조회 실패: leagueId={}",
                     leagueId,
                     e
             );
@@ -283,7 +283,8 @@ public class SportsDbClient {
 
         } catch (RestClientException e) {
             log.warn(
-                    "SportsDB 시즌 경기 조회 실패: leagueId={}, season={}",
+                    "[SportsDB Client] 시즌 경기 조회 실패: "
+                            + "leagueId={}, season={}",
                     leagueId,
                     season,
                     e
@@ -323,7 +324,7 @@ public class SportsDbClient {
 
         } catch (RestClientException e) {
             log.warn(
-                    "SportsDB 경기 상세 조회 실패: eventId={}",
+                    "[SportsDB Client] 경기 상세 조회 실패: eventId={}",
                     eventId,
                     e
             );

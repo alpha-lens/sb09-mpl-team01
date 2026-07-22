@@ -6,11 +6,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
@@ -29,6 +31,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             Authentication authentication) throws IOException {
         CustomOAuth2User principal = (CustomOAuth2User) authentication.getPrincipal();
         SignInResult result = userService.issueTokens(principal.userId());
+        log.info("OAuth2 로그인 성공 - userId={}", principal.userId());
 
         CookieUtil.setRefreshTokenCookie(response, result.refreshToken(), jwtUtil.getRefreshExpirationMs() / 1000);
 

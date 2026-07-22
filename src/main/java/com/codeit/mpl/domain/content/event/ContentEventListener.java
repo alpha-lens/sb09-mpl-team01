@@ -12,25 +12,61 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 @RequiredArgsConstructor
 public class ContentEventListener {
+
     private final ContentSearchRepository contentSearchRepository;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleContentEvent(ContentEvent event) {
+    @TransactionalEventListener(
+            phase = TransactionPhase.AFTER_COMMIT
+    )
+    public void handleContentEvent(
+            ContentEvent event
+    ) {
         try {
             switch (event.getEventType()) {
                 case CREATED, UPDATED -> {
-                    ContentDocument doc = ContentDocument.from(event.getContent());
-                    contentSearchRepository.save(doc);
-                    log.info("Successfully indexed content in ES: {}", doc.getId());
+                    ContentDocument document =
+                            ContentDocument.from(
+                                    event.getContent()
+                            );
+
+                    contentSearchRepository.save(
+                            document
+                    );
+
+                    log.info(
+                            "[ES Sync] 콘텐츠 색인 완료: "
+                                    + "contentId={}, eventType={}",
+                            document.getId(),
+                            event.getEventType()
+                    );
                 }
+
                 case DELETED -> {
-                    String id = event.getContent().getId().toString();
-                    contentSearchRepository.deleteById(id);
-                    log.info("Successfully deleted content from ES: {}", id);
+                    String contentId =
+                            event.getContent()
+                                    .getId()
+                                    .toString();
+
+                    contentSearchRepository.deleteById(
+                            contentId
+                    );
+
+                    log.info(
+                            "[ES Sync] 콘텐츠 삭제 완료: "
+                                    + "contentId={}, eventType={}",
+                            contentId,
+                            event.getEventType()
+                    );
                 }
             }
         } catch (Exception e) {
-            log.error("Failed to sync content with Elasticsearch for contentId: {}", event.getContent().getId(), e);
+            log.error(
+                    "[ES Sync] 콘텐츠 동기화 실패: "
+                            + "contentId={}, eventType={}",
+                    event.getContent().getId(),
+                    event.getEventType(),
+                    e
+            );
         }
     }
 }

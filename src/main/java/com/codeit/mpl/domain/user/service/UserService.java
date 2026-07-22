@@ -140,6 +140,12 @@ public class UserService {
         User user;
         if (providerId != null) {
             user = userRepository.findByProviderAndProviderId(provider, providerId)
+                    .map(existing -> {
+                        if (!existing.getName().equals(name)) {
+                            existing.updateName(name);
+                        }
+                        return existing;
+                    })
                     .or(() -> userRepository.findByEmail(email).map(existing -> {
                         existing.updateProviderId(providerId);
                         return existing;
