@@ -9,6 +9,7 @@ import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.common.dto.SearchRequest;
 import com.codeit.mpl.infra.sse.SseService;
 import com.codeit.mpl.infra.exception.user.UserNotFoundException;
+import com.codeit.mpl.infra.security.UserPrincipal;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,8 +76,10 @@ public class NotificationController {
     if (userDetails == null) {
       throw new IllegalArgumentException("인증 정보가 유효하지 않습니다.");
     }
-    return userRepository.findByEmail(userDetails.getUsername())
-        .map(User::getId)
-        .orElseThrow(UserNotFoundException::new);
+    return (userDetails instanceof UserPrincipal)
+        ? ((UserPrincipal) userDetails).userId()
+        : userRepository.findByEmail(userDetails.getUsername())
+            .map(User::getId)
+            .orElseThrow(UserNotFoundException::new);
   }
 }
