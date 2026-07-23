@@ -39,6 +39,7 @@ import com.codeit.mpl.domain.content.event.ContentEvent;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
+import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -99,6 +100,9 @@ class ContentServiceTest {
     private PlaylistContentRepository playlistContentRepository;
 
     @Mock
+    private ReviewRepository reviewRepository;
+
+    @Mock
     private com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
 
     @Mock
@@ -132,6 +136,7 @@ class ContentServiceTest {
                 eventPublisher,
                 contentSearchService,
                 playlistContentRepository,
+                reviewRepository,
                 binaryContentStorage
         );
 
@@ -786,7 +791,8 @@ class ContentServiceTest {
 
             contentService.deleteContent(USER_EMAIL, contentId);
 
-            var inOrder = inOrder(playlistContentRepository, contentRepository);
+            var inOrder = inOrder(reviewRepository, playlistContentRepository, contentRepository);
+            inOrder.verify(reviewRepository).deleteByContent(content);
             inOrder.verify(playlistContentRepository).deleteByContent(content);
             inOrder.verify(contentRepository).delete(content);
             verify(eventPublisher)
@@ -808,7 +814,8 @@ class ContentServiceTest {
 
             contentService.deleteContent(ADMIN_EMAIL, contentId);
 
-            var inOrder = inOrder(playlistContentRepository, contentRepository);
+            var inOrder = inOrder(reviewRepository, playlistContentRepository, contentRepository);
+            inOrder.verify(reviewRepository).deleteByContent(content);
             inOrder.verify(playlistContentRepository).deleteByContent(content);
             inOrder.verify(contentRepository).delete(content);
         }

@@ -25,6 +25,8 @@ public interface ReviewRepository extends JpaRepository<Review, UUID>,
 
   long countByContent(Content content);
 
+  void deleteByContent(Content content);
+
   @Query("SELECT new com.codeit.mpl.domain.review.dto.response.ReviewStats(r.content.id, AVG(r.rating), COUNT(r)) FROM Review r WHERE r.content.id IN :contentIds GROUP BY r.content.id")
   List<ReviewStats> findReviewStatsByContentIds(@Param("contentIds") List<UUID> contentIds);
 }

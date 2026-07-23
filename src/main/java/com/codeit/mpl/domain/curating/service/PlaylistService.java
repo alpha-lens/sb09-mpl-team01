@@ -764,6 +764,16 @@ public class PlaylistService {
         : null;
   }
 
+  private String resolveThumbnailUrl(String rawUrl) {
+    if (rawUrl == null || rawUrl.isBlank()) {
+      return null;
+    }
+    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://") || rawUrl.startsWith("/uploads/")) {
+      return rawUrl;
+    }
+    return binaryContentStorage.getUrl(rawUrl);
+  }
+
   private PlaylistDto toDto(
           Playlist playlist,
           UUID currentUserId
@@ -821,7 +831,7 @@ public class PlaylistService {
                                       content.getType(),
                                       content.getTitle(),
                                       content.getDescription(),
-                                      content.getThumbnailUrl(),
+                                      resolveThumbnailUrl(content.getThumbnailUrl()),
                                       content.getTags(),
                                       averageRating != null
                                               ? averageRating
@@ -872,7 +882,7 @@ public class PlaylistService {
                   content.getType(),
                   content.getTitle(),
                   content.getDescription(),
-                  content.getThumbnailUrl(),
+                  resolveThumbnailUrl(content.getThumbnailUrl()),
                   content.getTags(),
                   0.0,
                   0,
