@@ -32,6 +32,7 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.exception.MplException;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import org.mockito.quality.Strictness;
 import org.mockito.junit.jupiter.MockitoSettings;
 import java.util.Collections;
@@ -74,6 +75,9 @@ class PlaylistServiceTest {
 
   @Mock
   private ApplicationEventPublisher eventPublisher;
+
+  @Mock
+  private BinaryContentStorage binaryContentStorage;
 
   @InjectMocks
   private PlaylistService playlistService;
@@ -131,6 +135,34 @@ class PlaylistServiceTest {
     playlistService.getPlaylist(playlistId, null);
 
     verify(playlistRepository).findById(playlistId);
+  }
+
+  @Test
+  @DisplayName("플레이리스트 단건 조회 성공 - 콘텐츠 썸네일 URL 변환 검증")
+  void getPlaylist_success_resolvesContentThumbnailUrl() {
+    UUID playlistId = UUID.randomUUID();
+    Playlist playlist = mock(Playlist.class);
+    User owner = mock(User.class);
+    Content content = mock(Content.class);
+    PlaylistContent playlistContent = mock(PlaylistContent.class);
+
+    String rawThumbnailKey = "content-thumbnails/a6e58696-06fa-4fe7-b911-bca2c2cf9439.jpg";
+    String resolvedUrl = "http://localhost:8080/uploads/content-thumbnails/a6e58696-06fa-4fe7-b911-bca2c2cf9439.jpg";
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(UUID.randomUUID());
+    when(owner.getName()).thenReturn("테스트유저");
+    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
+    when(playlistContentRepository.findByPlaylist(playlist)).thenReturn(List.of(playlistContent));
+    when(playlistContent.getContent()).thenReturn(content);
+    when(content.getThumbnailUrl()).thenReturn(rawThumbnailKey);
+    when(binaryContentStorage.getUrl(rawThumbnailKey)).thenReturn(resolvedUrl);
+
+    PlaylistDto result = playlistService.getPlaylist(playlistId, null);
+
+    assertThat(result.contents()).hasSize(1);
+    assertThat(result.contents().get(0).thumbnailUrl()).isEqualTo(resolvedUrl);
   }
 
   @Test
