@@ -9,6 +9,7 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
@@ -50,6 +51,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(org.springframework.http.HttpStatus.UNSUPPORTED_MEDIA_TYPE)
                 .body(new ErrorResponse("UnsupportedMediaType", "지원하지 않는 Content-Type 요청입니다. application/json 형식으로 요청해 주세요.", null));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
+        ErrorCode errorCode = ErrorCode.FILE_TOO_LARGE;
+        log.warn("File upload size exceeded: {}", e.getMessage());
+        return ResponseEntity
+                .status(errorCode.getHttpStatus())
+                .body(ErrorResponse.of(errorCode));
     }
 
     @ExceptionHandler(Exception.class)
