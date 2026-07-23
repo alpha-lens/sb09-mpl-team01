@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
 }
 
 group = 'com.codeit'
@@ -18,20 +19,123 @@ repositories {
     mavenCentral()
 }
 
+def querydslVersion = '5.0.0'
+
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-elasticsearch'
+    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    implementation 'org.elasticsearch.client:elasticsearch-rest-client:8.12.2'
+    implementation 'software.amazon.awssdk:auth:2.31.7'
+    implementation 'software.amazon.awssdk:http-auth-aws:2.31.7'
+    implementation 'io.github.acm19:aws-request-signing-apache-interceptor:4.0.1'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // QueryDSL: 콘텐츠 목록 조회 전용
+    implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
+
+    implementation 'com.h2database:h2'
+    implementation 'org.springframework.retry:spring-retry:2.0.6'
+
+    // Spring Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // Mail
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.session:spring-session-data-redis'
+
+    // Kafka
+    implementation 'org.springframework.kafka:spring-kafka'
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+    // Jackson
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // Swagger
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+
+    // MapStruct
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+
+    // Dotenv
+    implementation 'io.github.cdimascio:dotenv-java:3.0.0'
+
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+
+    // AWS S3
+    implementation 'software.amazon.awssdk:s3:2.31.7'
+    implementation 'software.amazon.awssdk:url-connection-client:2.31.7'
+
     compileOnly 'org.projectlombok:lombok'
+
     annotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'org.springframework.boot:spring-boot-starter-elasticsearch-test'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+
+    // Jakarta 엔티티에서 Q 클래스를 생성합니다.
+    annotationProcessor "com.querydsl:querydsl-apt:${querydslVersion}:jakarta"
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'org.springframework.batch:spring-batch-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.1'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+
+    runtimeOnly 'org.postgresql:postgresql'
+
     testCompileOnly 'org.projectlombok:lombok'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+    ignoreFailures = false
+    finalizedBy jacocoTestReport
+}
+
+jacoco {
+    toolVersion = '0.8.11'
+}
+
+jacocoTestReport {
+    dependsOn test
+
+    reports {
+        xml.required = true
+        html.required = true
+    }
+
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                    "**/*Dto*",                // DTO 관련
+                    "**/*Request*",            // 요청 관련
+                    "**/*Response*",           // 응답 관련
+                    "**/entity/**",            // 엔티티 관련
+                    "**/repository/**",        // 리포지토리 인터페이스들
+                    "**/mapper/**",            // MapStruct Mapper들
+                    "**/config/**",            // 설정들
+                    "**/exception/**",         // 예외 클래스
+                    "**/event/**",             // 이벤트 관련
+                    "**/infra/**",             // 인프라 레벨 (Redis, Kafka, AWS 등)
+                    "**/domain/**/dto/**",     // 모든 DTO 패키지
+                    "**/domain/**/mapper/**"   // 모든 매퍼 패키지
+            ])
+        }))
+    }
 }

@@ -1,0 +1,91 @@
+spring:
+  # docker-compose의 db 서비스(운영 RDS와 완전히 분리된 로컬 전용 컨테이너)를 가리킨다.
+  # 호스트에서 IDE/gradlew로 직접 실행할 때는 5433(호스트 매핑 포트)으로 접근한다.
+  datasource:
+    url: jdbc:postgresql://localhost:5433/mpl
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:localdev}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 5000
+      leak-detection-threshold: 2000
+      data-source-properties:
+        # 1. 쿼리 준비 단계를 건너뛰도록 설정
+        prepareThreshold: 0
+        # 2. 드라이버 내부의 Prepared Statement 캐시 개수를 0으로 제한 (핵심)
+        preparedStatementCacheQueries: 0
+        # 3. 드라이버의 캐시 공간 크기를 0으로 제한 (핵심)
+        preparedStatementCacheSizeMiB: 0
+
+  jpa:
+    properties:
+      hibernate:
+        show_sql: true         # 1. 쿼리 보여주기 (Hibernate 설정으로 통일)
+        format_sql: true       # 2. 예쁘게 정렬하기
+        use_sql_comments: true # 3. + 주석까지 보여주기
+
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false
+
+  kafka:
+    bootstrap-servers: localhost:29092
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+          kakao:
+            client-id: ${KAKAO_CLIENT_ID:}
+            client-secret: ${KAKAO_CLIENT_SECRET:}
+
+  elasticsearch:
+    uris: http://localhost:9200
+    connection-timeout: 3s
+    socket-timeout: 3s
+  mail:
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
+# .env 로딩(DotenvEnvironmentPostProcessor)이 실패하거나 .env 자체가 없어도
+# 로컬 실행(Run 버튼)이 최소한 기동은 되도록 안전한 로컬 전용 기본값을 둔다.
+# .env가 정상 로드되면 그 값이 이 기본값보다 우선순위가 높아서 그대로 사용된다.
+# 운영(application-prod.yaml)에는 이런 기본값이 없어서 prod는 여전히 값이 없으면 기동 실패한다(fail-fast 유지).
+jwt:
+  secret: defaultSecretKeyForMplProjectMinimumLengthRequired32BytesOrMore
+
+admin:
+  email: admin@localhost
+  password: localdev1234
+  name: 로컬관리자
+
+mpl:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:8080}
+
+tmdb:
+  bearer-token: ${TMDB_BEARER_TOKEN:}
+
+sportsdb:
+  api-key: ${SPORTSDB_API_KEY:}
+
+content:
+  collection:
+    tmdb:
+      initial-max-pages: ${TMDB_INITIAL_MAX_PAGES:300}
+      daily-max-pages: ${TMDB_DAILY_MAX_PAGES:2}
+
+    scheduler:
+      enabled: false
+      cron: "0 0 3 * * *"
+      zone: "Asia/Seoul"

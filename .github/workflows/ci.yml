@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ develop ]
+
+# ============================
+# ✅ CodeRabbit 수정 1
+# 최소 권한만 사용하도록 설정
+# ============================
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: mpl_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0 # 프로젝트 버전에 맞게 수정
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: false
+          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -f http://localhost:9200"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
+        # ============================
+        # ✅ CodeRabbit 수정 2
+        # Redis Health Check 추가
+        # Redis가 준비될 때까지 기다림
+        # ============================
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+
+      # ============================
+      # ✅ CodeRabbit 수정 3
+      # Git 인증정보를 checkout 이후
+      # 저장하지 않도록 설정
+      # ============================
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+          # CI는 캐시 사용 OK
+          cache: gradle
+
+      - name: Grant execute permission
+        run: chmod +x ./gradlew
+
+      - name: Install Nori plugin in Elasticsearch service
+        run: |
+          CONTAINER_ID=$(docker ps -f "ancestor=docker.elastic.co/elasticsearch/elasticsearch:8.11.0" -q)
+          docker exec $CONTAINER_ID bin/elasticsearch-plugin install --batch analysis-nori
+          docker restart $CONTAINER_ID
+          echo "Waiting for Elasticsearch to become healthy..."
+          for i in {1..30}; do
+            if curl -s http://localhost:9200/_cluster/health | grep -q -E '"status":"(green|yellow)"'; then
+              echo "Elasticsearch is ready!"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Test and build
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          JWT_SECRET: testSecretKeyForMplProjectMinimumLengthRequired32Bytes
+          TMDB_BEARER_TOKEN: dummy
+          SPORTSDB_API_KEY: dummy
+          ADMIN_EMAIL: system@mopl.io
+          ADMIN_PASSWORD: mopl1!
+          ADMIN_NAME: system
+
+        run: ./gradlew clean test build --stacktrace --info
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true

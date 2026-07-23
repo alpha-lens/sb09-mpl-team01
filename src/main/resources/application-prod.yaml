@@ -1,0 +1,67 @@
+server:
+  forward-headers-strategy: framework
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          # {baseUrl}는 요청에서 스킴(http/https)을 다시 유추하는데, 리버스 프록시
+          # 체인(ALB가 X-Forwarded-Proto를 자기 리스너 기준으로 덮어씀)을 거치면서
+          # 이 유추가 깨져 계속 http로 잘못 계산되는 문제가 있었다. FRONTEND_BASE_URL은
+          # 이미 정확한 값을 알고 있으니 이걸 직접 써서 그 유추 자체를 건너뛴다.
+          google:
+            redirect-uri: "${FRONTEND_BASE_URL}/login/oauth2/code/google"
+          kakao:
+            redirect-uri: "${FRONTEND_BASE_URL}/login/oauth2/code/kakao"
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 5000
+      leak-detection-threshold: 2000
+
+  spring:
+    show-sql: false
+    jpa:
+      open-in-view: false
+
+  batch:
+    jdbc:
+      initialize-schema: never
+    job:
+      enabled: false
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: ${SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL}
+      sasl.mechanism: ${SPRING_KAFKA_PROPERTIES_SASL_MECHANISM}
+      sasl.jaas.config: ${SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG}
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      ssl:
+        enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:true}
+
+  elasticsearch:
+    uris: ${SPRING_ELASTICSEARCH_URIS}
+    connection-timeout: 3s
+    socket-timeout: 3s
+
+
+content:
+  collection:
+    tmdb:
+      initial-max-pages: ${TMDB_INITIAL_MAX_PAGES:300}
+      daily-max-pages: ${TMDB_DAILY_MAX_PAGES:20}
+
+    scheduler:
+      enabled: true
+      cron: ${CONTENT_COLLECTION_CRON:0 0 3 * * *}
+      zone: ${CONTENT_COLLECTION_ZONE:Asia/Seoul}
