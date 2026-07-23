@@ -134,6 +134,94 @@ class NotificationServiceTest {
     }
 
     @Test
+    @DisplayName("saveNotification - SYSTEM 발신자 (sender가 null) 알림 생성 테스트")
+    void saveNotification_systemSender() {
+        NotificationEvent event = new NotificationEvent(
+                receiver, null, NotificationLevel.INFO, "System Title", "System Content", null, null
+        );
+
+        Notification saved = Notification.builder()
+                .receiver(receiver)
+                .sender(null)
+                .level(NotificationLevel.INFO)
+                .title("System Title")
+                .content("System Content")
+                .isRead(false)
+                .build();
+
+        given(notificationRepository.save(any(Notification.class))).willReturn(saved);
+
+        NotificationDto dto = notificationService.saveNotification(event);
+
+        assertThat(dto).isNotNull();
+        assertThat(dto.title()).isEqualTo("System Title");
+    }
+
+    @Test
+    @DisplayName("saveNotification - DM이 아닌 기존 알림 중복 갱신 (제목 변경 없음)")
+    void saveNotification_nonDmDuplicate() {
+        UUID targetId = UUID.randomUUID();
+        NotificationEvent event = new NotificationEvent(
+                receiver, sender, NotificationLevel.INFO, "Original Title", "Content", NotificationType.PLAYLIST_ADDED, targetId
+        );
+
+        Notification existing = Notification.builder().receiver(receiver).sender(sender).build();
+        given(notificationRepository.findByReceiverIdAndTypeAndTargetIdAndIsReadFalse(receiverId, NotificationType.PLAYLIST_ADDED, targetId))
+                .willReturn(Optional.of(existing));
+
+        Notification saved = Notification.builder()
+                .receiver(receiver)
+                .sender(sender)
+                .title("Original Title")
+                .build();
+
+        given(notificationRepository.save(any(Notification.class))).willReturn(saved);
+
+        NotificationDto result = notificationService.saveNotification(event);
+
+        verify(notificationRepository).deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(receiverId, NotificationType.PLAYLIST_ADDED, targetId);
+        assertThat(result.title()).isEqualTo("Original Title");
+    }
+
+    @Test
+    @DisplayName("getNotifications - Instant 커서 및 다음 페이지 존재(hasNext=true) 테스트")
+    void getNotifications_withCursorAndHasNext() {
+        String cursorStr = "2024-01-01T00:00:00Z";
+        UUID idAfter = UUID.randomUUID();
+
+        Notification n1 = Notification.builder().receiver(receiver).title("N1").content("C1").level(NotificationLevel.INFO).build();
+        Notification n2 = Notification.builder().receiver(receiver).title("N2").content("C2").level(NotificationLevel.INFO).build();
+        Notification n3 = Notification.builder().receiver(receiver).title("N3").content("C3").level(NotificationLevel.INFO).build();
+
+        try {
+            Field idField = com.codeit.mpl.infra.common.entity.base.BaseEntity.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(n1, UUID.randomUUID());
+            idField.set(n2, UUID.randomUUID());
+            idField.set(n3, UUID.randomUUID());
+
+            Field timeField = com.codeit.mpl.infra.common.entity.base.BaseEntity.class.getDeclaredField("createdAt");
+            timeField.setAccessible(true);
+            timeField.set(n1, Instant.now());
+            timeField.set(n2, Instant.now());
+            timeField.set(n3, Instant.now());
+        } catch (Exception ignored) {}
+
+        given(notificationRepository.findNotificationsWithCursor(eq(receiverId), any(Instant.class), eq(idAfter), eq(2), any()))
+                .willReturn(List.of(n1, n2, n3));
+        given(notificationRepository.countByReceiverId(receiverId)).willReturn(3L);
+
+        CursorPageResponseDto<NotificationDto> result = notificationService.getNotifications(
+                receiverId, cursorStr, idAfter, 2, Direction.DESCENDING
+        );
+
+        assertThat(result.data()).hasSize(2);
+        assertThat(result.hasNext()).isTrue();
+        assertThat(result.nextCursor()).isNotNull();
+        assertThat(result.nextIdAfter()).isNotNull();
+    }
+
+    @Test
     @DisplayName("deleteNotification - 알림 ID로 삭제")
     void deleteNotification_success() {
         UUID id = UUID.randomUUID();
