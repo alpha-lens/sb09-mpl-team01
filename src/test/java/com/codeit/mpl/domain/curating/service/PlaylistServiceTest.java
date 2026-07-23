@@ -690,4 +690,315 @@ class PlaylistServiceTest {
       try { spec.toPredicate(root, query, cb); } catch (Exception ignored) {}
     }
   }
+
+  @Test
+  @DisplayName("플레이리스트 목록 조회 - 조회 결과가 비어있는 경우 (empty playlistIds)")
+  void getPlaylists_emptyPlaylistIds() {
+    when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(org.springframework.data.domain.Page.empty());
+    when(playlistRepository.count(any(Specification.class))).thenReturn(0L);
+
+    CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
+        null, null, null, null, null, 10, "createdAt", Direction.DESCENDING, null
+    );
+
+    assertThat(response.data()).isEmpty();
+    assertThat(response.totalCount()).isEqualTo(0L);
+    assertThat(response.hasNext()).isFalse();
+  }
+
+  @Test
+  @DisplayName("콘텐츠 추가 실패 - 존재하지 않는 플레이리스트")
+  void addContent_fail_playlistNotFound() {
+    UUID ownerId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> playlistService.addContent(ownerId, playlistId, contentId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("콘텐츠 추가 실패 - 소유자 권한 없음")
+  void addContent_fail_forbidden() {
+    UUID ownerId = UUID.randomUUID();
+    UUID otherOwnerId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+
+    User owner = mock(User.class);
+    Playlist playlist = mock(Playlist.class);
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(otherOwnerId);
+
+    assertThatThrownBy(() -> playlistService.addContent(ownerId, playlistId, contentId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("콘텐츠 추가 실패 - 존재하지 않는 콘텐츠")
+  void addContent_fail_contentNotFound() {
+    UUID ownerId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+
+    User owner = mock(User.class);
+    Playlist playlist = mock(Playlist.class);
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(ownerId);
+    when(contentRepository.findById(contentId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> playlistService.addContent(ownerId, playlistId, contentId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("콘텐츠 삭제 실패 - 존재하지 않는 플레이리스트")
+  void removeContent_fail_playlistNotFound() {
+    UUID ownerId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> playlistService.removeContent(ownerId, playlistId, contentId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("콘텐츠 삭제 실패 - 소유자 권한 없음")
+  void removeContent_fail_forbidden() {
+    UUID ownerId = UUID.randomUUID();
+    UUID otherOwnerId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+
+    User owner = mock(User.class);
+    Playlist playlist = mock(Playlist.class);
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(otherOwnerId);
+
+    assertThatThrownBy(() -> playlistService.removeContent(ownerId, playlistId, contentId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("콘텐츠 삭제 실패 - 존재하지 않는 콘텐츠")
+  void removeContent_fail_contentNotFound() {
+    UUID ownerId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+
+    User owner = mock(User.class);
+    Playlist playlist = mock(Playlist.class);
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(ownerId);
+    when(contentRepository.findById(contentId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> playlistService.removeContent(ownerId, playlistId, contentId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("알림 방어 로직 - 플레이리스트에서 콘텐츠 삭제 시 구독자가 소유자인 경우 알림 미발송")
+  void removeContent_noNotification_whenSubscriberIsOwner() {
+    UUID ownerId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+    UUID contentId = UUID.randomUUID();
+
+    User owner = mock(User.class);
+    Playlist playlist = mock(Playlist.class);
+    Content content = mock(Content.class);
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(ownerId);
+    when(contentRepository.findById(contentId)).thenReturn(Optional.of(content));
+    when(playlistContentRepository.existsByPlaylistAndContent(playlist, content)).thenReturn(true);
+
+    PlaylistSubscription sub = mock(PlaylistSubscription.class);
+    when(sub.getSubscriber()).thenReturn(owner);
+    when(playlistSubscriptionRepository.findByPlaylist(playlist)).thenReturn(List.of(sub));
+
+    playlistService.removeContent(ownerId, playlistId, contentId);
+
+    verify(eventPublisher, never()).publishEvent(any(NotificationEvent.class));
+  }
+
+  @Test
+  @DisplayName("플레이리스트 구독 실패 - 존재하지 않는 사용자")
+  void subscribePlaylist_fail_userNotFound() {
+    UUID subscriberId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+
+    when(userRepository.findById(subscriberId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> playlistService.subscribePlaylist(subscriberId, playlistId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("플레이리스트 구독 실패 - 존재하지 않는 플레이리스트")
+  void subscribePlaylist_fail_playlistNotFound() {
+    UUID subscriberId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+
+    User subscriber = mock(User.class);
+    when(userRepository.findById(subscriberId)).thenReturn(Optional.of(subscriber));
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> playlistService.subscribePlaylist(subscriberId, playlistId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("플레이리스트 구독 - 구독자가 소유자인 경우 구독 알림 미발송")
+  void subscribePlaylist_noNotification_whenSubscriberIsOwner() {
+    UUID subscriberId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+
+    User subscriber = mock(User.class);
+    Playlist playlist = mock(Playlist.class);
+
+    when(userRepository.findById(subscriberId)).thenReturn(Optional.of(subscriber));
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlistSubscriptionRepository.existsByPlaylistAndSubscriber(playlist, subscriber)).thenReturn(false);
+    when(playlist.getOwner()).thenReturn(subscriber);
+    when(subscriber.getId()).thenReturn(subscriberId);
+
+    playlistService.subscribePlaylist(subscriberId, playlistId);
+
+    verify(playlistSubscriptionRepository).save(any(PlaylistSubscription.class));
+    verify(eventPublisher, never()).publishEvent(any(NotificationEvent.class));
+  }
+
+  @Test
+  @DisplayName("플레이리스트 구독 취소 실패 - 존재하지 않는 사용자")
+  void unsubscribePlaylist_fail_userNotFound() {
+    UUID subscriberId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+
+    when(userRepository.findById(subscriberId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> playlistService.unsubscribePlaylist(subscriberId, playlistId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("플레이리스트 구독 취소 실패 - 존재하지 않는 플레이리스트")
+  void unsubscribePlaylist_fail_playlistNotFound() {
+    UUID subscriberId = UUID.randomUUID();
+    UUID playlistId = UUID.randomUUID();
+
+    User subscriber = mock(User.class);
+    when(userRepository.findById(subscriberId)).thenReturn(Optional.of(subscriber));
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> playlistService.unsubscribePlaylist(subscriberId, playlistId))
+        .isInstanceOf(MplException.class);
+  }
+
+  @Test
+  @DisplayName("resolveThumbnailUrl의 다양한 프리픽스 조건 검증 (null, http, https, /uploads/, raw key)")
+  void resolveThumbnailUrl_branches() {
+    UUID playlistId = UUID.randomUUID();
+    Playlist playlist = mock(Playlist.class);
+    User owner = mock(User.class);
+    Content c1 = mock(Content.class);
+    Content c2 = mock(Content.class);
+    Content c3 = mock(Content.class);
+    Content c4 = mock(Content.class);
+
+    PlaylistContent pc1 = mock(PlaylistContent.class);
+    PlaylistContent pc2 = mock(PlaylistContent.class);
+    PlaylistContent pc3 = mock(PlaylistContent.class);
+    PlaylistContent pc4 = mock(PlaylistContent.class);
+
+    when(pc1.getContent()).thenReturn(c1);
+    when(pc2.getContent()).thenReturn(c2);
+    when(pc3.getContent()).thenReturn(c3);
+    when(pc4.getContent()).thenReturn(c4);
+
+    when(c1.getThumbnailUrl()).thenReturn(null);
+    when(c2.getThumbnailUrl()).thenReturn("http://example.com/img.jpg");
+    when(c3.getThumbnailUrl()).thenReturn("https://example.com/img.jpg");
+    when(c4.getThumbnailUrl()).thenReturn("/uploads/img.jpg");
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(UUID.randomUUID());
+    when(owner.getName()).thenReturn("테스트유저");
+    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
+    when(playlistContentRepository.findByPlaylist(playlist)).thenReturn(List.of(pc1, pc2, pc3, pc4));
+
+    PlaylistDto result = playlistService.getPlaylist(playlistId, null);
+
+    assertThat(result.contents()).hasSize(4);
+    assertThat(result.contents().get(0).thumbnailUrl()).isNull();
+    assertThat(result.contents().get(1).thumbnailUrl()).isEqualTo("http://example.com/img.jpg");
+    assertThat(result.contents().get(2).thumbnailUrl()).isEqualTo("https://example.com/img.jpg");
+    assertThat(result.contents().get(3).thumbnailUrl()).isEqualTo("/uploads/img.jpg");
+  }
+
+  @Test
+  @DisplayName("resolveProfileImageUrl 프로필 이미지 URL 처리 검증")
+  void resolveProfileImageUrl_branch() {
+    UUID playlistId = UUID.randomUUID();
+    Playlist playlist = mock(Playlist.class);
+    User owner = mock(User.class);
+
+    when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(UUID.randomUUID());
+    when(owner.getName()).thenReturn("테스트유저");
+    when(owner.getProfileImageUrl()).thenReturn("profile-key");
+    when(binaryContentStorage.getUrl("profile-key")).thenReturn("http://s3/profile.jpg");
+    when(playlistSubscriptionRepository.countByPlaylist(playlist)).thenReturn(0L);
+    when(playlistContentRepository.findByPlaylist(playlist)).thenReturn(List.of());
+
+    PlaylistDto result = playlistService.getPlaylist(playlistId, null);
+
+    assertThat(result.owner().profileImageUrl()).isEqualTo("http://s3/profile.jpg");
+  }
+
+  @Test
+  @DisplayName("플레이리스트 목록 조회 - 콘텐츠가 포함된 경우 toDtoSimple 내부 contentSummaries 매핑 검증")
+  void getPlaylists_withContents_callsToDtoSimpleWithContents() {
+    Playlist playlist = mock(Playlist.class);
+    User owner = mock(User.class);
+    Content content = mock(Content.class);
+    PlaylistContent pc = mock(PlaylistContent.class);
+    UUID playlistId = UUID.randomUUID();
+
+    when(playlistRepository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(playlist)));
+    when(playlistRepository.count(any(Specification.class))).thenReturn(1L);
+    when(playlist.getId()).thenReturn(playlistId);
+    when(playlist.getOwner()).thenReturn(owner);
+    when(owner.getId()).thenReturn(UUID.randomUUID());
+    when(owner.getName()).thenReturn("테스트유저");
+
+    when(pc.getPlaylist()).thenReturn(playlist);
+    when(pc.getContent()).thenReturn(content);
+
+    when(playlistSubscriptionRepository.findSubscriptionStats(any())).thenReturn(Collections.singletonList(new Object[]{playlistId, 1L}));
+    when(playlistContentRepository.findByPlaylistIdIn(any())).thenReturn(List.of(pc));
+
+    CursorPageResponseDto<PlaylistDto> response = playlistService.getPlaylists(
+        null, null, null, null, null, 10, "createdAt", Direction.DESCENDING, null
+    );
+
+    assertThat(response.data()).hasSize(1);
+    assertThat(response.data().get(0).contents()).hasSize(1);
+  }
 }
