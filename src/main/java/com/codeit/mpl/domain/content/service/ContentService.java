@@ -33,6 +33,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
+import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -71,6 +72,7 @@ public class ContentService {
     private final ApplicationEventPublisher eventPublisher;
     private final ContentSearchService contentSearchService;
     private final PlaylistContentRepository playlistContentRepository;
+    private final ReviewRepository reviewRepository;
     private final BinaryContentStorage binaryContentStorage;
 
     public ContentDto createContent(
@@ -395,6 +397,8 @@ public class ContentService {
                 requester,
                 content
         );
+
+        reviewRepository.deleteByContent(content);
 
         playlistContentRepository.deleteByContent(content);
 
