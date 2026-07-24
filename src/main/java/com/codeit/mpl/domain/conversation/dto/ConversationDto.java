@@ -5,7 +5,11 @@ import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
 public record ConversationDto(
-    @NotNull UUID id, @NotNull UserSummary with, DirectMessageDto lastMessage, boolean hasUnread
+    @NotNull UUID id,
+    @NotNull UserSummary with,
+    DirectMessageDto lastestMessage,
+    boolean hasUnread
 ) {
 
 }
+

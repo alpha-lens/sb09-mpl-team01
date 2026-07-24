@@ -31,6 +31,9 @@ public class ConversationCustomRepositoryImpl implements ConversationCustomRepos
         QDirectMessage subDm = new QDirectMessage("subDm");
         QDirectMessage unreadDm = new QDirectMessage("unreadDm");
 
+        QUser senderUser = new QUser("senderUser");
+        QUser receiverUser = new QUser("receiverUser");
+
         return queryFactory.select(
             Projections.constructor(
                 ConversationQueryDto.class,
@@ -47,6 +50,12 @@ public class ConversationCustomRepositoryImpl implements ConversationCustomRepos
                 dm.id,
                 dm.content,
                 dm.createdAt,
+                senderUser.id,
+                senderUser.name,
+                senderUser.profileImageUrl,
+                receiverUser.id,
+                receiverUser.name,
+                receiverUser.profileImageUrl,
                 JPAExpressions.select(unreadDm.count())
                     .from(unreadDm)
                     .where(
@@ -67,6 +76,8 @@ public class ConversationCustomRepositoryImpl implements ConversationCustomRepos
                 )
             )
         )
+        .leftJoin(senderUser).on(dm.sender.id.eq(senderUser.id))
+        .leftJoin(receiverUser).on(dm.receiver.id.eq(receiverUser.id))
         .where(
             conversation.user1.id.eq(userId).or(conversation.user2.id.eq(userId)),
             keywordLike(keywordLike, userId),

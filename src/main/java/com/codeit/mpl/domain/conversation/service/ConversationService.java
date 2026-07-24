@@ -125,12 +125,19 @@ public class ConversationService {
 
                 DirectMessageDto lastMessage = null;
                 if (flat.lastMessageId() != null) {
+                    UserSummary sender = flat.senderId() != null
+                        ? new UserSummary(flat.senderId(), flat.senderName(), resolveProfileImageUrl(flat.senderProfileImage()))
+                        : null;
+                    UserSummary receiver = flat.receiverId() != null
+                        ? new UserSummary(flat.receiverId(), flat.receiverName(), resolveProfileImageUrl(flat.receiverProfileImage()))
+                        : null;
+
                     lastMessage = new DirectMessageDto(
                         flat.lastMessageId(),
                         flat.conversationId(),
                         flat.lastMessageCreatedAt(),
-                        null,
-                        null,
+                        sender,
+                        receiver,
                         flat.lastMessageContent()
                     );
                 }

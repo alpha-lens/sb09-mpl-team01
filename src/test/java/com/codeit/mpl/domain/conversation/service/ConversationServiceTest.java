@@ -136,7 +136,7 @@ class ConversationServiceTest {
     assertThat(result).isNotNull();
     assertThat(result.id()).isEqualTo(conversationId);
     assertThat(result.hasUnread()).isTrue();
-    assertThat(result.lastMessage().content()).isEqualTo("마지막 메시지");
+    assertThat(result.lastestMessage().content()).isEqualTo("마지막 메시지");
   }
 
   @Test
@@ -206,6 +206,8 @@ class ConversationServiceTest {
     UUID userId = UUID.randomUUID();
     CursorPageRequestDto request = new CursorPageRequestDto("cursor", UUID.randomUUID(), 10, Direction.DESCENDING, "createdAt");
 
+    UUID senderId = UUID.randomUUID();
+    UUID receiverId = userId;
     ConversationQueryDto queryDto = new ConversationQueryDto(
         UUID.randomUUID(),
         UUID.randomUUID(),
@@ -214,6 +216,12 @@ class ConversationServiceTest {
         UUID.randomUUID(),
         "마지막 내용",
         Instant.now(),
+        senderId,
+        "보낸사람",
+        "http://sender-profile",
+        receiverId,
+        "받는사람",
+        "http://receiver-profile",
         2L
     );
 

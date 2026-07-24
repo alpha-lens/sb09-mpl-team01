@@ -11,5 +11,11 @@ public record ConversationQueryDto(
     UUID lastMessageId,
     String lastMessageContent,
     Instant lastMessageCreatedAt,
+    UUID senderId,
+    String senderName,
+    String senderProfileImage,
+    UUID receiverId,
+    String receiverName,
+    String receiverProfileImage,
     long unreadCount
 ) {}
