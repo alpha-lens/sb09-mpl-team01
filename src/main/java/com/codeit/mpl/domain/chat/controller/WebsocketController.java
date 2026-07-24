@@ -1,5 +1,6 @@
 package com.codeit.mpl.domain.chat.controller;
 
+import com.codeit.mpl.domain.chat.dto.RedisChatEvent;
 import com.codeit.mpl.domain.content.dto.ContentChatDto;
 import com.codeit.mpl.domain.content.dto.ContentChatSendRequest;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
@@ -13,8 +14,10 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
@@ -24,7 +27,6 @@ import org.springframework.stereotype.Controller;
 
 @Slf4j
 @Controller
-@RequiredArgsConstructor
 public class WebsocketController {
 
     private final UserRepository userRepository;
@@ -33,6 +35,28 @@ public class WebsocketController {
     private final SimpMessageSendingOperations messagingTemplate;
     private final WatchingSessionService watchingSessionService;
     private final com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
+
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired(required = false)
+    private ChannelTopic chatTopic;
+
+    public WebsocketController(
+            UserRepository userRepository,
+            ConversationService conversationService,
+            SseService sseService,
+            SimpMessageSendingOperations messagingTemplate,
+            WatchingSessionService watchingSessionService,
+            com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage
+    ) {
+        this.userRepository = userRepository;
+        this.conversationService = conversationService;
+        this.sseService = sseService;
+        this.messagingTemplate = messagingTemplate;
+        this.watchingSessionService = watchingSessionService;
+        this.binaryContentStorage = binaryContentStorage;
+    }
 
     @MessageMapping("/contents/{contentId}/chat")
     public void handleContentChat(
@@ -57,7 +81,17 @@ public class WebsocketController {
                     Instant.now()
             );
 
-            messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/chat", chatDto);
+            if (redisTemplate != null && chatTopic != null) {
+                RedisChatEvent event = new RedisChatEvent(
+                        "CONTENT_CHAT",
+                        "/sub/contents/" + contentId + "/chat",
+                        null,
+                        chatDto
+                );
+                redisTemplate.convertAndSend(chatTopic.getTopic(), event);
+            } else {
+                messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/chat", chatDto);
+            }
         });
     }
 
@@ -76,12 +110,18 @@ public class WebsocketController {
 
             log.info("[WebSocket DM] Conv={}: sender={}, receiver={}", conversationId, user.getId(), messageDto.receiver().userId());
             
-            // 1. WebSocket 구독 중인 채널로 브로드캐스트
-            messagingTemplate.convertAndSend("/sub/conversations/" + conversationId + "/direct-messages", messageDto);
-            
-            // 2. 수신자에게 실시간 SSE 알림 전송
-            UUID receiverId = messageDto.receiver().userId();
-            sseService.send(receiverId, messageDto, "direct-messages");
+            if (redisTemplate != null && chatTopic != null) {
+                RedisChatEvent event = new RedisChatEvent(
+                        "DM",
+                        "/sub/conversations/" + conversationId + "/direct-messages",
+                        messageDto.receiver().userId(),
+                        messageDto
+                );
+                redisTemplate.convertAndSend(chatTopic.getTopic(), event);
+            } else {
+                messagingTemplate.convertAndSend("/sub/conversations/" + conversationId + "/direct-messages", messageDto);
+                sseService.send(messageDto.receiver().userId(), messageDto, "direct-messages");
+            }
         });
     }
 
