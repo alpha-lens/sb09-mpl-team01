@@ -13,6 +13,16 @@ spring:
   profiles:
     default: dev
 
+  datasource:
+    hikari:
+      connection-timeout: 5000
+      leak-detection-threshold: 2000
+
+  data:
+    redis:
+      timeout: 3s
+      connect-timeout: 3s
+
   jpa:
     open-in-view: false
     hibernate:

@@ -173,7 +173,8 @@ class WatchingSessionServiceTest {
     @Test
     @DisplayName("cleanExpiredSessions - 콘텐츠 키 존재 및 만료 세션 삭제")
     void cleanExpiredSessions_withKeys() {
-        given(redisTemplate.keys("watching:content:*")).willReturn(Set.of("watching:content:123"));
+        given(redisTemplate.execute(any(org.springframework.data.redis.core.RedisCallback.class)))
+                .willReturn(Set.of("watching:content:123"));
         given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
         given(zSetOperations.removeRangeByScore(anyString(), anyDouble(), anyDouble())).willReturn(2L);
 
@@ -185,7 +186,8 @@ class WatchingSessionServiceTest {
     @Test
     @DisplayName("cleanExpiredSessions - 콘텐츠 키 없음")
     void cleanExpiredSessions_emptyKeys() {
-        given(redisTemplate.keys("watching:content:*")).willReturn(Collections.emptySet());
+        given(redisTemplate.execute(any(org.springframework.data.redis.core.RedisCallback.class)))
+                .willReturn(Collections.emptySet());
 
         watchingSessionService.cleanExpiredSessions();
     }
