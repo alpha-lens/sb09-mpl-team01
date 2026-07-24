@@ -1,17 +1,9 @@
 package com.codeit.mpl.domain.profile.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import com.codeit.mpl.domain.profile.dto.response.FollowDto;
 import com.codeit.mpl.domain.profile.entity.Follow;
 import com.codeit.mpl.domain.profile.repository.FollowRepository;
-import com.codeit.mpl.domain.profile.service.FollowService;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.exception.MplException;
@@ -19,16 +11,21 @@ import com.codeit.mpl.infra.exception.follow.FollowAlreadyExistsException;
 import com.codeit.mpl.infra.exception.follow.FollowForbiddenException;
 import com.codeit.mpl.infra.exception.follow.FollowNotFoundException;
 import com.codeit.mpl.infra.exception.follow.FollowSelfException;
-import java.util.Optional;
-import java.util.UUID;
-import org.springframework.context.ApplicationEventPublisher;
-import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class FollowServiceTest {

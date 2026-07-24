@@ -4,17 +4,13 @@ import com.codeit.mpl.domain.content.client.SportsDbClient;
 import com.codeit.mpl.domain.content.dto.external.SportsDbEventResponse;
 import com.codeit.mpl.domain.content.dto.external.SportsDbLeagueItem;
 import com.codeit.mpl.domain.content.dto.external.SportsDbLeagueResponse;
-import java.time.Year;
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.time.Year;
+import java.time.ZoneId;
+import java.util.*;
 
 @Slf4j
 @Service

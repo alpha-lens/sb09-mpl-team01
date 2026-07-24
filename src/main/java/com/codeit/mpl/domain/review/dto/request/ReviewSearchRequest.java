@@ -3,9 +3,10 @@ package com.codeit.mpl.domain.review.dto.request;
 import com.codeit.mpl.infra.common.dto.Direction;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.UUID;
 
 @Getter
 @Setter

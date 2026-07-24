@@ -5,27 +5,28 @@ import com.codeit.mpl.domain.content.entity.ContentDocument;
 import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
+import com.codeit.mpl.domain.content.service.ElasticsearchSyncService;
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.curating.entity.PlaylistContent;
 import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
 import com.codeit.mpl.domain.curating.repository.PlaylistRepository;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
-import com.codeit.mpl.domain.content.service.ElasticsearchSyncService;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
-import java.util.ArrayList;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Component

@@ -1,7 +1,10 @@
 package com.codeit.mpl.domain.chat.listener;
 
 import com.codeit.mpl.domain.chat.service.WatchingSessionService;
+import com.codeit.mpl.domain.content.dto.WatchingSessionChange;
+import com.codeit.mpl.domain.content.dto.WatchingSessionSnapshot;
 import com.codeit.mpl.domain.content.service.ContentService;
+import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import org.junit.jupiter.api.DisplayName;
@@ -10,9 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.codeit.mpl.domain.content.dto.WatchingSessionChange;
-import com.codeit.mpl.domain.content.dto.WatchingSessionSnapshot;
-import com.codeit.mpl.domain.user.entity.User;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;

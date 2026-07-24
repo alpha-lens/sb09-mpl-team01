@@ -2,10 +2,11 @@ package com.codeit.mpl.domain.profile.repository;
 
 import com.codeit.mpl.domain.profile.entity.Follow;
 import com.codeit.mpl.domain.user.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface FollowRepository extends JpaRepository<Follow, UUID> {
 

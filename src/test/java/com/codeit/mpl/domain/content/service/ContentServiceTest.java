@@ -1,30 +1,8 @@
 package com.codeit.mpl.domain.content.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.codeit.mpl.domain.content.client.SportsDbClient;
 import com.codeit.mpl.domain.content.client.TmdbClient;
-import com.codeit.mpl.domain.content.dto.external.SportsDbEventItem;
-import com.codeit.mpl.domain.content.dto.external.SportsDbEventResponse;
-import com.codeit.mpl.domain.content.dto.external.SportsDbTeamResponse;
-import com.codeit.mpl.domain.content.dto.external.TmdbContentItem;
-import com.codeit.mpl.domain.content.dto.external.TmdbGenre;
-import com.codeit.mpl.domain.content.dto.external.TmdbSearchResponse;
+import com.codeit.mpl.domain.content.dto.external.*;
 import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
 import com.codeit.mpl.domain.content.dto.request.ContentImportRequest;
@@ -45,10 +23,6 @@ import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -64,6 +38,16 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

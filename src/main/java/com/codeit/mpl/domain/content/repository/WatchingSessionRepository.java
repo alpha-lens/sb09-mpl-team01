@@ -2,11 +2,12 @@ package com.codeit.mpl.domain.content.repository;
 
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.entity.WatchingSession;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 import java.util.List;
 import java.util.UUID;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface WatchingSessionRepository extends JpaRepository<WatchingSession, UUID> {
 

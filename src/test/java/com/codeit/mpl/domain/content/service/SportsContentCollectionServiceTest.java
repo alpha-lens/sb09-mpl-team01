@@ -1,21 +1,10 @@
 package com.codeit.mpl.domain.content.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import com.codeit.mpl.domain.content.client.SportsDbClient;
 import com.codeit.mpl.domain.content.dto.external.SportsDbEventItem;
 import com.codeit.mpl.domain.content.dto.external.SportsDbEventResponse;
 import com.codeit.mpl.domain.content.dto.external.SportsDbLeagueItem;
 import com.codeit.mpl.domain.content.dto.external.SportsDbLeagueResponse;
-import java.time.Year;
-import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -23,6 +12,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.Year;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SportsContentCollectionService 단위 테스트")

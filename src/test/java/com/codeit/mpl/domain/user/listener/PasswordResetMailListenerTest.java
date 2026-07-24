@@ -1,7 +1,5 @@
 package com.codeit.mpl.domain.user.listener;
 
-import static org.mockito.BDDMockito.then;
-
 import com.codeit.mpl.domain.user.event.PasswordResetMailEvent;
 import com.codeit.mpl.domain.user.mail.PasswordResetMailSender;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
 class PasswordResetMailListenerTest {

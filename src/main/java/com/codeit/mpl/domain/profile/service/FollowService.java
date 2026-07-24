@@ -1,5 +1,8 @@
 package com.codeit.mpl.domain.profile.service;
 
+import com.codeit.mpl.domain.notification.entity.NotificationLevel;
+import com.codeit.mpl.domain.notification.entity.NotificationType;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
 import com.codeit.mpl.domain.profile.dto.response.FollowDto;
 import com.codeit.mpl.domain.profile.entity.Follow;
 import com.codeit.mpl.domain.profile.repository.FollowRepository;
@@ -11,15 +14,13 @@ import com.codeit.mpl.infra.exception.follow.FollowAlreadyExistsException;
 import com.codeit.mpl.infra.exception.follow.FollowForbiddenException;
 import com.codeit.mpl.infra.exception.follow.FollowNotFoundException;
 import com.codeit.mpl.infra.exception.follow.FollowSelfException;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.codeit.mpl.domain.notification.entity.NotificationLevel;
-import com.codeit.mpl.domain.notification.entity.NotificationType;
-import com.codeit.mpl.domain.notification.event.NotificationEvent;
-import org.springframework.context.ApplicationEventPublisher;
+
+import java.util.UUID;
 
 @Slf4j
 @Service

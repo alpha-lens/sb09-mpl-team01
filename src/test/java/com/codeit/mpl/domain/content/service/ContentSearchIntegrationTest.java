@@ -1,16 +1,12 @@
 package com.codeit.mpl.domain.content.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.entity.ContentDocument;
 import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -24,7 +20,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.mockito.Mockito;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @ActiveProfiles("test")
 @SpringBootTest(properties = {

@@ -1,19 +1,16 @@
 package com.codeit.mpl.domain.chat.controller;
 
 import com.codeit.mpl.domain.chat.dto.RedisChatEvent;
+import com.codeit.mpl.domain.chat.service.WatchingSessionService;
 import com.codeit.mpl.domain.content.dto.ContentChatDto;
 import com.codeit.mpl.domain.content.dto.ContentChatSendRequest;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageSendRequest;
 import com.codeit.mpl.domain.conversation.service.ConversationService;
-import com.codeit.mpl.domain.chat.service.WatchingSessionService;
 import com.codeit.mpl.domain.user.dto.UserSummary;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.sse.SseService;
 import jakarta.validation.Valid;
-import java.security.Principal;
-import java.time.Instant;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -24,6 +21,10 @@ import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
+
+import java.security.Principal;
+import java.time.Instant;
+import java.util.UUID;
 
 @Slf4j
 @Controller

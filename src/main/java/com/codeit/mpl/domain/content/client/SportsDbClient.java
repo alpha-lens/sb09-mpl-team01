@@ -4,14 +4,15 @@ import com.codeit.mpl.domain.content.dto.external.SportsDbEventResponse;
 import com.codeit.mpl.domain.content.dto.external.SportsDbLeagueResponse;
 import com.codeit.mpl.domain.content.dto.external.SportsDbSeasonResponse;
 import com.codeit.mpl.domain.content.dto.external.SportsDbTeamResponse;
-import java.time.Duration;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+
+import java.time.Duration;
+import java.util.List;
 
 @Slf4j
 @Component

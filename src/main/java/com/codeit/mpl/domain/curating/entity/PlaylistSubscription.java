@@ -2,13 +2,7 @@ package com.codeit.mpl.domain.curating.entity;
 
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.infra.common.entity.base.BaseEntity;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.ForeignKey;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 

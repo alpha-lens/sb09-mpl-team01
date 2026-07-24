@@ -2,13 +2,14 @@ package com.codeit.mpl.domain.curating.repository;
 
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.user.entity.User;
-import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+import java.util.UUID;
 
 public interface PlaylistRepository extends JpaRepository<Playlist, UUID>,
     JpaSpecificationExecutor<Playlist> {

@@ -4,10 +4,11 @@ import com.codeit.mpl.domain.content.client.TmdbClient;
 import com.codeit.mpl.domain.content.config.ContentCollectionProperties;
 import com.codeit.mpl.domain.content.dto.external.TmdbSearchResponse;
 import com.codeit.mpl.domain.content.entity.ContentType;
-import java.util.function.IntFunction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.function.IntFunction;
 
 @Slf4j
 @Service

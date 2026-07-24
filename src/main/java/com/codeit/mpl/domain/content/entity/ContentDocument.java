@@ -2,22 +2,12 @@ package com.codeit.mpl.domain.content.entity;
 
 import com.codeit.mpl.domain.content.util.HangulUtils;
 import jakarta.persistence.Id;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import org.springframework.data.elasticsearch.annotations.Document;
-import org.springframework.data.elasticsearch.annotations.Field;
-import org.springframework.data.elasticsearch.annotations.FieldType;
-import org.springframework.data.elasticsearch.annotations.InnerField;
-import org.springframework.data.elasticsearch.annotations.MultiField;
-import org.springframework.data.elasticsearch.annotations.Setting;
+import lombok.*;
+import org.springframework.data.elasticsearch.annotations.*;
 
 import java.time.Instant;
-import java.util.List;
-
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Getter
 @Builder

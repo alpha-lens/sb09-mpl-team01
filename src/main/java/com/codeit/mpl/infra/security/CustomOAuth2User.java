@@ -1,10 +1,11 @@
 package com.codeit.mpl.infra.security;
 
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 
 public record CustomOAuth2User(
         UUID userId,

@@ -1,8 +1,5 @@
 package com.codeit.mpl.domain.content.repository;
 
-import static com.codeit.mpl.domain.content.entity.QContent.content;
-import static com.codeit.mpl.domain.review.entity.QReview.review;
-
 import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.entity.ContentType;
@@ -14,15 +11,15 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+
+import static com.codeit.mpl.domain.content.entity.QContent.content;
+import static com.codeit.mpl.domain.review.entity.QReview.review;
 
 @Repository
 @RequiredArgsConstructor

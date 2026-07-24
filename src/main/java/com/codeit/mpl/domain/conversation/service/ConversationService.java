@@ -1,10 +1,6 @@
 package com.codeit.mpl.domain.conversation.service;
 
-import com.codeit.mpl.domain.conversation.dto.ConversationCreateRequest;
-import com.codeit.mpl.domain.conversation.dto.ConversationDto;
-import com.codeit.mpl.domain.conversation.dto.ConversationQueryDto;
-import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
-import com.codeit.mpl.domain.conversation.dto.DirectMessageSendRequest;
+import com.codeit.mpl.domain.conversation.dto.*;
 import com.codeit.mpl.domain.conversation.entity.Conversation;
 import com.codeit.mpl.domain.conversation.entity.DirectMessage;
 import com.codeit.mpl.domain.conversation.repository.ConversationRepository;
@@ -19,10 +15,9 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageRequestDto;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
+import com.codeit.mpl.infra.exception.conversation.ConversationNotFoundException;
+import com.codeit.mpl.infra.exception.user.UserNotFoundException;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -30,8 +25,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.codeit.mpl.infra.exception.conversation.ConversationNotFoundException;
-import com.codeit.mpl.infra.exception.user.UserNotFoundException;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor

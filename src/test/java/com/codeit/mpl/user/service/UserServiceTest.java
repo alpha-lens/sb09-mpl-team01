@@ -1,28 +1,16 @@
 package com.codeit.mpl.user.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import com.codeit.mpl.domain.user.dto.request.UserUpdateRequest;
 import com.codeit.mpl.domain.user.dto.request.UserRoleUpdateRequest;
+import com.codeit.mpl.domain.user.dto.request.UserUpdateRequest;
 import com.codeit.mpl.domain.user.dto.response.UserDto;
-import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.mapper.UserMapper;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.security.JwtTokenProvider;
 import com.codeit.mpl.infra.security.JwtUtil;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
-import org.springframework.context.ApplicationEventPublisher;
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,12 +19,23 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {

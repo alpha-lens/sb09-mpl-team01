@@ -3,9 +3,6 @@ package com.codeit.mpl.infra.security;
 import com.codeit.mpl.domain.user.entity.AuthProvider;
 import com.codeit.mpl.domain.user.service.UserService;
 import com.codeit.mpl.infra.exception.user.AccountLockedException;
-import java.util.Collections;
-import java.util.Map;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -15,6 +12,10 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service

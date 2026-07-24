@@ -1,13 +1,5 @@
 package com.codeit.mpl.domain.review.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import com.codeit.mpl.domain.content.entity.Content;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.review.dto.request.ReviewCreateRequest;
@@ -16,7 +8,6 @@ import com.codeit.mpl.domain.review.dto.response.ReviewDto;
 import com.codeit.mpl.domain.review.entity.Review;
 import com.codeit.mpl.domain.review.mapper.ReviewMapper;
 import com.codeit.mpl.domain.review.repository.ReviewRepository;
-import com.codeit.mpl.domain.review.service.ReviewService;
 import com.codeit.mpl.domain.user.dto.response.UserSummary;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.repository.UserRepository;
@@ -24,15 +15,7 @@ import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.exception.ErrorCode;
 import com.codeit.mpl.infra.exception.MplException;
-import com.codeit.mpl.infra.exception.review.InvalidReviewCursorException;
-import com.codeit.mpl.infra.exception.review.InvalidReviewSortException;
-import com.codeit.mpl.infra.exception.review.ReviewAlreadyExistsException;
-import com.codeit.mpl.infra.exception.review.ReviewForbiddenException;
-import com.codeit.mpl.infra.exception.review.ReviewNotFoundException;
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import com.codeit.mpl.infra.exception.review.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +26,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewServiceTest {

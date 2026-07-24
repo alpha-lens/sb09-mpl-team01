@@ -3,11 +3,12 @@ package com.codeit.mpl.domain.curating.repository;
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.curating.entity.PlaylistSubscription;
 import com.codeit.mpl.domain.user.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import java.util.UUID;
+
 import java.util.List;
-import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.UUID;
 
 public interface PlaylistSubscriptionRepository extends JpaRepository<PlaylistSubscription, UUID> {
 

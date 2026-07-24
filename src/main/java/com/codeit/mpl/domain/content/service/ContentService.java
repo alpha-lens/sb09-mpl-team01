@@ -1,13 +1,8 @@
 package com.codeit.mpl.domain.content.service;
 
-import java.util.Objects;
 import com.codeit.mpl.domain.content.client.SportsDbClient;
 import com.codeit.mpl.domain.content.client.TmdbClient;
-import com.codeit.mpl.domain.content.dto.external.SportsDbEventItem;
-import com.codeit.mpl.domain.content.dto.external.SportsDbEventResponse;
-import com.codeit.mpl.domain.content.dto.external.SportsDbTeamResponse;
-import com.codeit.mpl.domain.content.dto.external.TmdbContentItem;
-import com.codeit.mpl.domain.content.dto.external.TmdbSearchResponse;
+import com.codeit.mpl.domain.content.dto.external.*;
 import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
 import com.codeit.mpl.domain.content.dto.request.ContentCreateRequest;
 import com.codeit.mpl.domain.content.dto.request.ContentImportRequest;
@@ -21,33 +16,30 @@ import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.event.ContentEvent;
 import com.codeit.mpl.domain.content.mapper.ContentMapper;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
+import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
+import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import com.codeit.mpl.domain.user.entity.User;
 import com.codeit.mpl.domain.user.entity.UserRole;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
 import com.codeit.mpl.infra.common.dto.Direction;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import com.codeit.mpl.domain.curating.repository.PlaylistContentRepository;
-import com.codeit.mpl.domain.review.repository.ReviewRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.codeit.mpl.domain.content.dto.external.TmdbGenre;
-
-
-import com.codeit.mpl.infra.storage.BinaryContentStorage;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 @Slf4j
 @Service

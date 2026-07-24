@@ -1,5 +1,36 @@
 package com.codeit.mpl.domain.conversation.service;
 
+import com.codeit.mpl.domain.conversation.dto.*;
+import com.codeit.mpl.domain.conversation.entity.Conversation;
+import com.codeit.mpl.domain.conversation.entity.DirectMessage;
+import com.codeit.mpl.domain.conversation.repository.ConversationRepository;
+import com.codeit.mpl.domain.conversation.repository.DirectMessageRepository;
+import com.codeit.mpl.domain.notification.entity.NotificationType;
+import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import com.codeit.mpl.domain.notification.repository.NotificationRepository;
+import com.codeit.mpl.domain.user.entity.User;
+import com.codeit.mpl.domain.user.repository.UserRepository;
+import com.codeit.mpl.infra.common.dto.CursorPageRequestDto;
+import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
+import com.codeit.mpl.infra.common.dto.Direction;
+import com.codeit.mpl.infra.exception.conversation.ConversationNotFoundException;
+import com.codeit.mpl.infra.exception.user.UserNotFoundException;
+import com.codeit.mpl.infra.storage.BinaryContentStorage;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -8,42 +39,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import org.mockito.ArgumentCaptor;
-
-import com.codeit.mpl.domain.conversation.dto.ConversationCreateRequest;
-import com.codeit.mpl.domain.conversation.dto.ConversationDto;
-import com.codeit.mpl.domain.conversation.dto.ConversationQueryDto;
-import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
-import com.codeit.mpl.domain.conversation.dto.DirectMessageSendRequest;
-import com.codeit.mpl.domain.conversation.entity.Conversation;
-import com.codeit.mpl.domain.conversation.entity.DirectMessage;
-import com.codeit.mpl.domain.conversation.repository.ConversationRepository;
-import com.codeit.mpl.domain.conversation.repository.DirectMessageRepository;
-import com.codeit.mpl.domain.notification.event.NotificationEvent;
-import com.codeit.mpl.domain.user.entity.User;
-import com.codeit.mpl.domain.user.repository.UserRepository;
-import com.codeit.mpl.infra.common.dto.CursorPageRequestDto;
-import com.codeit.mpl.infra.common.dto.CursorPageResponseDto;
-import com.codeit.mpl.infra.common.dto.Direction;
-import com.codeit.mpl.infra.storage.BinaryContentStorage;
-import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import com.codeit.mpl.infra.exception.conversation.ConversationNotFoundException;
-import com.codeit.mpl.infra.exception.user.UserNotFoundException;
-import java.util.UUID;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Pageable;
-
-import com.codeit.mpl.domain.notification.entity.NotificationType;
-import com.codeit.mpl.domain.notification.repository.NotificationRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ConversationServiceTest {

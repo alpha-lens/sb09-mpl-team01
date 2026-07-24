@@ -1,8 +1,9 @@
 package com.codeit.mpl.domain.content.repository;
 
-import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.domain.content.dto.query.ContentQueryRow;
+import com.codeit.mpl.domain.content.entity.ContentType;
 import com.codeit.mpl.infra.common.dto.Direction;
+
 import java.util.List;
 import java.util.UUID;
 

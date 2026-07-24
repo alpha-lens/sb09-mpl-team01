@@ -1,9 +1,10 @@
 package com.codeit.mpl.domain.curating.dto.request;
 
 import com.codeit.mpl.infra.common.dto.Direction;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.UUID;
 
 @Getter
 @Setter

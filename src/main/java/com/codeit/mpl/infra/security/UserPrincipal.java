@@ -1,9 +1,10 @@
 package com.codeit.mpl.infra.security;
 
-import java.util.Collection;
-import java.util.UUID;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+
+import java.util.Collection;
+import java.util.UUID;
 
 public record UserPrincipal(
     UUID userId,

@@ -3,11 +3,11 @@ package com.codeit.mpl.domain.curating.mapper;
 import com.codeit.mpl.domain.curating.dto.response.PlaylistDto;
 import com.codeit.mpl.domain.curating.entity.Playlist;
 import com.codeit.mpl.domain.user.dto.response.UserSummary;
-import com.codeit.mpl.domain.content.dto.response.ContentSummary;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
-import java.util.List;
 import org.mapstruct.Mapper;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.List;
 
 @Mapper(componentModel = "spring")
 public abstract class PlaylistMapper {
