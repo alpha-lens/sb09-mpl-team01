@@ -64,4 +64,16 @@ public class RedisConfig {
     public ChannelTopic chatTopic() {
         return new ChannelTopic("ch-chat");
     }
+
+    /**
+     * Creates a Redis Pub/Sub topic for watching session events.
+     *
+     * @return a ChannelTopic configured for the 'ch-watching-session' channel
+     */
+    @Bean
+    public ChannelTopic watchingSessionTopic() {
+        return new ChannelTopic("ch-watching-session");
+    }
 }
+
+
