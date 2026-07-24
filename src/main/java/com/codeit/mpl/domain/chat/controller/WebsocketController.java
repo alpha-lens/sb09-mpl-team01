@@ -86,6 +86,7 @@ public class WebsocketController {
                 RedisChatEvent event = new RedisChatEvent(
                         "CONTENT_CHAT",
                         "/sub/contents/" + contentId + "/chat",
+                        user.getId(),
                         null,
                         chatDto
                 );
@@ -115,6 +116,7 @@ public class WebsocketController {
                 RedisChatEvent event = new RedisChatEvent(
                         "DM",
                         "/sub/conversations/" + conversationId + "/direct-messages",
+                        user.getId(),
                         messageDto.receiver().userId(),
                         messageDto
                 );

@@ -5,6 +5,7 @@ import com.codeit.mpl.domain.chat.dto.RedisChatEvent;
 import com.codeit.mpl.domain.content.dto.ContentChatDto;
 import com.codeit.mpl.domain.conversation.dto.DirectMessageDto;
 import com.codeit.mpl.infra.sse.SseService;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.annotation.PostConstruct;
@@ -31,7 +32,9 @@ public class ChatRedisListener implements MessageListener {
     private final ChannelTopic chatTopic;
     private final SimpMessageSendingOperations messagingTemplate;
     private final SseService sseService;
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @PostConstruct
     public void init() {
