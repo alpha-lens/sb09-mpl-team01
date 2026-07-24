@@ -12,6 +12,8 @@ import com.codeit.mpl.domain.user.dto.UserSummary;
 import com.codeit.mpl.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -44,7 +46,10 @@ public class WatchingSessionManager {
     private final com.codeit.mpl.infra.storage.BinaryContentStorage binaryContentStorage;
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final ChannelTopic watchingSessionTopic;
+    
+    @Autowired(required = false)
+    @Qualifier("watchingSessionTopic")
+    private ChannelTopic watchingSessionTopic;
 
     // key: sessionId_subscriptionId
     private final Map<String, WatchingSessionDto> sessionMap = new ConcurrentHashMap<>();
