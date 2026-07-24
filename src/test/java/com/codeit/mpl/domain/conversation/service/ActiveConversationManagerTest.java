@@ -9,6 +9,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.SetOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
@@ -23,13 +25,21 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class ActiveConversationManagerTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private SetOperations<String, String> setOperations;
 
     @InjectMocks
     private ActiveConversationManager activeConversationManager;
@@ -53,6 +63,7 @@ class ActiveConversationManagerTest {
     @DisplayName("handleSubscribe - DM 구독 시 활성 대화 상대 등록")
     void handleSubscribe_success() {
         given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
+        org.mockito.Mockito.lenient().when(redisTemplate.opsForSet()).thenReturn(setOperations);
 
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setDestination("/sub/conversations/" + conversationId + "/direct-messages");
@@ -65,14 +76,14 @@ class ActiveConversationManagerTest {
 
         activeConversationManager.handleSubscribe(event);
 
-        boolean active = activeConversationManager.isUserActiveInConversation(userId, conversationId);
-        assertThat(active).isTrue();
+        verify(setOperations).add("active_conv:" + conversationId, userId.toString());
     }
 
     @Test
     @DisplayName("handleUnsubscribe - 구독 해제 시 활성 세션 제거")
     void handleUnsubscribe_success() {
         given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
+        org.mockito.Mockito.lenient().when(redisTemplate.opsForSet()).thenReturn(setOperations);
 
         StompHeaderAccessor subAccessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         subAccessor.setDestination("/sub/conversations/" + conversationId + "/direct-messages");
@@ -90,14 +101,14 @@ class ActiveConversationManagerTest {
         Message<byte[]> unsubMessage = MessageBuilder.createMessage(new byte[0], unsubAccessor.getMessageHeaders());
         activeConversationManager.handleUnsubscribe(new SessionUnsubscribeEvent(this, unsubMessage));
 
-        boolean active = activeConversationManager.isUserActiveInConversation(userId, conversationId);
-        assertThat(active).isFalse();
+        verify(setOperations).remove("active_conv:" + conversationId, userId.toString());
     }
 
     @Test
     @DisplayName("handleDisconnect - 연결 해제 시 모든 관련 세션 제거")
     void handleDisconnect_success() {
         given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
+        org.mockito.Mockito.lenient().when(redisTemplate.opsForSet()).thenReturn(setOperations);
 
         StompHeaderAccessor subAccessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         subAccessor.setDestination("/sub/conversations/" + conversationId + "/direct-messages");
@@ -111,7 +122,6 @@ class ActiveConversationManagerTest {
         SessionDisconnectEvent disconnectEvent = new SessionDisconnectEvent(this, subMessage, "session1", null);
         activeConversationManager.handleDisconnect(disconnectEvent);
 
-        boolean active = activeConversationManager.isUserActiveInConversation(userId, conversationId);
-        assertThat(active).isFalse();
+        verify(setOperations).remove("active_conv:" + conversationId, userId.toString());
     }
 }

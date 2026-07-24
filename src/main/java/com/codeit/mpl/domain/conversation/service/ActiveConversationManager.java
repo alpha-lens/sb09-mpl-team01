@@ -4,6 +4,7 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,18 +27,19 @@ import java.util.regex.Pattern;
 public class ActiveConversationManager {
 
     private final UserRepository userRepository;
+    private final StringRedisTemplate redisTemplate;
+
+    private static final String ACTIVE_CONVERSATION_KEY_PREFIX = "active_conv:";
 
     // key: sessionId_subscriptionId, value: UserConversationPair
     private final Map<String, UserConversationPair> sessionMap = new ConcurrentHashMap<>();
-    
-    // key: userId, value: Set of active conversationIds
-    private final Map<UUID, Set<UUID>> userActiveConversations = new ConcurrentHashMap<>();
 
     private static final Pattern DM_PATTERN = Pattern.compile("^/sub/conversations/([a-fA-F0-9\\-]+)/direct-messages$");
 
     public boolean isUserActiveInConversation(UUID userId, UUID conversationId) {
-        Set<UUID> activeConversations = userActiveConversations.get(userId);
-        return activeConversations != null && activeConversations.contains(conversationId);
+        String key = ACTIVE_CONVERSATION_KEY_PREFIX + conversationId;
+        Boolean isMember = redisTemplate.opsForSet().isMember(key, userId.toString());
+        return Boolean.TRUE.equals(isMember);
     }
 
     @EventListener
@@ -60,7 +62,9 @@ public class ActiveConversationManager {
                 userRepository.findByEmail(email).ifPresent(user -> {
                     UUID userId = user.getId();
                     sessionMap.put(key, new UserConversationPair(userId, conversationId));
-                    userActiveConversations.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(conversationId);
+                    
+                    // Redis Set에 추가 (다중 인스턴스 공유)
+                    redisTemplate.opsForSet().add(ACTIVE_CONVERSATION_KEY_PREFIX + conversationId, userId.toString());
                     log.info("[WebSocket DM Session] SUBSCRIBE: conversationId={}, userId={}, key={}", conversationId, userId, key);
                 });
             }
@@ -93,19 +97,14 @@ public class ActiveConversationManager {
             UUID userId = pair.userId();
             UUID conversationId = pair.conversationId();
             log.info("[WebSocket DM Session] UNSUBSCRIBE/DISCONNECT: conversationId={}, userId={}, key={}", conversationId, userId, key);
-            
-            // Check if user has other subscriptions to the same conversation
-            boolean stillSubscribed = sessionMap.values().stream()
-                .anyMatch(p -> p.userId().equals(userId) && p.conversationId().equals(conversationId));
-            
-            if (!stillSubscribed) {
-                Set<UUID> activeConversations = userActiveConversations.get(userId);
-                if (activeConversations != null) {
-                    activeConversations.remove(conversationId);
-                    if (activeConversations.isEmpty()) {
-                        userActiveConversations.remove(userId);
-                    }
-                }
+
+            // 해당 인스턴스에서 해당 사용자가 같은 대화방을 보고 있는 다른 웹소켓 연결이 없는지 검사
+            boolean stillSubscribedOnThisInstance = sessionMap.values().stream()
+                    .anyMatch(p -> p.userId().equals(userId) && p.conversationId().equals(conversationId));
+
+            if (!stillSubscribedOnThisInstance) {
+                // Redis Set에서 제거
+                redisTemplate.opsForSet().remove(ACTIVE_CONVERSATION_KEY_PREFIX + conversationId, userId.toString());
             }
         }
     }
