@@ -169,21 +169,7 @@ public class ConversationService {
 
     public void readConversationMessages(UUID conversationId, UUID directMessageId, UUID userId) {
         log.info("[ConversationService] 메시지 읽음 처리 요청 - conversationId: {}, directMessageId: {}, userId: {}", conversationId, directMessageId, userId);
-        directMessageRepository.findById(directMessageId)
-            .ifPresentOrElse(dm -> {
-                if (dm.getConversation().getId().equals(conversationId)
-                        && dm.getReceiver().getId().equals(userId)
-                        && !dm.isRead()) {
-                    dm.read();
-                    log.info("[ConversationService] 메시지 읽음 처리 완료 - directMessageId: {}", directMessageId);
-                    // 대화 메시지 읽음 시 해당 대화방의 모든 메시지가 읽음 상태인 경우에만 안 읽은 DM 알림 삭제
-                    if (directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversationId, userId) == 0) {
-                        notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
-                    }
-                } else {
-                    log.debug("[ConversationService] 메시지 읽음 처리 스킵 (자신의 메시지이거나 이미 읽음) - directMessageId: {}", directMessageId);
-                }
-            }, () -> log.warn("[ConversationService] 메시지 읽음 처리 실패 - 존재하지 않는 directMessageId: {}", directMessageId));
+        markAllAsRead(conversationId, userId);
     }
 
     public CursorPageResponseDto<DirectMessageDto> getDirectMessages(
@@ -192,6 +178,8 @@ public class ConversationService {
         int limit = request.limit() != null ? request.limit() : 20;
         UUID idAfter = request.idAfter();
         log.debug("[ConversationService] 메시지 목록 조회 시작 - conversationId: {}, userId: {}, limit: {}, idAfter: {}", conversationId, userId, limit, idAfter);
+
+        markAllAsRead(conversationId, userId);
 
         Pageable pageable = PageRequest.of(0, limit + 1);
         List<DirectMessage> list = directMessageRepository.findMessages(conversationId, idAfter, pageable);
@@ -204,18 +192,6 @@ public class ConversationService {
         List<DirectMessageDto> dtos = list.stream()
             .map(this::toDmDto)
             .toList();
-
-        long readCount = list.stream()
-            .filter(dm -> dm.getReceiver().getId().equals(userId) && !dm.isRead())
-            .peek(DirectMessage::read)
-            .count();
-        if (readCount > 0) {
-            log.info("[ConversationService] 수신 메시지 읽음 처리 완료 - conversationId: {}, userId: {}, 읽음 처리된 개수: {}", conversationId, userId, readCount);
-            // 대화방 진입으로 인한 메시지 읽음 시 해당 대화방의 모든 메시지가 읽음 상태인 경우에만 안 읽은 DM 알림 삭제
-            if (directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversationId, userId) == 0) {
-                notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
-            }
-        }
 
         String nextCursor = null;
         String nextIdAfter = null;
@@ -321,6 +297,16 @@ public class ConversationService {
     }
 
     // User.profileImageUrl 컬럼엔 S3 key가 저장되므로, 응답 시점마다 presigned URL로 변환해서 내려준다.
+    private void markAllAsRead(UUID conversationId, UUID userId) {
+        List<DirectMessage> unreadDms = directMessageRepository.findByConversationIdAndReceiverIdAndIsReadFalse(conversationId, userId);
+        if (!unreadDms.isEmpty()) {
+            unreadDms.forEach(DirectMessage::read);
+            log.debug("[ConversationService] 안 읽은 수신 메시지 일괄 읽음 처리 완료 - conversationId: {}, userId: {}, 처리 개수: {}", conversationId, userId, unreadDms.size());
+        }
+        notificationRepository.deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
+        log.debug("[ConversationService] DM 관련 안 읽은 알림 삭제 완료 - conversationId: {}, userId: {}", conversationId, userId);
+    }
+
     private String resolveProfileImageUrl(User user) {
         return resolveProfileImageUrl(user.getProfileImageUrl());
     }

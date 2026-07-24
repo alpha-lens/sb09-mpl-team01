@@ -229,94 +229,29 @@ class ConversationServiceTest {
   }
 
   @Test
-  @DisplayName("대화방 메시지 읽음 처리 - 성공 조건 부합 시 read() 호출 및 미읽음이 0인 경우 알림 삭제")
+  @DisplayName("대화방 메시지 읽음 처리 - 수신자 미읽음 일괄 읽음 처리 및 알림 삭제")
   void readConversationMessages_success() {
     // given
     UUID conversationId = UUID.randomUUID();
     UUID directMessageId = UUID.randomUUID();
     UUID userId = UUID.randomUUID();
+    List<DirectMessage> unreadMessages = List.of(mock(DirectMessage.class), mock(DirectMessage.class));
 
-    Conversation conversation = mock(Conversation.class);
-    given(conversation.getId()).willReturn(conversationId);
-
-    User receiver = mock(User.class);
-    given(receiver.getId()).willReturn(userId);
-
-    DirectMessage dm = mock(DirectMessage.class);
-    given(dm.getConversation()).willReturn(conversation);
-    given(dm.getReceiver()).willReturn(receiver);
-    given(dm.isRead()).willReturn(false);
-
-    given(directMessageRepository.findById(directMessageId)).willReturn(Optional.of(dm));
-    given(directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversationId, userId)).willReturn(0L);
+    given(directMessageRepository.findByConversationIdAndReceiverIdAndIsReadFalse(conversationId, userId))
+        .willReturn(unreadMessages);
 
     // when
     conversationService.readConversationMessages(conversationId, directMessageId, userId);
 
     // then
-    then(dm).should().read();
+    for (DirectMessage dm : unreadMessages) {
+        then(dm).should().read();
+    }
     then(notificationRepository).should().deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
   }
 
   @Test
-  @DisplayName("대화방 메시지 읽음 처리 - 미읽음이 남아있는 경우 알림 삭제 안 함")
-  void readConversationMessages_stillUnread_noNotificationDeletion() {
-    // given
-    UUID conversationId = UUID.randomUUID();
-    UUID directMessageId = UUID.randomUUID();
-    UUID userId = UUID.randomUUID();
-
-    Conversation conversation = mock(Conversation.class);
-    given(conversation.getId()).willReturn(conversationId);
-
-    User receiver = mock(User.class);
-    given(receiver.getId()).willReturn(userId);
-
-    DirectMessage dm = mock(DirectMessage.class);
-    given(dm.getConversation()).willReturn(conversation);
-    given(dm.getReceiver()).willReturn(receiver);
-    given(dm.isRead()).willReturn(false);
-
-    given(directMessageRepository.findById(directMessageId)).willReturn(Optional.of(dm));
-    given(directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversationId, userId)).willReturn(2L);
-
-    // when
-    conversationService.readConversationMessages(conversationId, directMessageId, userId);
-
-    // then
-    then(dm).should().read();
-    then(notificationRepository).should(never()).deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(any(), any(), any());
-  }
-
-  @Test
-  @DisplayName("대화방 메시지 읽음 처리 - 조건 미부합 시 read() 호출 안 함")
-  void readConversationMessages_noAction() {
-    // given
-    UUID conversationId = UUID.randomUUID();
-    UUID directMessageId = UUID.randomUUID();
-    UUID userId = UUID.randomUUID();
-
-    Conversation conversation = mock(Conversation.class);
-    given(conversation.getId()).willReturn(conversationId);
-
-    User receiver = mock(User.class);
-    given(receiver.getId()).willReturn(UUID.randomUUID()); // 다른 수신자
-
-    DirectMessage dm = mock(DirectMessage.class);
-    given(dm.getConversation()).willReturn(conversation);
-    given(dm.getReceiver()).willReturn(receiver);
-
-    given(directMessageRepository.findById(directMessageId)).willReturn(Optional.of(dm));
-
-    // when
-    conversationService.readConversationMessages(conversationId, directMessageId, userId);
-
-    // then
-    then(dm).should(never()).read();
-  }
-
-  @Test
-  @DisplayName("메시지 목록 조회 - 성공 및 미읽음이 0인 경우 알림 삭제")
+  @DisplayName("메시지 목록 조회 - 성공 및 미읽음 메시지 읽음 처리와 알림 삭제")
   void getDirectMessages_success() {
     // given
     UUID conversationId = UUID.randomUUID();
@@ -337,58 +272,19 @@ class ConversationServiceTest {
     given(dm.getConversation()).willReturn(conversation);
     given(dm.getSender()).willReturn(sender);
     given(dm.getReceiver()).willReturn(receiver);
-    given(dm.isRead()).willReturn(false);
 
+    given(directMessageRepository.findByConversationIdAndReceiverIdAndIsReadFalse(conversationId, userId))
+        .willReturn(List.of(dm));
     given(directMessageRepository.findMessages(eq(conversationId), any(), any(Pageable.class)))
         .willReturn(List.of(dm));
-    given(directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversationId, userId))
-        .willReturn(0L);
 
     // when
     CursorPageResponseDto<DirectMessageDto> result = conversationService.getDirectMessages(conversationId, userId, request);
 
     // then
     assertThat(result.data()).hasSize(1);
-    then(dm).should().read(); // 수신 메시지이므로 읽음 처리되어야 함
+    then(dm).should().read(); 
     then(notificationRepository).should().deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(userId, NotificationType.DM, conversationId);
-  }
-
-  @Test
-  @DisplayName("메시지 목록 조회 - 수신 메시지 읽음 처리 후에도 안 읽은 메시지가 남아있으면 알림 삭제 안 함")
-  void getDirectMessages_stillUnread_noNotificationDeletion() {
-    // given
-    UUID conversationId = UUID.randomUUID();
-    UUID userId = UUID.randomUUID();
-    CursorPageRequestDto request = new CursorPageRequestDto(null, UUID.randomUUID(), 10, Direction.DESCENDING, "createdAt");
-
-    Conversation conversation = mock(Conversation.class);
-    given(conversation.getId()).willReturn(conversationId);
-
-    User sender = mock(User.class);
-    given(sender.getId()).willReturn(UUID.randomUUID());
-
-    User receiver = mock(User.class);
-    given(receiver.getId()).willReturn(userId);
-
-    DirectMessage dm = mock(DirectMessage.class);
-    given(dm.getId()).willReturn(UUID.randomUUID());
-    given(dm.getConversation()).willReturn(conversation);
-    given(dm.getSender()).willReturn(sender);
-    given(dm.getReceiver()).willReturn(receiver);
-    given(dm.isRead()).willReturn(false);
-
-    given(directMessageRepository.findMessages(eq(conversationId), any(), any(Pageable.class)))
-        .willReturn(List.of(dm));
-    given(directMessageRepository.countByConversationIdAndIsReadFalseAndReceiverId(conversationId, userId))
-        .willReturn(1L);
-
-    // when
-    CursorPageResponseDto<DirectMessageDto> result = conversationService.getDirectMessages(conversationId, userId, request);
-
-    // then
-    assertThat(result.data()).hasSize(1);
-    then(dm).should().read();
-    then(notificationRepository).should(never()).deleteByReceiverIdAndTypeAndTargetIdAndIsReadFalse(any(), any(), any());
   }
 
   @Test
