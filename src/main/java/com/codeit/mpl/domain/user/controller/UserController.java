@@ -37,6 +37,7 @@ public class UserController implements UserApi {
     @GetMapping
     @Override
     public ResponseEntity<CursorPageResponseDto<UserDto>> findUsers(
+            @RequestParam(required = false) String keywordLike,
             @RequestParam(required = false) String emailLike,
             @RequestParam(required = false) UserRole roleEqual,
             @RequestParam(required = false) Boolean isLocked,
@@ -45,10 +46,11 @@ public class UserController implements UserApi {
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESCENDING") Direction sortDirection) {
-        log.debug("[User API] GET /api/users 요청 - emailLike={}, roleEqual={}, isLocked={}", emailLike, roleEqual, isLocked);
+        log.debug("[User API] GET /api/users 요청 - keywordLike={}, emailLike={}, roleEqual={}, isLocked={}", keywordLike, emailLike, roleEqual, isLocked);
         return ResponseEntity.ok(
-                userService.findUsers(emailLike, roleEqual, isLocked, cursor, idAfter, limit, sortBy, sortDirection));
+                userService.findUsers(keywordLike, emailLike, roleEqual, isLocked, cursor, idAfter, limit, sortBy, sortDirection));
     }
+
 
     @GetMapping("/{userId}")
     @Override

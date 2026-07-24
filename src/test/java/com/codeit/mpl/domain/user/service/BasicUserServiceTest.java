@@ -526,7 +526,7 @@ class BasicUserServiceTest {
     given(userMapper.toDto(user)).willReturn(userDto);
 
     CursorPageResponseDto<UserDto> result = userService.findUsers(
-        null, null, null, null, null, 20, "createdAt", Direction.DESCENDING);
+        null, null, null, null, null, null, 20, "createdAt", Direction.DESCENDING);
 
     assertThat(result.data()).containsExactly(userDto);
     assertThat(result.hasNext()).isFalse();
@@ -545,7 +545,8 @@ class BasicUserServiceTest {
     given(userMapper.toDto(any(User.class))).willReturn(userDto);
 
     CursorPageResponseDto<UserDto> result = userService.findUsers(
-        "test", UserRole.USER, false, "cursor", UUID.randomUUID(), 1, "createdAt", Direction.ASCENDING);
+        null, "test", UserRole.USER, false, "cursor", UUID.randomUUID(), 1, "createdAt", Direction.ASCENDING);
+
 
     assertThat(result.hasNext()).isTrue();
     assertThat(result.nextIdAfter()).isNotNull();

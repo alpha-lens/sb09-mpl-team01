@@ -2,6 +2,7 @@ package com.codeit.mpl.domain.user.service;
 
 import com.codeit.mpl.domain.notification.entity.NotificationLevel;
 import com.codeit.mpl.domain.notification.event.NotificationEvent;
+import java.time.Instant;
 import com.codeit.mpl.domain.user.dto.request.*;
 import com.codeit.mpl.domain.user.dto.response.SignInResult;
 import com.codeit.mpl.domain.user.dto.response.UserDto;
@@ -195,15 +196,15 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public CursorPageResponseDto<UserDto> findUsers(
-            String emailLike, UserRole roleEqual, Boolean isLocked,
+            String keywordLike, String emailLike, UserRole roleEqual, Boolean isLocked,
             String cursor, UUID idAfter, int limit,
             String sortBy, Direction sortDirection) {
 
         Sort.Direction dir = sortDirection == Direction.ASCENDING ? Sort.Direction.ASC : Sort.Direction.DESC;
-        Specification<User> spec = buildFilterSpec(emailLike, roleEqual, isLocked)
+        Specification<User> spec = buildFilterSpec(keywordLike, emailLike, roleEqual, isLocked)
                 .and(buildCursorSpec(cursor, idAfter, sortBy, dir));
 
-        Sort sort = Sort.by(dir, mapSortBy(sortBy)).and(Sort.by(Sort.Direction.ASC, "id"));
+        Sort sort = Sort.by(dir, mapSortBy(sortBy)).and(Sort.by(dir, "id"));
 
         List<User> users = userRepository.findAll(spec, PageRequest.of(0, limit + 1, sort)).getContent();
 
@@ -218,7 +219,7 @@ public class UserService {
             nextIdAfter = last.getId().toString();
         }
 
-        long totalCount = userRepository.count(buildFilterSpec(emailLike, roleEqual, isLocked));
+        long totalCount = userRepository.count(buildFilterSpec(keywordLike, emailLike, roleEqual, isLocked));
 
         return new CursorPageResponseDto<>(
                 content.stream().map(userMapper::toDto).toList(),
@@ -403,10 +404,17 @@ public class UserService {
                 .orElseThrow(UserNotFoundException::new);
     }
 
-    private Specification<User> buildFilterSpec(String emailLike, UserRole roleEqual, Boolean isLocked) {
+    private Specification<User> buildFilterSpec(String keywordLike, String emailLike, UserRole roleEqual, Boolean isLocked) {
         Specification<User> spec = (root, q, cb) -> cb.conjunction();
-        if (emailLike != null) {
-            spec = spec.and((root, q, cb) -> cb.like(root.get("email"), "%" + emailLike + "%"));
+        if (keywordLike != null && !keywordLike.isBlank()) {
+            String pattern = "%" + keywordLike.trim() + "%";
+            spec = spec.and((root, q, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("name")), pattern.toLowerCase()),
+                    cb.like(cb.lower(root.get("email")), pattern.toLowerCase())
+            ));
+        }
+        if (emailLike != null && !emailLike.isBlank()) {
+            spec = spec.and((root, q, cb) -> cb.like(root.get("email"), "%" + emailLike.trim() + "%"));
         }
         if (roleEqual != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("role"), roleEqual));
@@ -418,24 +426,52 @@ public class UserService {
     }
 
     private Specification<User> buildCursorSpec(String cursor, UUID idAfter, String sortBy, Sort.Direction dir) {
-        if (cursor == null || idAfter == null) {
+        if (cursor == null || cursor.isBlank()) {
             return (root, q, cb) -> cb.conjunction();
         }
         return (root, q, cb) -> {
-            String field = mapSortBy(sortBy);
-            jakarta.persistence.criteria.Expression<String> sortExpr = root.get(field).as(String.class);
-            jakarta.persistence.criteria.Expression<String> idExpr = root.get("id").as(String.class);
+            String fieldName = mapSortBy(sortBy);
+            jakarta.persistence.criteria.Path<?> path = root.get(fieldName);
+            Class<?> javaType = path.getJavaType();
 
-            jakarta.persistence.criteria.Predicate afterField = dir == Sort.Direction.ASC
-                    ? cb.greaterThan(sortExpr, cursor)
-                    : cb.lessThan(sortExpr, cursor);
-            jakarta.persistence.criteria.Predicate sameFieldAfterId = cb.and(
-                    cb.equal(sortExpr, cursor),
-                    cb.greaterThan(idExpr, idAfter.toString())
-            );
-            return cb.or(afterField, sameFieldAfterId);
+            jakarta.persistence.criteria.Expression sortExpr;
+            Comparable cursorObj;
+
+            if (javaType.equals(Instant.class)) {
+                sortExpr = root.get(fieldName).as(Instant.class);
+                cursorObj = Instant.parse(cursor);
+            } else if (javaType.equals(Boolean.class) || javaType.equals(boolean.class)) {
+                sortExpr = root.get(fieldName).as(Boolean.class);
+                cursorObj = Boolean.parseBoolean(cursor);
+            } else if (Enum.class.isAssignableFrom(javaType)) {
+                sortExpr = root.get(fieldName).as(String.class);
+                cursorObj = cursor;
+            } else {
+                sortExpr = root.get(fieldName).as(String.class);
+                cursorObj = cursor;
+            }
+
+            jakarta.persistence.criteria.Predicate compareSort;
+            if (dir == Sort.Direction.ASC) {
+                compareSort = cb.greaterThan(sortExpr, cursorObj);
+            } else {
+                compareSort = cb.lessThan(sortExpr, cursorObj);
+            }
+
+            if (idAfter == null) {
+                return compareSort;
+            }
+
+            jakarta.persistence.criteria.Predicate sameSort = cb.equal(sortExpr, cursorObj);
+            jakarta.persistence.criteria.Expression<UUID> idExpr = root.get("id");
+            jakarta.persistence.criteria.Predicate compareId = dir == Sort.Direction.ASC
+                    ? cb.greaterThan(idExpr, idAfter)
+                    : cb.lessThan(idExpr, idAfter);
+
+            return cb.or(compareSort, cb.and(sameSort, compareId));
         };
     }
+
 
     private String mapSortBy(String sortBy) {
         return "isLocked".equals(sortBy) ? "locked" : sortBy;

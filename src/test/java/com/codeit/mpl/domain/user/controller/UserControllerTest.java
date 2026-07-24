@@ -98,7 +98,7 @@ class UserControllerTest {
     CursorPageResponseDto<UserDto> responseDto = new CursorPageResponseDto<>(
         Collections.singletonList(userDto), null, null, false, 1L, "createdAt", Direction.DESCENDING
     );
-    given(userService.findUsers(any(), any(), any(), any(), any(), any(Integer.class), any(), any()))
+    given(userService.findUsers(any(), any(), any(), any(), any(), any(), any(Integer.class), any(), any()))
         .willReturn(responseDto);
 
     mockMvc.perform(get("/api/users")

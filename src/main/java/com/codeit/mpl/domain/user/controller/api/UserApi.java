@@ -29,13 +29,14 @@ public interface UserApi {
     })
     ResponseEntity<UserDto> createUser(@Valid @RequestBody UserCreateRequest request);
 
-    @Operation(summary = "[어드민] 사용자 목록 조회", description = "커서 기반 페이지네이션. 이메일·권한·잠금 상태 필터 가능.")
+    @Operation(summary = "[어드민] 사용자 목록 조회", description = "커서 기반 페이지네이션. 키워드(이름/이메일)·이메일·권한·잠금 상태 필터 가능.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 필요"),
             @ApiResponse(responseCode = "403", description = "권한 없음")
     })
     ResponseEntity<CursorPageResponseDto<UserDto>> findUsers(
+            @Parameter(description = "키워드 (이름/이메일) LIKE 검색") String keywordLike,
             @Parameter(description = "이메일 LIKE 검색") String emailLike,
             @Parameter(description = "권한 필터 (USER/ADMIN)") UserRole roleEqual,
             @Parameter(description = "잠금 상태 필터") Boolean isLocked,
@@ -45,6 +46,7 @@ public interface UserApi {
             @Parameter(description = "정렬 기준") String sortBy,
             @Parameter(description = "정렬 방향") Direction sortDirection
     );
+
 
     @Operation(summary = "사용자 상세 조회")
     @ApiResponses({
