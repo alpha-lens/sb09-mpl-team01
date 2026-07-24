@@ -1,6 +1,7 @@
 package com.codeit.mpl.domain.chat.service;
 
 import com.codeit.mpl.domain.content.dto.WatchingSessionDto;
+import com.codeit.mpl.domain.content.dto.WatchingSessionSnapshot;
 import com.codeit.mpl.domain.content.dto.response.ContentDto;
 import com.codeit.mpl.domain.content.repository.ContentRepository;
 import com.codeit.mpl.domain.content.service.ContentService;
@@ -651,6 +652,43 @@ public class WatchingSessionService {
         return activeWatcherCount != null
                 ? activeWatcherCount
                 : 0L;
+    }
+
+    /**
+     * 현재 활성 시청자 스냅샷(전체 목록 및 총 수)을 반환합니다.
+     */
+    public WatchingSessionSnapshot getActiveWatcherSnapshot(
+            UUID contentId
+    ) {
+        String contentKey = CONTENT_KEY_PREFIX + contentId;
+        double minScore = Instant.now()
+                .minusSeconds(SESSION_TIMEOUT_SECONDS)
+                .toEpochMilli();
+
+        Set<String> watcherIds = redisTemplate.opsForZSet()
+                .reverseRangeByScore(contentKey, minScore, Double.MAX_VALUE);
+
+        if (watcherIds == null || watcherIds.isEmpty()) {
+            return new WatchingSessionSnapshot(List.of(), 0L);
+        }
+
+        List<UUID> watcherUuids = watcherIds.stream()
+                .map(UUID::fromString)
+                .toList();
+
+        Map<UUID, User> userMap = userRepository.findAllById(watcherUuids)
+                .stream()
+                .collect(Collectors.toMap(User::getId, user -> user));
+
+        ContentDto contentDto = contentService.getContent(contentId);
+
+        List<WatchingSessionDto> sessionDtos = watcherUuids.stream()
+                .map(userMap::get)
+                .filter(Objects::nonNull)
+                .map(user -> createWatchingSessionDto(user, contentDto, contentKey))
+                .toList();
+
+        return new WatchingSessionSnapshot(sessionDtos, sessionDtos.size());
     }
 
     private WatchingSessionDto createWatchingSessionDto(

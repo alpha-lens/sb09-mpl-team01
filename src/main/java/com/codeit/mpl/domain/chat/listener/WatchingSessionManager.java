@@ -4,6 +4,7 @@ import com.codeit.mpl.domain.chat.service.WatchingSessionService;
 import com.codeit.mpl.domain.content.dto.ChangeType;
 import com.codeit.mpl.domain.content.dto.WatchingSessionChange;
 import com.codeit.mpl.domain.content.dto.WatchingSessionDto;
+import com.codeit.mpl.domain.content.dto.WatchingSessionSnapshot;
 import com.codeit.mpl.domain.content.dto.response.ContentDto;
 import com.codeit.mpl.domain.content.service.ContentService;
 import com.codeit.mpl.domain.user.dto.UserSummary;
@@ -69,6 +70,7 @@ public class WatchingSessionManager {
                 }
 
                 if (email != null) {
+                    final String userEmail = email;
                     userRepository.findByEmail(email).ifPresent(user -> {
                         // DB에는 S3 key가 저장되므로 presigned URL로 변환해서 내려준다.
                         String resolvedImageUrl = user.getProfileImageUrl() != null
@@ -83,11 +85,18 @@ public class WatchingSessionManager {
 
                         watchingSessionService.registerSession(user.getId(), contentId);
 
-                        long watcherCount = contentWatchers.get(contentId).size();
-                        WatchingSessionChange change = new WatchingSessionChange(ChangeType.JOIN, watchingSession, watcherCount);
+                        WatchingSessionSnapshot snapshot = watchingSessionService.getActiveWatcherSnapshot(contentId);
+                        WatchingSessionChange change = new WatchingSessionChange(ChangeType.JOIN, watchingSession, snapshot.totalCount());
 
-                        log.info("[WebSocket Session] JOIN: contentId={}, userId={}, count={}", contentId, user.getId(), watcherCount);
+                        log.info("[WebSocket Session] JOIN: contentId={}, userId={}, count={}", contentId, user.getId(), snapshot.totalCount());
                         messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/watch", change);
+
+                        // 신규 구독자 개인 큐로 현재 전체 참여자 스냅샷 Push
+                        messagingTemplate.convertAndSendToUser(
+                                userEmail,
+                                "/queue/contents/" + contentId + "/watch-snapshot",
+                                snapshot
+                        );
                     });
                 }
             }
@@ -107,13 +116,13 @@ public class WatchingSessionManager {
             Map<String, WatchingSessionDto> watchers = contentWatchers.get(contentId);
             if (watchers != null) {
                 watchers.remove(key);
-                watchingSessionService.removeSession(watchingSession.watcher().userId());
-                long watcherCount = watchers.size();
-                WatchingSessionChange change = new WatchingSessionChange(ChangeType.LEAVE, watchingSession, watcherCount);
-
-                log.info("[WebSocket Session] LEAVE: contentId={}, userId={}, count={}", contentId, watchingSession.watcher().userId(), watcherCount);
-                messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/watch", change);
             }
+            watchingSessionService.removeSession(watchingSession.watcher().userId());
+            long watcherCount = watchingSessionService.getWatcherCount(contentId);
+            WatchingSessionChange change = new WatchingSessionChange(ChangeType.LEAVE, watchingSession, watcherCount);
+
+            log.info("[WebSocket Session] LEAVE: contentId={}, userId={}, count={}", contentId, watchingSession.watcher().userId(), watcherCount);
+            messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/watch", change);
         }
     }
 
@@ -128,13 +137,13 @@ public class WatchingSessionManager {
                 Map<String, WatchingSessionDto> watchers = contentWatchers.get(contentId);
                 if (watchers != null) {
                     watchers.remove(key);
-                    watchingSessionService.removeSession(watchingSession.watcher().userId());
-                    long watcherCount = watchers.size();
-                    WatchingSessionChange change = new WatchingSessionChange(ChangeType.LEAVE, watchingSession, watcherCount);
-
-                    log.info("[WebSocket Session] DISCONNECT LEAVE: contentId={}, userId={}, count={}", contentId, watchingSession.watcher().userId(), watcherCount);
-                    messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/watch", change);
                 }
+                watchingSessionService.removeSession(watchingSession.watcher().userId());
+                long watcherCount = watchingSessionService.getWatcherCount(contentId);
+                WatchingSessionChange change = new WatchingSessionChange(ChangeType.LEAVE, watchingSession, watcherCount);
+
+                log.info("[WebSocket Session] DISCONNECT LEAVE: contentId={}, userId={}, count={}", contentId, watchingSession.watcher().userId(), watcherCount);
+                messagingTemplate.convertAndSend("/sub/contents/" + contentId + "/watch", change);
             }
         });
     }

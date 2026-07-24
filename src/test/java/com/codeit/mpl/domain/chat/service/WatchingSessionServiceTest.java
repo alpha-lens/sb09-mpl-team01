@@ -393,4 +393,20 @@ class WatchingSessionServiceTest {
 
         assertThat(count).isEqualTo(0L);
     }
+
+    @Test
+    @DisplayName("getActiveWatcherSnapshot - 활성 시청자 스냅샷 반환")
+    void getActiveWatcherSnapshot_success() {
+        given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
+        given(zSetOperations.reverseRangeByScore(anyString(), anyDouble(), anyDouble()))
+                .willReturn(Set.of(userId.toString()));
+        given(userRepository.findAllById(anyList())).willReturn(List.of(user));
+        given(contentService.getContent(contentId)).willReturn(null);
+
+        var snapshot = watchingSessionService.getActiveWatcherSnapshot(contentId);
+
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.totalCount()).isEqualTo(1L);
+        assertThat(snapshot.watchers()).hasSize(1);
+    }
 }
