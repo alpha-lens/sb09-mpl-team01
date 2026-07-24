@@ -1,5 +1,5 @@
 # ===== 1단계: 빌드 환경 (Builder Stage) =====
-FROM amazoncorretto:17 AS builder
+FROM amazoncorretto:17-alpine AS builder
 WORKDIR /build
 
 # 1. [레이어 캐싱 핵심] 의존성 관련 파일만 먼저 복사
@@ -8,6 +8,9 @@ COPY gradle gradle
 COPY build.gradle settings.gradle ./
 
 RUN chmod +x ./gradlew
+
+# [수정] Alpine 환경에 맞게 xargs(findutils) 설치 (캐시 미저장 옵션 추가)
+RUN apk add --no-cache findutils
 
 # 2. 소스 코드 넣기 전에 라이브러리 미리 다운로드 (캐시 활용)
 RUN ./gradlew dependencies --no-daemon
