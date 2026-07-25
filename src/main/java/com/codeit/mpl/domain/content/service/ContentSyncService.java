@@ -65,14 +65,7 @@ public class ContentSyncService {
                 continue;
             }
 
-            // TMDB API가 동일 페이지 또는 컬렉션 간 중복 항목을 반환하는 경우
-            // LinkedHashMap.put()이 덮어쓰기로 처리하므로 자동으로 중복이 제거된다.
             String externalIdKey = String.valueOf(item.id());
-            if (itemsByExternalId.containsKey(externalIdKey)) {
-                log.debug("Skipping duplicate TMDB item in source: externalId={}", externalIdKey);
-                skippedCount++;
-                continue;
-            }
             itemsByExternalId.put(externalIdKey, item);
         }
 
