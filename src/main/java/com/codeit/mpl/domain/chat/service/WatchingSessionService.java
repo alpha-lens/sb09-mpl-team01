@@ -14,6 +14,10 @@ import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -25,20 +29,36 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.codeit.mpl.infra.redis.RedisCacheConfig.CACHE_CONTENT_DETAIL;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class WatchingSessionService {
 
-    private static final String USER_KEY_PREFIX = "watching:user:";
+    private static final String USER_KEY_PREFIX    = "watching:user:";
     private static final String CONTENT_KEY_PREFIX = "watching:content:";
-    private static final long SESSION_TIMEOUT_SECONDS = 300L;
+    private static final long   SESSION_TIMEOUT_SECONDS = 300L;
+
+    /**
+     * watcherCount 델타 카운터 키 접두사. 세션 관리 키와 충돌없이 독립적으로 사용됩니다.
+     * 패턴: watcher-delta:{contentId}
+     */
+    private static final String WATCHER_DELTA_PREFIX = "watcher-delta:";
 
     private final StringRedisTemplate redisTemplate;
     private final UserRepository userRepository;
     private final ContentService contentService;
     private final ContentRepository contentRepository;
     private final BinaryContentStorage binaryContentStorage;
+    private final ObjectProvider<CacheManager> cacheManagerProvider;
+
+    /**
+     * watcherCount N회 증가마다 content-detail 캐시를 evict하는 임계값.
+     * 기본값 10, application.yaml에서 제어 가능: mpl.cache.watcher-evict-threshold
+     */
+    @Value("${mpl.cache.watcher-evict-threshold:10}")
+    private int watcherEvictThreshold;
 
     private final RedisScript<Long> registerScript = RedisScript.of(new ClassPathResource("scripts/register_session.lua"), Long.class);
     private final RedisScript<Long> touchScript = RedisScript.of(new ClassPathResource("scripts/touch_session.lua"), Long.class);
@@ -228,7 +248,7 @@ public class WatchingSessionService {
     /**
      * 사용자의 콘텐츠 시청 세션을 등록합니다.
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public void registerSession(UUID watcherId, UUID contentId) {
         String userKey = USER_KEY_PREFIX + watcherId;
         String previousContentId = redisTemplate.opsForValue().get(userKey);
@@ -243,13 +263,16 @@ public class WatchingSessionService {
         );
 
         if (isNewView) {
-            int updatedRows = contentRepository.incrementWatcherCount(contentId);
-            if (updatedRows == 0) {
+            if (!contentRepository.existsById(contentId)) {
                 redisTemplate.execute(removeScript, List.of(watcherId.toString()));
                 throw new IllegalArgumentException("존재하지 않는 콘텐츠입니다: " + contentId);
             }
 
-            log.info("[WatchingSession] Increased cumulative watcher count: watcher={}, content={}", watcherId, contentId);
+            String deltaKey = WATCHER_DELTA_PREFIX + contentId;
+            redisTemplate.opsForValue().increment(deltaKey);
+            redisTemplate.opsForSet().add("watcher-dirty-set", contentId.toString());
+
+            log.info("[WatchingSession] Increased cumulative watcher count (queued): watcher={}, content={}", watcherId, contentId);
         } else {
             log.debug("[WatchingSession] Skipped cumulative count because the same session was already registered: watcher={}, content={}", watcherId, contentId);
         }
@@ -342,4 +365,6 @@ public class WatchingSessionService {
                 Direction.DESCENDING
         );
     }
+
+
 }
