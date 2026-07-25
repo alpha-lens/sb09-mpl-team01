@@ -22,6 +22,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -51,6 +53,9 @@ class ReviewServiceTest {
 
   @Mock
   private ReviewMapper reviewMapper;
+
+  @Mock
+  private ObjectProvider<CacheManager> cacheManagerProvider;
 
   @InjectMocks
   private ReviewService reviewService;
@@ -121,6 +126,10 @@ class ReviewServiceTest {
     when(review.getAuthor()).thenReturn(author);
     when(author.getId()).thenReturn(authorId);
 
+    Content content = mock(Content.class);
+    when(review.getContent()).thenReturn(content);
+    when(content.getId()).thenReturn(UUID.randomUUID());
+
     reviewService.updateReview(authorId, reviewId, request);
 
     verify(review).update(request.text(), request.rating());
@@ -172,6 +181,10 @@ class ReviewServiceTest {
     when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(review));
     when(review.getAuthor()).thenReturn(author);
     when(author.getId()).thenReturn(authorId);
+
+    Content content = mock(Content.class);
+    when(review.getContent()).thenReturn(content);
+    when(content.getId()).thenReturn(UUID.randomUUID());
 
     reviewService.deleteReview(authorId, reviewId);
 

@@ -167,7 +167,7 @@ class ContentServiceTest {
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
             ContentDto result =
-                    contentService.createContent(ADMIN_EMAIL, request);
+                    contentService.createContent(ADMIN_EMAIL, request, null);
 
             assertThat(result).isSameAs(contentDto);
             verify(contentRepository).save(any(Content.class));
@@ -191,7 +191,7 @@ class ContentServiceTest {
                     .thenReturn(Optional.of(user));
 
             assertThatThrownBy(
-                    () -> contentService.createContent(USER_EMAIL, request)
+                    () -> contentService.createContent(USER_EMAIL, request, null)
             )
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("관리자만 콘텐츠를 등록할 수 있습니다.");
@@ -209,7 +209,7 @@ class ContentServiceTest {
                     mock(ContentCreateRequest.class);
 
             assertThatThrownBy(
-                    () -> contentService.createContent(null, request)
+                    () -> contentService.createContent(null, request, null)
             )
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("인증 정보가 유효하지 않습니다.");
@@ -224,7 +224,7 @@ class ContentServiceTest {
                     mock(ContentCreateRequest.class);
 
             assertThatThrownBy(
-                    () -> contentService.createContent("   ", request)
+                    () -> contentService.createContent("   ", request, null)
             )
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("인증 정보가 유효하지 않습니다.");
@@ -240,7 +240,7 @@ class ContentServiceTest {
                     .thenReturn(Optional.empty());
 
             assertThatThrownBy(
-                    () -> contentService.createContent(ADMIN_EMAIL, request)
+                    () -> contentService.createContent(ADMIN_EMAIL, request, null)
             )
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("존재하지 않는 사용자입니다.");
