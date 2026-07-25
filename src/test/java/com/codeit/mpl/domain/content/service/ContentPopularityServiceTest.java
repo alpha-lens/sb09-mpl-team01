@@ -33,13 +33,13 @@ class ContentPopularityServiceTest {
     void increaseWatcherCount_success() {
         UUID contentId = UUID.randomUUID();
 
-        when(contentRepository.incrementWatcherCount(contentId))
+        when(contentRepository.addWatcherCount(contentId, 1L))
                 .thenReturn(1);
 
         service.increaseWatcherCount(contentId);
 
         verify(contentRepository)
-                .incrementWatcherCount(contentId);
+                .addWatcherCount(contentId, 1L);
     }
 
     @Test
@@ -47,7 +47,7 @@ class ContentPopularityServiceTest {
     void increaseWatcherCount_failsWhenContentDoesNotExist() {
         UUID contentId = UUID.randomUUID();
 
-        when(contentRepository.incrementWatcherCount(contentId))
+        when(contentRepository.addWatcherCount(contentId, 1L))
                 .thenReturn(0);
 
         assertThatThrownBy(
@@ -60,6 +60,6 @@ class ContentPopularityServiceTest {
                 );
 
         verify(contentRepository)
-                .incrementWatcherCount(contentId);
+                .addWatcherCount(contentId, 1L);
     }
 }

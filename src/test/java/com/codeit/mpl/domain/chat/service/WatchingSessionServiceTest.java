@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -47,6 +48,8 @@ class WatchingSessionServiceTest {
     private ValueOperations<String, String> valueOperations;
     @Mock
     private ZSetOperations<String, String> zSetOperations;
+    @Mock
+    private SetOperations<String, String> setOperations;
 
     @InjectMocks
     private WatchingSessionService watchingSessionService;
@@ -141,7 +144,7 @@ class WatchingSessionServiceTest {
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.get("watching:user:" + userId)).willReturn(null);
 
-        given(contentRepository.incrementWatcherCount(contentId)).willReturn(0);
+        given(contentRepository.existsById(contentId)).willReturn(false);
 
         assertThatThrownBy(() -> watchingSessionService.registerSession(userId, contentId))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -342,14 +345,15 @@ class WatchingSessionServiceTest {
     void registerSession_withPreviousContent() {
         UUID prevContentId = UUID.randomUUID();
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(redisTemplate.opsForSet()).willReturn(setOperations);
         given(valueOperations.get("watching:user:" + userId)).willReturn(prevContentId.toString());
 
-        given(contentRepository.incrementWatcherCount(contentId)).willReturn(1);
+        given(contentRepository.existsById(contentId)).willReturn(true);
         given(redisTemplate.execute(any(RedisScript.class), anyList(), anyString())).willReturn(1L);
 
         watchingSessionService.registerSession(userId, contentId);
 
-        verify(contentRepository).incrementWatcherCount(contentId);
+        verify(contentRepository).existsById(contentId);
     }
 
     @Test
