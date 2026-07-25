@@ -34,6 +34,8 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
 
     @Value("${mpl.frontend.base-url}")
     private String frontendBaseUrl;
@@ -52,24 +54,15 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
-            /* 기존 csrf 형태인데, 알림이 제대로 가지 않는 것 때문에 일시적으로 비활성화해둠. 나중에 되돌리는 작업이 필요할 수 있음.
-              csrf -> csrf
-                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                .ignoringRequestMatchers(
-                    "/api/auth/sign-in", "/api/auth/sign-out", "/api/auth/reset-password",
-                    "/api/auth/refresh", "/api/users"
-                )
-            * */
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
-            // 인증은 JWT로만 하고 HttpSession은 OAuth2 로그인 handshake 동안만 잠깐 쓰는
-            // 임시 저장소라, 로그인 성공 시 세션 ID를 바꾸는 고정 공격 방지가 우리에겐 의미가 없다.
-            // 오히려 로그인 콜백 응답과 그 직후 동시에 들어오는 API 요청들이 예전 세션 ID를
-            // 참조하면서 "Session was invalidated"(RedisSessionRepository)로 깨지는 원인이었다.
             .sessionManagement(session -> session
                     .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                     .sessionFixation().none())
+            .exceptionHandling(exception -> exception
+                    .authenticationEntryPoint(customAuthenticationEntryPoint)
+                    .accessDeniedHandler(customAccessDeniedHandler)
+            )
             .authorizeHttpRequests(auth -> auth
                 .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/sign-in", "/api/auth/sign-out", "/api/auth/reset-password",
