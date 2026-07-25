@@ -26,6 +26,9 @@ import com.codeit.mpl.infra.common.dto.Direction;
 import com.codeit.mpl.infra.storage.BinaryContentStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -40,6 +43,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+
+import static com.codeit.mpl.infra.redis.RedisCacheConfig.CACHE_CONTENT_DETAIL;
+import static com.codeit.mpl.infra.redis.RedisCacheConfig.CACHE_CONTENT_LIST;
 
 @Slf4j
 @Service
@@ -67,13 +73,11 @@ public class ContentService {
     private final ReviewRepository reviewRepository;
     private final BinaryContentStorage binaryContentStorage;
 
-    public ContentDto createContent(
-            String requesterEmail,
-            ContentCreateRequest request
-    ) {
-        return createContent(requesterEmail, request, null);
-    }
-
+    /**
+     * 콘텐츠를 새로 생성합니다 (썸네일 포함).
+     * 생성 후 content-list 캐시 전체를 무효화합니다.
+     */
+    @CacheEvict(value = CACHE_CONTENT_LIST, allEntries = true)
     public ContentDto createContent(
             String requesterEmail,
             ContentCreateRequest request,
@@ -247,6 +251,12 @@ public class ContentService {
         }
     }
 
+    /**
+     * 단건 콘텐츠를 조회합니다.
+     * 캐시 키: contentId (UUID)
+     * TTL: 1시간 (콘텐츠 메타데이터 + 저장된 집계 통계)
+     */
+    @Cacheable(value = CACHE_CONTENT_DETAIL, key = "#contentId")
     @Transactional(readOnly = true)
     public ContentDto getContent(
             UUID contentId
@@ -261,6 +271,31 @@ public class ContentService {
         );
     }
 
+    /**
+     * 캐시를 거치지 않고 DB에서 직접 최신 콘텐츠를 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public ContentDto getContentNoCache(
+            UUID contentId
+    ) {
+        Content content =
+                getContentEntity(
+                        contentId
+                );
+
+        return toDto(
+                content
+        );
+    }
+
+    /**
+     * 콘텐츠를 수정합니다.
+     * 수정 후 해당 content-detail 캐시와 content-list 전체를 무효화합니다.
+     */
+    @Caching(evict = {
+            @CacheEvict(value = CACHE_CONTENT_DETAIL, key = "#contentId"),
+            @CacheEvict(value = CACHE_CONTENT_LIST,   allEntries = true)
+    })
     public ContentDto updateContent(
             String requesterEmail,
             UUID contentId,
@@ -269,6 +304,14 @@ public class ContentService {
         return updateContent(requesterEmail, contentId, request, null);
     }
 
+    /**
+     * 콘텐츠를 수정합니다 (썸네일 포함).
+     * 수정 후 해당 content-detail 캐시와 content-list 전체를 무효화합니다.
+     */
+    @Caching(evict = {
+            @CacheEvict(value = CACHE_CONTENT_DETAIL, key = "#contentId"),
+            @CacheEvict(value = CACHE_CONTENT_LIST,   allEntries = true)
+    })
     public ContentDto updateContent(
             String requesterEmail,
             UUID contentId,
@@ -371,6 +414,14 @@ public class ContentService {
         }
     }
 
+    /**
+     * 콘텐츠를 삭제합니다.
+     * 삭제 후 해당 content-detail 캐시와 content-list 전체를 무효화합니다.
+     */
+    @Caching(evict = {
+            @CacheEvict(value = CACHE_CONTENT_DETAIL, key = "#contentId"),
+            @CacheEvict(value = CACHE_CONTENT_LIST,   allEntries = true)
+    })
     public void deleteContent(
             String requesterEmail,
             UUID contentId
@@ -415,7 +466,19 @@ public class ContentService {
      *
      * 검색어가 없는 경우:
      * QueryDSL 기반 커서 페이지네이션을 사용합니다.
+     *
+     * 캐시 적용 조건: keywordLike 없는 경우만 캐시
+     * 캐시 키: {type}:{sortBy}:{sortDirection}:{limit}:{cursor}:{idAfter}
+     *   - cursor/idAfter 포함 → 1·2·3페이지 모두 자동 캐싱
+     *   - keyword 있는 검색 결과는 캐시 제외 (Elasticsearch 자체 캐싱에 위임)
+     * TTL: 5분
      */
+    @Cacheable(
+            value     = CACHE_CONTENT_LIST,
+            key       = "(#type == null ? 'ALL' : #type.name()) + ':' + #sortBy + ':' + #sortDirection.name()"
+                      + " + ':' + #limit + ':' + (#cursor ?: '') + ':' + (#idAfter ?: '')",
+            condition = "#keywordLike == null || #keywordLike.isBlank()"
+    )
     @Transactional(readOnly = true)
     public CursorPageResponseDto<ContentSummary> getContents(
             String cursor,
