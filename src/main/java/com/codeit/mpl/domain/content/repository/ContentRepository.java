@@ -44,18 +44,10 @@ public interface ContentRepository
     );
 
     /**
-     * 콘텐츠의 누적 시청 횟수를 1 증가시킵니다.
-     *
-     * 엔티티를 먼저 조회하고 값을 변경하는 방식이 아니라
-     * 데이터베이스에서 직접 watcher_count 값을 증가시킵니다.
-     *
-     * 다음과 같은 동시성 문제를 줄일 수 있습니다.
-     *
-     * 예:
-     * watcher_count가 10인 상태에서 두 사용자가 동시에 입장할 경우
-     * 각각의 UPDATE가 순차적으로 반영되어 최종 값은 12가 됩니다.
+     * 콘텐츠의 누적 시청 횟수를 delta만큼 증가시킵니다.
      *
      * @param contentId 누적 시청 횟수를 증가시킬 콘텐츠 ID
+     * @param delta 증가시킬 시청 횟수
      * @return 수정된 행 개수. 콘텐츠가 존재하면 1, 없으면 0
      */
     @Modifying(
@@ -66,13 +58,14 @@ public interface ContentRepository
             value = """
                     UPDATE contents
                     SET watcher_count =
-                        COALESCE(watcher_count, 0) + 1
+                        COALESCE(watcher_count, 0) + :delta
                     WHERE id = :contentId
                     """,
             nativeQuery = true
     )
-    int incrementWatcherCount(
-            @Param("contentId") UUID contentId
+    int addWatcherCount(
+            @Param("contentId") UUID contentId,
+            @Param("delta") long delta
     );
 
     @Query("SELECT c.id FROM Content c")
