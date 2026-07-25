@@ -18,6 +18,9 @@ import com.codeit.mpl.infra.exception.review.*;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,6 +35,8 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 
+import static com.codeit.mpl.infra.redis.RedisCacheConfig.CACHE_CONTENT_DETAIL;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,6 +47,7 @@ public class ReviewService {
   private final UserRepository userRepository;
   private final ContentRepository contentRepository;
   private final ReviewMapper reviewMapper;
+  private final ObjectProvider<CacheManager> cacheManagerProvider;
 
   public ReviewDto createReview(UUID authorId, ReviewCreateRequest request) {
     log.info("리뷰 생성 요청 - authorId={}, contentId={}, rating={}", authorId, request.contentId(), request.rating());
@@ -72,6 +78,7 @@ public class ReviewService {
     }
 
     updateContentReviewStats(content);
+    evictContentDetailCache(content.getId());
 
     log.info("리뷰 생성 완료 - reviewId={}, authorId={}, contentId={}", review.getId(), authorId, request.contentId());
     return reviewMapper.toDto(review);
@@ -95,6 +102,7 @@ public class ReviewService {
 
     review.update(request.text(), request.rating());
     updateContentReviewStats(review.getContent());
+    evictContentDetailCache(review.getContent().getId());
     log.info("리뷰 수정 완료 - reviewId={}", reviewId);
     return reviewMapper.toDto(review);
   }
@@ -118,6 +126,7 @@ public class ReviewService {
     Content content = review.getContent();
     reviewRepository.delete(review);
     updateContentReviewStats(content);
+    evictContentDetailCache(content.getId());
     log.info("리뷰 삭제 완료 - reviewId={}, authorId={}", reviewId, authorId);
   }
 
@@ -313,6 +322,28 @@ public class ReviewService {
       content.updateReviewStats(0.0, 0);
     }
     contentRepository.save(content);
+  }
+
+  /**
+   * 리뷰 변경(생성/수정/삭제) 후 해당 콘텐츠의 content-detail 캐시를 즉시 무효화합니다.
+   * averageRating, reviewCount가 Content 엔티티에 저장되므로 캐시 갱신이 필요합니다.
+   * CacheManager 장애 시 경고 로그만 남기고 계속 진행합니다.
+   */
+  private void evictContentDetailCache(UUID contentId) {
+    if (contentId == null) {
+      return;
+    }
+    try {
+      CacheManager cacheManager = cacheManagerProvider.getIfAvailable();
+      if (cacheManager == null) return;
+      Cache cache = cacheManager.getCache(CACHE_CONTENT_DETAIL);
+      if (cache != null) {
+        cache.evict(contentId);
+        log.debug("[Cache] content-detail evicted by review change: contentId={}", contentId);
+      }
+    } catch (Exception e) {
+      log.warn("[Cache] content-detail evict 실패 (review change): contentId={}: {}", contentId, e.getMessage());
+    }
   }
 }
 
