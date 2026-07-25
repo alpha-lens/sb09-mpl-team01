@@ -23,8 +23,8 @@ public class ContentPopularityService {
             UUID contentId
     ) {
         int updatedCount =
-                contentRepository.incrementWatcherCount(
-                        contentId
+                contentRepository.addWatcherCount(
+                        contentId, 1L
                 );
 
         if (updatedCount == 0) {
