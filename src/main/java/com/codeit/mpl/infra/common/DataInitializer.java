@@ -197,13 +197,47 @@ public class DataInitializer implements ApplicationRunner {
             int totalSynced = 0;
             for (int i = 0; i < documents.size(); i += batchSize) {
                 List<ContentDocument> batch = documents.subList(i, Math.min(i + batchSize, documents.size()));
-                contentSearchRepository.saveAll(batch);
+                syncBatchWithRetry(batch, i / batchSize + 1);
                 totalSynced += batch.size();
                 log.info("Elasticsearch sync progress: {}/{}", totalSynced, documents.size());
             }
             log.info("Successfully synced {} contents to Elasticsearch.", totalSynced);
         } catch (Exception e) {
-            log.error("Failed to sync database contents with Elasticsearch on startup", e);
+            // 시작 시 동기화 실패는 치명적이지 않다 — 다음 스케줄 동기화에서 자동 복구된다.
+            // ERROR 대신 WARN으로 기록해 불필요한 CloudWatch 알람을 방지한다.
+            log.warn("Failed to sync database contents with Elasticsearch on startup. " +
+                     "Service will continue; search may be temporarily incomplete. Cause: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 단일 배치를 Elasticsearch에 저장합니다.
+     * SocketTimeoutException 등 일시적 네트워크 오류에 대해 최대 MAX_RETRY회 재시도합니다.
+     */
+    private void syncBatchWithRetry(List<ContentDocument> batch, int batchIndex) {
+        int maxRetry = 3;
+        long retryDelayMs = 5_000L;
+
+        for (int attempt = 1; attempt <= maxRetry; attempt++) {
+            try {
+                contentSearchRepository.saveAll(batch);
+                return;
+            } catch (Exception e) {
+                if (attempt == maxRetry) {
+                    log.warn("[Elasticsearch Sync] Batch #{} failed after {} attempts. Skipping. Cause: {}",
+                            batchIndex, maxRetry, e.getMessage());
+                    return;
+                }
+                log.warn("[Elasticsearch Sync] Batch #{} attempt {}/{} failed ({}). Retrying in {}ms...",
+                        batchIndex, attempt, maxRetry, e.getMessage(), retryDelayMs);
+                try {
+                    Thread.sleep(retryDelayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.warn("[Elasticsearch Sync] Retry interrupted. Skipping remaining batches.");
+                    return;
+                }
+            }
         }
     }
 }

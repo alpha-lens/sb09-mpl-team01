@@ -13,6 +13,7 @@ import com.codeit.mpl.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,10 +65,15 @@ public class ContentSyncService {
                 continue;
             }
 
-            itemsByExternalId.put(
-                    String.valueOf(item.id()),
-                    item
-            );
+            // TMDB API가 동일 페이지 또는 컬렉션 간 중복 항목을 반환하는 경우
+            // LinkedHashMap.put()이 덮어쓰기로 처리하므로 자동으로 중복이 제거된다.
+            String externalIdKey = String.valueOf(item.id());
+            if (itemsByExternalId.containsKey(externalIdKey)) {
+                log.debug("Skipping duplicate TMDB item in source: externalId={}", externalIdKey);
+                skippedCount++;
+                continue;
+            }
+            itemsByExternalId.put(externalIdKey, item);
         }
 
         if (itemsByExternalId.isEmpty()) {
@@ -153,9 +159,15 @@ public class ContentSyncService {
         }
 
         if (!newContents.isEmpty()) {
-            contentRepository.saveAll(
-                    newContents
-            );
+            try {
+                contentRepository.saveAll(newContents);
+            } catch (DataIntegrityViolationException e) {
+                // DB 유니크 제약 조건 위반: 다른 컬렉션 또는 동시 실행에 의해 이미 저장된 항목이 있을 수 있다.
+                // 배치 전체를 실패시키지 않고 경고 로그로 기록한다.
+                log.warn("[TMDB Sync] Duplicate content detected during batch insert (source={}, count={}). " +
+                         "Some items may already exist. Cause: {}",
+                        sourceType, newContents.size(), e.getMostSpecificCause().getMessage());
+            }
         }
 
         return new ContentSyncResult(
