@@ -34,6 +34,8 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
 
     @Value("${mpl.frontend.base-url}")
     private String frontendBaseUrl;
@@ -86,6 +88,10 @@ public class SecurityConfig {
                 .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
                 .successHandler(oAuth2LoginSuccessHandler)
                 .failureHandler(oAuth2LoginFailureHandler)
+            )
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint(customAuthenticationEntryPoint)
+                .accessDeniedHandler(customAccessDeniedHandler)
             )
             .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, jwtUtil, objectMapper), UsernamePasswordAuthenticationFilter.class);
 
