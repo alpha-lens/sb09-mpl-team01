@@ -80,6 +80,10 @@ public class SecurityConfig {
                 .successHandler(oAuth2LoginSuccessHandler)
                 .failureHandler(oAuth2LoginFailureHandler)
             )
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint(customAuthenticationEntryPoint)
+                .accessDeniedHandler(customAccessDeniedHandler)
+            )
             .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, jwtUtil, objectMapper), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
