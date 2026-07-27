@@ -22,35 +22,41 @@ public class NotificationKafkaConsumer {
     /**
      * Consumes notification events from the Kafka notification topic.
      *
+     * <p>Exceptions are intentionally not caught here so that they propagate to the
+     * {@code DefaultErrorHandler} configured in {@code KafkaConfig}. The error handler will:
+     * <ul>
+     *   <li>Retry up to 3 times with exponential backoff for transient failures.</li>
+     *   <li>Publish the failed record to {@code notification-topic.DLT} after all retries
+     *       are exhausted.</li>
+     *   <li>Send {@link IllegalArgumentException} (e.g. receiver not found) directly to the
+     *       DLT without retrying, as these are non-recoverable business errors.</li>
+     * </ul>
+     *
      * @param message the notification event payload to process
      */
     @KafkaListener(topics = "notification-topic", groupId = "mpl-group")
     public void consumeNotificationEvent(NotificationKafkaMessage message) {
         log.info("[Kafka] 알림 이벤트 수신: {}", message);
-        
-        try {
-            User receiver = userRepository.findById(message.receiverId())
-                    .orElseThrow(() -> new IllegalArgumentException("Receiver not found: " + message.receiverId()));
-            
-            User sender = null;
-            if (message.senderId() != null) {
-                sender = userRepository.findById(message.senderId()).orElse(null);
-            }
 
-            NotificationEvent event = new NotificationEvent(
-                    receiver,
-                    sender,
-                    message.level(),
-                    message.title(),
-                    message.content(),
-                    message.type(),
-                    message.targetId()
-            );
+        User receiver = userRepository.findById(message.receiverId())
+                .orElseThrow(() -> new IllegalArgumentException("Receiver not found: " + message.receiverId()));
 
-            notificationAsyncHandler.process(event);
-            log.info("[Kafka] 알림 이벤트 처리 완료: receiverId={}", message.receiverId());
-        } catch (Exception e) {
-            log.error("[Kafka] 알림 처리 실패: {}", message, e);
+        User sender = null;
+        if (message.senderId() != null) {
+            sender = userRepository.findById(message.senderId()).orElse(null);
         }
+
+        NotificationEvent event = new NotificationEvent(
+                receiver,
+                sender,
+                message.level(),
+                message.title(),
+                message.content(),
+                message.type(),
+                message.targetId()
+        );
+
+        notificationAsyncHandler.process(event);
+        log.info("[Kafka] 알림 이벤트 처리 완료: receiverId={}", message.receiverId());
     }
 }
