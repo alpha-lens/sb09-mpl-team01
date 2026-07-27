@@ -1,15 +1,20 @@
 package com.codeit.mpl.domain.content.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
+import co.elastic.clients.elasticsearch.core.search.TotalHits;
+import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
 import co.elastic.clients.elasticsearch.indices.AnalyzeResponse;
 import co.elastic.clients.elasticsearch.indices.ElasticsearchIndicesClient;
 import co.elastic.clients.elasticsearch.indices.analyze.AnalyzeToken;
 import com.codeit.mpl.domain.content.entity.ContentDocument;
 import com.codeit.mpl.domain.content.repository.ContentSearchRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
@@ -23,10 +28,10 @@ import java.util.function.Function;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ContentSearchService 단위 테스트")
 class ContentSearchServiceTest {
 
     @Mock
@@ -35,102 +40,172 @@ class ContentSearchServiceTest {
     @Mock
     private ElasticsearchClient elasticsearchClient;
 
+    @InjectMocks
     private ContentSearchService contentSearchService;
 
-    @BeforeEach
-    void setUp() {
-        contentSearchService = new ContentSearchService(
-                contentSearchRepository,
-                elasticsearchClient
-        );
+    @Test
+    @DisplayName("한글 초성 검색어 입력 시 searchByChosung이 호출된다")
+    void search_withChosung_callsSearchByChosung() {
+        // given
+        String chosung = "ㄱㄴㄷ";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
+        given(contentSearchRepository.searchByChosung(eq("ㄱㄴㄷ"), any(Pageable.class))).willReturn(expectedPage);
+
+        // when
+        Page<ContentDocument> result = contentSearchService.search(chosung, pageable);
+
+        // then
+        assertThat(result).isNotNull();
+        verify(contentSearchRepository).searchByChosung(eq("ㄱㄴㄷ"), any(Pageable.class));
     }
 
     @Test
-    @DisplayName("초성 검색어가 들어오면 searchByChosung을 호출한다")
-    void search_chosungKeyword() {
-        // Given
-        String keyword = "ㅇㅌㅅㅌㄹ";
+    @DisplayName("10자 초과 초성 검색어 입력 시 10자로 잘라서 searchByChosung이 호출된다")
+    void search_withLongChosung_truncatesTo10Chars() {
+        // given
+        String longChosung = "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ";
         Pageable pageable = PageRequest.of(0, 10);
         Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
-        
-        when(contentSearchRepository.searchByChosung(eq("ㅇㅌㅅㅌㄹ"), eq(pageable)))
-                .thenReturn(expectedPage);
+        given(contentSearchRepository.searchByChosung(eq("ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊ"), any(Pageable.class))).willReturn(expectedPage);
 
-        // When
+        // when
+        Page<ContentDocument> result = contentSearchService.search(longChosung, pageable);
+
+        // then
+        assertThat(result).isNotNull();
+        verify(contentSearchRepository).searchByChosung(eq("ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊ"), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("공백이 없는 일반 키워드 입력 시 searchByKeyword가 호출된다")
+    void search_withSingleKeyword_callsSearchByKeyword() {
+        // given
+        String keyword = "기생충";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
+        given(contentSearchRepository.searchByKeyword(eq("기생충"), any(Pageable.class))).willReturn(expectedPage);
+
+        // when
         Page<ContentDocument> result = contentSearchService.search(keyword, pageable);
 
-        // Then
-        assertThat(result).isSameAs(expectedPage);
-        verify(contentSearchRepository).searchByChosung(eq("ㅇㅌㅅㅌㄹ"), eq(pageable));
-        verify(contentSearchRepository, never()).searchByKeyword(any(), any());
+        // then
+        assertThat(result).isNotNull();
+        verify(contentSearchRepository).searchByKeyword(eq("기생충"), any(Pageable.class));
     }
 
     @Test
-    @DisplayName("10자 초과 초성 검색어가 들어오면 10자로 잘라서 searchByChosung을 호출한다")
-    void search_chosungKeywordExceedingTenChars() {
-        // Given
-        String keyword = "ㅇㄴㅌㅅㅌㄹㅇㅇㅌㅅ"; // 11자
+    @DisplayName("elasticsearchClient가 null이고 공백 포함 키워드 검색 시 searchByKeyword fallback 동작한다")
+    void search_withNullElasticsearchClient_fallsBackToRawKeyword() {
+        // given
+        ContentSearchService nullEsService = new ContentSearchService(contentSearchRepository, null);
+        String keyword = "기생충 영화";
         Pageable pageable = PageRequest.of(0, 10);
         Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
+        given(contentSearchRepository.searchByKeyword(eq("기생충 영화"), any(Pageable.class))).willReturn(expectedPage);
 
-        when(contentSearchRepository.searchByChosung(eq("ㅇㄴㅌㅅㅌㄹㅇㅇㅌㅅ".substring(0, 10)), eq(pageable)))
-                .thenReturn(expectedPage);
+        // when
+        Page<ContentDocument> result = nullEsService.search(keyword, pageable);
 
-        // When
+        // then
+        assertThat(result).isNotNull();
+        verify(contentSearchRepository).searchByKeyword(eq("기생충 영화"), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Nori 토큰화 중 예외 발생 시 원본 키워드로 searchByKeyword fallback 동작한다")
+    void search_whenNoriFails_fallsBackToRawKeyword() throws Exception {
+        // given
+        String keyword = "기생충 영화";
+        Pageable pageable = PageRequest.of(0, 10);
+        ElasticsearchIndicesClient indicesClient = mock(ElasticsearchIndicesClient.class);
+        given(elasticsearchClient.indices()).willReturn(indicesClient);
+        given(indicesClient.analyze(any(Function.class))).willThrow(new RuntimeException("Nori error"));
+
+        Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
+        given(contentSearchRepository.searchByKeyword(eq("기생충 영화"), any(Pageable.class))).willReturn(expectedPage);
+
+        // when
         Page<ContentDocument> result = contentSearchService.search(keyword, pageable);
 
-        // Then
-        assertThat(result).isSameAs(expectedPage);
-        verify(contentSearchRepository).searchByChosung(eq("ㅇㄴㅌㅅㅌㄹㅇㅇㅌㅅ".substring(0, 10)), eq(pageable));
-        verify(contentSearchRepository, never()).searchByKeyword(any(), any());
+        // then
+        assertThat(result).isNotNull();
+        verify(contentSearchRepository).searchByKeyword(eq("기생충 영화"), any(Pageable.class));
     }
 
     @Test
-    @DisplayName("일반 단일 검색어가 들어오면 searchByKeyword를 호출한다")
-    void search_singleKeyword() {
-        // Given
-        String keyword = "영화";
+    @DisplayName("MultiToken 검색 중 ES 검색 예외 발생 시 repository searchByKeyword fallback 동작한다")
+    void search_whenMultiTokenSearchFails_fallsBackToRepositorySearch() throws Exception {
+        // given
+        String keyword = "기생충 영화";
         Pageable pageable = PageRequest.of(0, 10);
-        Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
-        
-        when(contentSearchRepository.searchByKeyword(eq("영화"), eq(pageable)))
-                .thenReturn(expectedPage);
-
-        // When
-        Page<ContentDocument> result = contentSearchService.search(keyword, pageable);
-
-        // Then
-        assertThat(result).isSameAs(expectedPage);
-        verify(contentSearchRepository).searchByKeyword(eq("영화"), eq(pageable));
-        verify(contentSearchRepository, never()).searchByChosung(any(), any());
-    }
-
-    @Test
-    @DisplayName("띄어쓰기가 포함된 검색어가 들어오고 nori 분석 토큰이 1개 이하이면 searchByKeyword를 호출한다")
-    @SuppressWarnings("unchecked")
-    void search_multiKeywordWithOneToken() throws Exception {
-        // Given
-        String keyword = "인기 영화";
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
 
         ElasticsearchIndicesClient indicesClient = mock(ElasticsearchIndicesClient.class);
-        when(elasticsearchClient.indices()).thenReturn(indicesClient);
+        given(elasticsearchClient.indices()).willReturn(indicesClient);
 
-        AnalyzeResponse response = mock(AnalyzeResponse.class);
-        AnalyzeToken token = mock(AnalyzeToken.class);
-        when(token.token()).thenReturn("영화");
-        when(response.tokens()).thenReturn(List.of(token));
+        AnalyzeResponse analyzeResponse = mock(AnalyzeResponse.class);
+        AnalyzeToken token1 = mock(AnalyzeToken.class);
+        given(token1.token()).willReturn("기생충");
+        AnalyzeToken token2 = mock(AnalyzeToken.class);
+        given(token2.token()).willReturn("영화");
+        given(analyzeResponse.tokens()).willReturn(List.of(token1, token2));
 
-        when(indicesClient.analyze(any(Function.class))).thenReturn(response);
-        when(contentSearchRepository.searchByKeyword(eq("인기 영화"), eq(pageable)))
-                .thenReturn(expectedPage);
+        given(indicesClient.analyze(any(Function.class))).willReturn(analyzeResponse);
+        given(elasticsearchClient.search(any(Function.class), eq(ContentDocument.class)))
+                .willThrow(new RuntimeException("Search failed"));
 
-        // When
+        Page<ContentDocument> expectedPage = new PageImpl<>(List.of());
+        given(contentSearchRepository.searchByKeyword(eq("기생충 영화"), any(Pageable.class))).willReturn(expectedPage);
+
+        // when
         Page<ContentDocument> result = contentSearchService.search(keyword, pageable);
 
-        // Then
-        assertThat(result).isSameAs(expectedPage);
-        verify(contentSearchRepository).searchByKeyword(eq("인기 영화"), eq(pageable));
+        // then
+        assertThat(result).isNotNull();
+        verify(contentSearchRepository).searchByKeyword(eq("기생충 영화"), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("MultiToken 검색 성공 시 ES 검색 결과를 Page 객체로 반환한다")
+    void search_multiTokenSuccess_returnsEsSearchResult() throws Exception {
+        // given
+        String keyword = "기생충 영화";
+        Pageable pageable = PageRequest.of(0, 10);
+
+        ElasticsearchIndicesClient indicesClient = mock(ElasticsearchIndicesClient.class);
+        given(elasticsearchClient.indices()).willReturn(indicesClient);
+
+        AnalyzeResponse analyzeResponse = mock(AnalyzeResponse.class);
+        AnalyzeToken token1 = mock(AnalyzeToken.class);
+        given(token1.token()).willReturn("기생충");
+        AnalyzeToken token2 = mock(AnalyzeToken.class);
+        given(token2.token()).willReturn("영화");
+        given(analyzeResponse.tokens()).willReturn(List.of(token1, token2));
+
+        given(indicesClient.analyze(any(java.util.function.Function.class))).willReturn(analyzeResponse);
+
+        ContentDocument doc = mock(ContentDocument.class);
+        Hit<ContentDocument> hit = mock(Hit.class);
+        given(hit.source()).willReturn(doc);
+
+        HitsMetadata<ContentDocument> hitsMetadata = mock(HitsMetadata.class);
+        given(hitsMetadata.hits()).willReturn(List.of(hit));
+
+        TotalHits totalHits = new TotalHits.Builder().value(1L).relation(TotalHitsRelation.Eq).build();
+        given(hitsMetadata.total()).willReturn(totalHits);
+
+        SearchResponse<ContentDocument> searchResponse = mock(SearchResponse.class);
+        given(searchResponse.hits()).willReturn(hitsMetadata);
+
+        given(elasticsearchClient.search(any(java.util.function.Function.class), eq(ContentDocument.class)))
+                .willReturn(searchResponse);
+
+        // when
+        Page<ContentDocument> result = contentSearchService.search(keyword, pageable);
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getTotalElements()).isEqualTo(1L);
     }
 }

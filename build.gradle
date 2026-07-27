@@ -104,7 +104,6 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-    ignoreFailures = false
     finalizedBy jacocoTestReport
 }
 
@@ -117,25 +116,24 @@ jacocoTestReport {
 
     reports {
         xml.required = true
+        xml.outputLocation = file("${buildDir}/reports/jacoco/test/jacocoTestReport.xml")
         html.required = true
     }
 
-    afterEvaluate {
-        classDirectories.setFrom(files(classDirectories.files.collect {
-            fileTree(dir: it, exclude: [
-                    "**/*Dto*",                // DTO 관련
-                    "**/*Request*",            // 요청 관련
-                    "**/*Response*",           // 응답 관련
-                    "**/entity/**",            // 엔티티 관련
-                    "**/repository/**",        // 리포지토리 인터페이스들
-                    "**/mapper/**",            // MapStruct Mapper들
-                    "**/config/**",            // 설정들
-                    "**/exception/**",         // 예외 클래스
-                    "**/event/**",             // 이벤트 관련
-                    "**/infra/**",             // 인프라 레벨 (Redis, Kafka, AWS 등)
-                    "**/domain/**/dto/**",     // 모든 DTO 패키지
-                    "**/domain/**/mapper/**"   // 모든 매퍼 패키지
-            ])
-        }))
-    }
+    classDirectories.setFrom(
+        fileTree(dir: "${project.layout.buildDirectory.get().asFile}/classes/java/main", exclude: [
+                "**/*Dto*",                // DTO 관련
+                "**/*Request*",            // 요청 관련
+                "**/*Response*",           // 응답 관련
+                "**/entity/**",            // 엔티티 관련
+                "**/repository/**",        // 리포지토리 인터페이스들
+                "**/mapper/**",            // MapStruct Mapper들
+                "**/config/**",            // 설정들
+                "**/exception/**",         // 예외 클래스
+                "**/event/**",             // 이벤트 관련
+                "**/infra/**",             // 인프라 레벨 (Redis, Kafka, AWS 등)
+                "**/domain/**/dto/**",     // 모든 DTO 패키지
+                "**/domain/**/mapper/**"   // 모든 매퍼 패키지
+        ])
+    )
 }

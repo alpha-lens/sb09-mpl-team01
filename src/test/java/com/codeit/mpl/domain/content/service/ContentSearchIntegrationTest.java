@@ -27,6 +27,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.junit.jupiter.api.Disabled("외부 Elasticsearch 인프라 의존성 테스트")
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
     "spring.autoconfigure.exclude=",
