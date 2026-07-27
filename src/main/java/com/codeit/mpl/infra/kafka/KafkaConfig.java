@@ -2,6 +2,7 @@ package com.codeit.mpl.infra.kafka;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,8 +12,11 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -130,6 +134,42 @@ public class KafkaConfig {
         // 원본 값은 String으로만 역직렬화되고, 실제 리스너 파라미터 타입(예: ChatMessage)으로의
         // JSON 변환은 이 컨버터가 담당한다.
         factory.setRecordMessageConverter(new StringJsonMessageConverter());
+        factory.setCommonErrorHandler(kafkaErrorHandler(kafkaTemplate()));
         return factory;
+    }
+
+    /**
+     * Configures a Kafka error handler with exponential backoff retry and dead-letter topic (DLT) publishing.
+     *
+     * <p>On consumer exception:
+     * <ol>
+     *   <li>Retries up to 3 times with exponential backoff (1s → 2s → 4s).</li>
+     *   <li>After all retries are exhausted, publishes the failed record to
+     *       {@code {originalTopic}.DLT} for later inspection or reprocessing.</li>
+     * </ol>
+     *
+     * <p>{@link IllegalArgumentException} is treated as a non-retryable business error
+     * and is sent directly to the DLT without retrying.
+     *
+     * @param kafkaTemplate the template used to publish messages to the DLT topic
+     * @return a configured {@link DefaultErrorHandler}
+     */
+    @Bean
+    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, Object> kafkaTemplate) {
+        // 실패 메시지를 {originalTopic}.DLT 토픽으로 전송
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
+                kafkaTemplate,
+                (record, ex) -> new TopicPartition(record.topic() + ".DLT", record.partition())
+        );
+
+        // 지수 백오프: 1s → 2s → 4s (최대 3회 재시도)
+        ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(3);
+        backOff.setInitialInterval(1_000L);
+        backOff.setMultiplier(2.0);
+
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, backOff);
+        // 비즈니스 예외(수신자 미존재 등)는 재시도해도 성공할 수 없으므로 즉시 DLT 전송
+        handler.addNotRetryableExceptions(IllegalArgumentException.class);
+        return handler;
     }
 }
