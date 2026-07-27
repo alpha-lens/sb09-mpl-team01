@@ -91,6 +91,28 @@ public class SseEmitterRepository {
     }
 
     /**
+     * Removes cached events whose keys contain a timestamp older than the given cutoff.
+     *
+     * <p>The key format is expected to be {@code {userId}_{timestampMillis}}.
+     * Any entry whose embedded timestamp is strictly less than {@code cutoffTimestamp}
+     * will be removed. Keys that do not conform to this format are left untouched.
+     *
+     * @param cutoffTimestamp epoch millis; entries older than this value are deleted
+     */
+    public void deleteEventCacheOlderThan(long cutoffTimestamp) {
+        eventCache.keySet().removeIf(key -> {
+            int underscoreIdx = key.lastIndexOf('_');
+            if (underscoreIdx < 0) return false;
+            try {
+                long ts = Long.parseLong(key.substring(underscoreIdx + 1));
+                return ts < cutoffTimestamp;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        });
+    }
+
+    /**
      * Retrieves all active emitters.
      *
      * @return a map of all currently active SseEmitters
