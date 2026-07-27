@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 
@@ -17,6 +18,21 @@ public class SseService {
 
     private static final Long DEFAULT_TIMEOUT = 60L * 1000 * 60; // 1시간
     private final SseEmitterRepository sseEmitterRepository;
+
+    /**
+     * Periodically cleans up SSE event cache entries older than 5 minutes.
+     *
+     * <p>The event cache ({@code eventCache}) accumulates entries for each notification or DM
+     * sent via SSE to support {@code Last-Event-ID} replay on reconnection. Without cleanup,
+     * these entries grow indefinitely and cause a memory leak. Entries are keyed as
+     * {@code {userId}_{timestampMillis}}, so timestamps older than the cutoff are safe to remove.
+     */
+    @Scheduled(fixedDelay = 300_000) // 5분
+    public void cleanExpiredEventCache() {
+        long cutoff = System.currentTimeMillis() - Duration.ofMinutes(5).toMillis();
+        sseEmitterRepository.deleteEventCacheOlderThan(cutoff);
+        log.debug("[SSE] 만료된 이벤트 캐시 항목 정리 완료 (cutoff={}ms ago)", Duration.ofMinutes(5).toMillis());
+    }
 
     /**
      * Periodically sends a heartbeat event to all active emitters to prevent connection timeouts.
