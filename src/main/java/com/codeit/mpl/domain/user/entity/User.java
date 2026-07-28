@@ -49,7 +49,12 @@ public class User extends BaseUpdatableEntity {
   @Column(name = "provider_id", length = 255)
   private String providerId;
 
+  @Column(name = "is_name_customized", nullable = false)
+  @Builder.Default
+  private boolean nameCustomized = false;
+
   public void updateName(String name) { this.name = name; }
+  public void markNameCustomized() { this.nameCustomized = true; }
   public void updateProviderId(String providerId) { this.providerId = providerId; }
   public void updatePassword(String encodedPassword) { this.password = encodedPassword; }
   public void updateRole(UserRole role) { this.role = role; }
