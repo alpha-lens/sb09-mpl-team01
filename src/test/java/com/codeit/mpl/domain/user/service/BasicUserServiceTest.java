@@ -420,6 +420,7 @@ class BasicUserServiceTest {
     given(userRepository.findByProviderAndProviderId(AuthProvider.KAKAO, "kakao-123"))
         .willReturn(Optional.of(user));
     given(user.getName()).willReturn(name);
+    given(user.isNameCustomized()).willReturn(false);
     given(user.isLocked()).willReturn(false);
     given(user.getId()).willReturn(userId);
 
@@ -427,6 +428,23 @@ class BasicUserServiceTest {
 
     assertThat(result).isEqualTo(userId);
     then(user).should().updateName(changedName);
+    then(userRepository).should(never()).save(any());
+  }
+
+  @Test
+  @DisplayName("OAuth 사용자 처리 - 사용자가 앱에서 이름을 직접 수정했으면 카카오 닉네임으로 덮어쓰지 않는다")
+  void resolveOrCreateOAuthUser_foundByProviderId_nameCustomized_notOverwritten() {
+    String kakaoNickname = "카카오쪽닉네임(원본)";
+    given(userRepository.findByProviderAndProviderId(AuthProvider.KAKAO, "kakao-123"))
+        .willReturn(Optional.of(user));
+    given(user.isNameCustomized()).willReturn(true);
+    given(user.isLocked()).willReturn(false);
+    given(user.getId()).willReturn(userId);
+
+    UUID result = userService.resolveOrCreateOAuthUser(email, kakaoNickname, AuthProvider.KAKAO, "kakao-123");
+
+    assertThat(result).isEqualTo(userId);
+    then(user).should(never()).updateName(any());
     then(userRepository).should(never()).save(any());
   }
 
@@ -561,6 +579,7 @@ class BasicUserServiceTest {
     userService.updateUser(userId, new UserUpdateRequest("새이름"), null);
 
     then(user).should().updateName("새이름");
+    then(user).should().markNameCustomized();
     then(binaryContentStorage).should(never()).put(any(), any());
     then(user).should(never()).updateProfileImageUrl(any());
   }
