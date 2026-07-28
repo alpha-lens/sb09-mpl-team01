@@ -131,7 +131,7 @@ public class UserService {
         if (providerId != null) {
             user = userRepository.findByProviderAndProviderId(provider, providerId)
                     .map(existing -> {
-                        if (!existing.getName().equals(name)) {
+                        if (!existing.isNameCustomized() && !existing.getName().equals(name)) {
                             existing.updateName(name);
                         }
                         return existing;
@@ -248,6 +248,7 @@ public class UserService {
 
         User user = findUserById(userId);
         user.updateName(request.name());
+        user.markNameCustomized();
         if (storedKey != null) {
             String previousKey = user.getProfileImageUrl();
             user.updateProfileImageUrl(storedKey);
