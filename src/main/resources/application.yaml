@@ -16,7 +16,11 @@ spring:
   datasource:
     hikari:
       connection-timeout: 5000
-      leak-detection-threshold: 2000
+      # reindexAll() @Transactional 분리 이후에도 여유롭게 감지하도록 60초로 설정
+      # 근본 원인(트랜잭션 범위 분리) 해결 후 모니터링하여 재조정 가능
+      leak-detection-threshold: 60000
+      maximum-pool-size: 10
+      minimum-idle: 5
 
   data:
     redis:

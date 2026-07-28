@@ -22,7 +22,11 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 5000
-      leak-detection-threshold: 2000
+      # 프로덕션 환경에서는 reindexAll() 등 무거운 작업을 고려하여 60초 설정
+      leak-detection-threshold: 60000
+      # ECS 태스크(CPU 512, Memory 900MB) 환경에서의 적절한 커넥션 풀 크기
+      maximum-pool-size: 15
+      minimum-idle: 5
 
   spring:
     show-sql: false

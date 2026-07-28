@@ -61,14 +61,19 @@ public class ElasticsearchSyncService {
      * DB의 모든 콘텐츠를 OpenSearch에 전체 재색인합니다.
      * 인덱스를 초기화하고 413 오류를 막기 위해 BATCH_SIZE(100건)씩 나눠서 인덱싱합니다.
      *
+     * <p>@Transactional을 메서드 전체에 적용하면 contentRepository.findAll() 이후
+     * OpenSearch HTTP 통신이 끝날 때까지 DB 커넥션을 반납하지 않아 HikariCP
+     * 커넥션 풀 고갈 및 Connection Leak 경고를 유발합니다.
+     * 이를 방지하기 위해 DB 조회만 별도 트랜잭션 메서드로 분리합니다.</p>
+     *
      * @return 동기화 결과 요약
      */
-    @Transactional(readOnly = true)
     public SyncResult reindexAll() {
         log.info("[ES Sync] 전체 재색인 시작");
         recreateIndexWithMapping();
 
-        List<Content> allContents = contentRepository.findAll();
+        // DB 조회를 별도 트랜잭션으로 위임하여 조회 완료 즉시 커넥션 반납
+        List<Content> allContents = readAllContentsInTransaction();
         int total = allContents.size();
 
         if (total == 0) {
@@ -108,6 +113,16 @@ public class ElasticsearchSyncService {
 
         log.info("[ES Sync] 전체 재색인 완료 - total={}, synced={}, failed={}", total, synced, failed);
         return new SyncResult(total, synced, failed, failedIds);
+    }
+
+    /**
+     * DB에서 전체 콘텐츠를 조회하고, 트랜잭션 종료 즉시 커넥션을 반납합니다.
+     * reindexAll()의 OpenSearch HTTP 통신과 DB 트랜잭션 범위를 분리하기 위해
+     * 별도 메서드로 추출되었습니다.
+     */
+    @Transactional(readOnly = true)
+    public List<Content> readAllContentsInTransaction() {
+        return contentRepository.findAll();
     }
 
     /**
@@ -192,10 +207,10 @@ public class ElasticsearchSyncService {
      *호출
      * @return 동기화 결과 요약
      */
-    @Transactional(readOnly = true)
     public SyncResult syncDiff() {
         log.info("[ES Sync] 불일치 항목 선택 동기화 시작");
 
+        // validateDiff() 내부에서 트랜잭션이 완료되어 커넥션이 반납된 후 OpenSearch 통신 수행
         DiffResult diff = validateDiff();
 
         int synced = 0;
