@@ -36,6 +36,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_users_provider_provider_id
     ON users (provider, provider_id)
     WHERE provider_id IS NOT NULL;
 
+-- 사용자가 프로필에서 이름을 직접 수정한 적이 있는지 여부.
+-- true면 OAuth 재로그인 시 제공자 쪽 닉네임으로 name을 동기화하지 않는다.
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_name_customized BOOLEAN NOT NULL DEFAULT FALSE;
+
 
 -- 2. 콘텐츠 테이블 (contents)
 CREATE TABLE IF NOT EXISTS contents (
